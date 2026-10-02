@@ -53,8 +53,12 @@ jobs:
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
             echo "VAULTLOCKS_KEYSTORE_FILE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
             echo "SIGNED_WITH=release key" >> "$GITHUB_ENV"
+            echo "PUBLISH=true" >> "$GITHUB_ENV"
           else
-            echo "::warning::VAULTLOCKS_KEYSTORE_BASE64 secret not set - signing with a temporary debug key."
+            # A temporary key changes every run, so such APKs can't update each other
+            # ("App not installed"). Build them as a downloadable artifact only — never a release.
+            echo "::warning::Signing secrets not set - APK uses a temporary key and will NOT be published as a release."
+            echo "PUBLISH=false" >> "$GITHUB_ENV"
             echo "SIGNED_WITH=temporary debug key (add the signing secrets for stable updates)" >> "$GITHUB_ENV"
           fi
 
@@ -89,6 +93,7 @@ jobs:
             SHA256SUMS.txt
 
       - name: Publish GitHub release
+        if: env.PUBLISH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
