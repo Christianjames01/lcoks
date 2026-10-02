@@ -38,6 +38,8 @@ export interface CardSpec {
   extra?: string;
   /** Right-bottom badge, e.g. blood type. (Card networks come from the secret meta.) */
   badge?: string;
+  /** ID cards only: labelled fields shown in the ID-card layout. */
+  idFields?: { caption: string; value: string }[];
   /** Secret on the back of the card (CVV). */
   backKey?: string;
 }
@@ -86,7 +88,12 @@ export function cardSpec(e: EntryView): CardSpec | null {
         holderCaption: 'Name',
         holder: f.fullName ?? '',
         extraCaption: f.expiryDate ? 'Valid until' : undefined,
-        extra: f.expiryDate ? formatDate(f.expiryDate) : undefined
+        extra: f.expiryDate ? formatDate(f.expiryDate) : undefined,
+        idFields: [
+          { caption: 'Issued', value: f.issueDate ? formatDate(f.issueDate) : '—' },
+          { caption: 'Valid until', value: f.expiryDate ? formatDate(f.expiryDate) : '—' },
+          ...(f.issuedBy ? [{ caption: 'Issued by', value: f.issuedBy }] : [])
+        ]
       };
     case 'insurance':
       return {

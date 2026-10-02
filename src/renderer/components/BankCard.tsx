@@ -168,9 +168,57 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
                 key={i}
                 className="card-edge"
                 aria-hidden
-                style={{ background: theme.background, transform: `translateZ(${((i - (EDGE_LAYERS - 1) / 2) * 0.95).toFixed(2)}px)` }}
+                style={{
+                  background: spec.kind === 'id' ? '#cfc8b6' : theme.background,
+                  transform: `translateZ(${((i - (EDGE_LAYERS - 1) / 2) * 0.95).toFixed(2)}px)`
+                }}
               />
             ))}
+            {spec.kind === 'id' ? (
+              <div className="face front id-face">
+                <div className="glare" aria-hidden />
+                <div className="id-band" style={faceStyle}>
+                  <span className="id-country">Republic of the Philippines</span>
+                  <span className="id-title">{entry.fields.idType && entry.fields.idType !== 'Other' ? entry.fields.idType : theme.label}</span>
+                </div>
+                <div className="id-body">
+                  <div className="id-photo" aria-hidden>
+                    <svg viewBox="0 0 40 48" width="100%" height="100%" aria-hidden>
+                      <circle cx="20" cy="17" r="8" fill="currentColor" />
+                      <path d="M5 46c1-10 7-15 15-15s14 5 15 15z" fill="currentColor" />
+                    </svg>
+                  </div>
+                  <div className="id-fields">
+                    <div className="id-field">
+                      <span className="id-cap">Name</span>
+                      <span className="id-val">{holder || '—'}</span>
+                    </div>
+                    <div className="id-field">
+                      <span className="id-cap">ID No.</span>
+                      <span className="id-val mono">{number !== null ? number : maskedNumber}</span>
+                    </div>
+                    <div className="id-row">
+                      {(spec.idFields ?? []).slice(0, 2).map((f) => (
+                        <div className="id-field" key={f.caption}>
+                          <span className="id-cap">{f.caption}</span>
+                          <span className="id-val">{f.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {spec.idFields?.[2] && (
+                      <div className="id-field">
+                        <span className="id-cap">{spec.idFields[2].caption}</span>
+                        <span className="id-val">{spec.idFields[2].value}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="id-foot">
+                  <span className="id-sign" aria-hidden />
+                  <span className="id-copy">Vault copy · not valid as ID</span>
+                </div>
+              </div>
+            ) : (
             <div className="face front" style={faceStyle}>
               <div className="glare" aria-hidden />
               <div className="card-top">
@@ -198,6 +246,7 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
                 {meta?.network && <span className={`card-network ${meta.network}`}>{NETWORK_LABEL[meta.network]}</span>}
               </div>
             </div>
+            )}
             <div className="face back" style={faceStyle}>
               <div className="glare" aria-hidden />
               <div className="stripe" aria-hidden />
