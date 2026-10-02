@@ -2,6 +2,7 @@
 // decrypted payload read from disk. Objects are rebuilt field-by-field so that
 // unexpected properties (e.g. prototype-pollution keys) are dropped.
 
+import { BANK_ICON_MAX_CHARS, BANK_ICON_RE, BANK_KEY_RE } from '../../shared/cards';
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../../shared/categories';
 import {
   DEFAULT_SETTINGS,
@@ -221,6 +222,12 @@ export function validatePayload(v: unknown): VaultPayload {
   }
 
   const m = p.meta && typeof p.meta === 'object' ? p.meta : {};
+  const bankIcons: Record<string, string> = {};
+  if (p.bankIcons && typeof p.bankIcons === 'object') {
+    for (const [k, v] of Object.entries(p.bankIcons).slice(0, 100)) {
+      if (isValidBankIcon(k, v)) bankIcons[k] = v as string;
+    }
+  }
   return {
     schema: 1,
     entries,
@@ -230,8 +237,21 @@ export function validatePayload(v: unknown): VaultPayload {
       createdAt: isoOr(m.createdAt, now),
       lastBackupAt: m.lastBackupAt ? isoOr(m.lastBackupAt, now) : null,
       lastBackupVerified: m.lastBackupVerified === true
-    }
+    },
+    bankIcons
   };
+}
+
+/** Bank icon = a small base64 PNG/JPEG/WebP data URL under a safe key. */
+export function isValidBankIcon(key: unknown, value: unknown): boolean {
+  return (
+    typeof key === 'string' &&
+    BANK_KEY_RE.test(key) &&
+    !['__proto__', 'constructor', 'prototype'].includes(key) &&
+    typeof value === 'string' &&
+    value.length <= BANK_ICON_MAX_CHARS &&
+    BANK_ICON_RE.test(value)
+  );
 }
 
 export function validateMasterPassword(pw: unknown, field = 'password'): string {

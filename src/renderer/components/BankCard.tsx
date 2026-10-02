@@ -1,9 +1,10 @@
-import { Copy, Eye, EyeOff, Nfc, RotateCw } from 'lucide-react';
+import { Copy, Eye, EyeOff, ImagePlus, Nfc, RotateCw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cardTheme } from '../../shared/cards';
+import { bankKey, cardTheme } from '../../shared/cards';
 import type { EntryView } from '../../shared/types';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { useTimeout } from '../lib/hooks';
+import { IconImageError, pickIconImage } from '../lib/image';
 import { useToast } from './Toast';
 
 const NETWORK_LABEL: Record<string, string> = {
@@ -26,7 +27,17 @@ function groups(digits: string): string {
  * The number shows only its last 4 digits until the user taps "Show" (fetched on
  * demand and auto-hidden). Tapping the card flips it to the CVV side.
  */
-export function BankCard({ entry, revealSeconds }: { entry: EntryView; revealSeconds: number }) {
+export function BankCard({
+  entry,
+  revealSeconds,
+  bankIcons,
+  onChanged
+}: {
+  entry: EntryView;
+  revealSeconds: number;
+  bankIcons: Record<string, string>;
+  onChanged: () => Promise<void>;
+}) {
   const isCard = entry.categoryId === 'cards';
   const numberKey = isCard ? 'cardNumber' : 'accountNumber';
   const meta = entry.secrets[numberKey];
@@ -34,6 +45,29 @@ export function BankCard({ entry, revealSeconds }: { entry: EntryView; revealSec
   const holder = (entry.fields.cardholder ?? entry.fields.accountName ?? '').toUpperCase();
   const last4 = meta?.preview?.replace(/\D/g, '').slice(-4) ?? '';
   const hasCvv = isCard && entry.secrets.cvv?.set;
+  const key = bankKey(entry.fields.bankName, entry.title);
+  const logo = bankIcons[key];
+
+  const setIcon = async () => {
+    try {
+      const data = await pickIconImage();
+      if (!data) return;
+      await unwrap(api.vault.setBankIcon(key, data));
+      await onChanged();
+      toast(`Icon set for all ${theme.label} items.`);
+    } catch (e) {
+      toast(e instanceof IconImageError ? e.message : errorMessage(e), 'error');
+    }
+  };
+  const removeIcon = async () => {
+    try {
+      await unwrap(api.vault.setBankIcon(key, null));
+      await onChanged();
+      toast('Icon removed.');
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    }
+  };
 
   const [number, setNumber] = useState<string | null>(null);
   const [cvv, setCvv] = useState<string | null>(null);
@@ -82,7 +116,10 @@ export function BankCard({ entry, revealSeconds }: { entry: EntryView; revealSec
       >
         <div className="face front" style={faceStyle}>
           <div className="card-top">
-            <span className="card-bank">{theme.label}</span>
+            <span className="card-bank">
+              {logo && <img src={logo} alt="" aria-hidden className="card-logo" />}
+              {theme.label}
+            </span>
             <span className="card-type">{entry.fields.cardType ?? ''}</span>
           </div>
           <div className="card-mid">
@@ -119,6 +156,14 @@ export function BankCard({ entry, revealSeconds }: { entry: EntryView; revealSec
       </div>
 
       <div className="card-actions">
+        <button type="button" className="btn sm" onClick={setIcon} title={`Use your own image as the ${theme.label} icon`}>
+          <ImagePlus size={14} aria-hidden /> {logo ? 'Change icon' : `Set ${theme.label} icon`}
+        </button>
+        {logo && (
+          <button type="button" className="btn sm ghost" onClick={removeIcon} aria-label={`Remove ${theme.label} icon`}>
+            <X size={14} aria-hidden /> Remove icon
+          </button>
+        )}
         {meta?.set && (
           <>
             <button type="button" className="btn sm" onClick={() => void reveal(numberKey, setNumber, number)} aria-pressed={number !== null}>

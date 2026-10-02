@@ -144,6 +144,13 @@ export function createMobileApi(native: NativeVault): VaultApi {
           return null;
         }
       },
+      suspendAutoLock(on: boolean) {
+        if (on) externalUiOpen = true;
+        else {
+          lastActivity = Date.now();
+          setTimeout(() => (externalUiOpen = false), 1500);
+        }
+      },
       reportActivity() {
         lastActivity = Date.now();
         armIdle();
@@ -215,6 +222,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
           armIdle();
           return s;
         }),
+      setBankIcon: (key, dataUrl) => wrap(() => vault.setBankIcon(key, dataUrl)),
       databaseInfo: () => wrap(() => vault.databaseInfo()),
       showVaultFolder: async () => undefined
     },

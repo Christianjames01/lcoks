@@ -53,11 +53,13 @@ export interface CardTheme {
   color: string;
   /** Short brand text shown on the card. */
   label: string;
+  /** 1–4 character badge text for small icons. */
+  short: string;
 }
 
 // Approximate brand colours of common Philippine banks and e-wallets. Only the
 // bank's NAME is shown as text — no logos or card artwork are reproduced.
-const THEMES: [RegExp, Omit<CardTheme, 'label'>, string][] = [
+const THEMES: [RegExp, Omit<CardTheme, 'label' | 'short'>, string][] = [
   [/\bbpi\b|bank of the philippine islands/i, { background: 'linear-gradient(135deg, #c8102e 0%, #7d0a1c 100%)', color: '#fff' }, 'BPI'],
   [/\bbdo\b|banco de oro/i, { background: 'linear-gradient(135deg, #0a3d91 0%, #062561 100%)', color: '#fff' }, 'BDO'],
   [/metro ?bank/i, { background: 'linear-gradient(135deg, #0057b8 0%, #00306b 100%)', color: '#fff' }, 'Metrobank'],
@@ -78,7 +80,7 @@ const THEMES: [RegExp, Omit<CardTheme, 'label'>, string][] = [
   [/paypal/i, { background: 'linear-gradient(135deg, #003087 0%, #001c4f 100%)', color: '#fff' }, 'PayPal']
 ];
 
-const DEFAULT_THEME: Omit<CardTheme, 'label'> = {
+const DEFAULT_THEME: Omit<CardTheme, 'label' | 'short'> = {
   background: 'linear-gradient(135deg, #3a3a3a 0%, #121212 100%)',
   color: '#fff'
 };
@@ -86,7 +88,50 @@ const DEFAULT_THEME: Omit<CardTheme, 'label'> = {
 /** Pick a colour theme from the bank name (falls back to the item title). */
 export function cardTheme(bankName: string | undefined, title: string): CardTheme {
   const hay = `${bankName ?? ''} ${title}`;
-  for (const [re, theme, label] of THEMES) if (re.test(hay)) return { ...theme, label };
+  for (const [re, theme, label] of THEMES) if (re.test(hay)) return { ...theme, label, short: SHORT[label] ?? label.slice(0, 4) };
   const label = (bankName || title).trim().slice(0, 24) || 'Card';
-  return { ...DEFAULT_THEME, label };
+  return { ...DEFAULT_THEME, label, short: initials(label) };
 }
+
+const SHORT: Record<string, string> = {
+  Metrobank: 'MB',
+  LANDBANK: 'LBP',
+  UnionBank: 'UB',
+  'Security Bank': 'SB',
+  Chinabank: 'CBC',
+  EastWest: 'EW',
+  GCash: 'G',
+  maya: 'maya',
+  SeaBank: 'Sea',
+  GoTyme: 'GT',
+  PSBank: 'PS',
+  Tonik: 'T',
+  PayPal: 'PP'
+};
+
+function initials(name: string): string {
+  const words = name.replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0]!.slice(0, 3).toUpperCase();
+  return words
+    .slice(0, 3)
+    .map((w) => w[0]!.toUpperCase())
+    .join('');
+}
+
+/**
+ * Stable key for a bank, used to share one custom icon across all of its items:
+ * the recognised brand (e.g. "bdo") or the lower-cased bank name.
+ */
+export function bankKey(bankName: string | undefined, title: string): string {
+  const t = cardTheme(bankName, title);
+  return t.label
+    .toLowerCase()
+    .replace(/[^a-z0-9 .&-]/g, '')
+    .trim()
+    .slice(0, 40);
+}
+
+export const BANK_ICON_MAX_CHARS = 60_000;
+export const BANK_ICON_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+export const BANK_KEY_RE = /^[a-z0-9 .&-]{1,40}$/;

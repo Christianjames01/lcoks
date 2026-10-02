@@ -1,6 +1,7 @@
 import { Copy, Plus, Search, ShieldCheck, Star, TriangleAlert, Upload } from 'lucide-react';
 import { subtitleFor } from '../../shared/categories';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
+import { BankIcon, isBankItem } from '../components/BankIcon';
 import { CategoryIcon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
@@ -41,9 +42,13 @@ export function Dashboard({ snap, onOpen, onNavigate, onNew, onSearch, onImport 
     return (
       <li key={e.id} className="row-flex" style={{ gap: 4 }}>
         <button type="button" className="row" onClick={() => onOpen(e.id)}>
-          <span className="row-icon">
-            <CategoryIcon icon={cat?.icon} />
-          </span>
+          {isBankItem(e.categoryId) ? (
+            <BankIcon bankName={e.fields.bankName} title={e.title} icons={snap.bankIcons} />
+          ) : (
+            <span className="row-icon">
+              <CategoryIcon icon={cat?.icon} />
+            </span>
+          )}
           <span className="row-main">
             <span className="row-title" style={{ display: 'block' }}>
               {e.title}

@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { subtitleFor } from '../../shared/categories';
 import { isSecretType, type EntryView, type FavoriteSort, type FieldDef, type VaultSnapshot } from '../../shared/types';
 import { BankCard } from '../components/BankCard';
+import { BankIcon, isBankItem } from '../components/BankIcon';
 import { CategoryIcon } from '../components/Icon';
-import { cardTheme } from '../../shared/cards';
 import { StrengthMeter } from '../components/StrengthMeter';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
@@ -128,16 +128,13 @@ export function ItemsView({ snap, filter, query, entries, mobile, selectedId, on
                     tabIndex={isSel || (!selected && i === 0) ? 0 : -1}
                     onClick={() => onSelect(e.id)}
                   >
-                    <span
-                      className="row-icon"
-                      style={
-                        e.categoryId === 'banking' || e.categoryId === 'cards'
-                          ? { background: cardTheme(e.fields.bankName, e.title).background, color: '#fff', borderColor: 'transparent' }
-                          : undefined
-                      }
-                    >
-                      <CategoryIcon icon={cat?.icon} />
-                    </span>
+                    {isBankItem(e.categoryId) ? (
+                      <BankIcon bankName={e.fields.bankName} title={e.title} icons={snap.bankIcons} />
+                    ) : (
+                      <span className="row-icon">
+                        <CategoryIcon icon={cat?.icon} />
+                      </span>
+                    )}
                     <span className="row-main">
                       <span className="row-title" style={{ display: 'block' }}>
                         {e.title}
@@ -259,9 +256,13 @@ function EntryDetail({
         </button>
       )}
       <div className="detail-head">
-        <span className="row-icon">
-          <CategoryIcon icon={category?.icon} size={22} />
-        </span>
+        {isBankItem(entry.categoryId) ? (
+          <BankIcon bankName={entry.fields.bankName} title={entry.title} icons={snap.bankIcons} size={48} radius={10} />
+        ) : (
+          <span className="row-icon">
+            <CategoryIcon icon={category?.icon} size={22} />
+          </span>
+        )}
         <div className="grow">
           <div className="label">{category?.name ?? 'Item'}</div>
           <h1 className="h1 selectable" style={{ marginTop: 4 }}>
@@ -289,7 +290,7 @@ function EntryDetail({
       </div>
 
       {(entry.categoryId === 'cards' || (entry.categoryId === 'banking' && (entry.secrets.accountNumber?.set || entry.fields.bankName))) && (
-        <BankCard entry={entry} revealSeconds={snap.settings.revealTimeoutSeconds} />
+        <BankCard entry={entry} revealSeconds={snap.settings.revealTimeoutSeconds} bankIcons={snap.bankIcons} onChanged={onChanged} />
       )}
 
       {(category?.fields ?? []).map((def) => (

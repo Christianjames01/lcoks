@@ -25,6 +25,7 @@ import {
 import {
   ValidationError,
   validateCategoryInput,
+  isValidBankIcon,
   validateEntryInput,
   validateNewMasterPassword,
   validatePayload,
@@ -128,7 +129,8 @@ export class MobileVault {
       entries: [],
       customCategories: [],
       settings: { ...DEFAULT_SETTINGS },
-      meta: { createdAt, lastBackupAt: null, lastBackupVerified: false }
+      meta: { createdAt, lastBackupAt: null, lastBackupVerified: false },
+      bankIcons: {}
     };
     try {
       await this.write();
@@ -318,6 +320,7 @@ export class MobileVault {
       categories: this.categories(),
       settings: { ...payload.settings },
       meta: { ...payload.meta },
+      bankIcons: { ...payload.bankIcons },
       stats: {
         total: entries.length,
         withPasswords,
@@ -477,6 +480,22 @@ export class MobileVault {
     });
   }
 
+  async setBankIcon(key: unknown, dataUrl: unknown): Promise<void> {
+    this.requireUnlocked();
+    if (typeof key !== 'string' || (dataUrl !== null && !isValidBankIcon(key, dataUrl))) {
+      throw new AppError('INVALID_ICON', 'That image could not be used as an icon.');
+    }
+    await this.mutate((d) => {
+      const icons = { ...d.bankIcons };
+      if (dataUrl === null) delete icons[key];
+      else {
+        if (!(key in icons) && Object.keys(icons).length >= 100) throw new AppError('LIMIT', 'Too many bank icons.');
+        icons[key] = dataUrl as string;
+      }
+      d.bankIcons = icons;
+    });
+  }
+
   async updateSettings(patch: unknown): Promise<VaultSettings> {
     const { payload } = this.requireUnlocked();
     const merged = validateSettings({ ...payload.settings, ...(patch && typeof patch === 'object' ? patch : {}) }, payload.settings);
@@ -562,11 +581,13 @@ export class MobileVault {
       if (mode === 'replace') {
         d.entries = structuredClone(backup.entries);
         d.customCategories = structuredClone(backup.customCategories);
+        d.bankIcons = { ...backup.bankIcons };
         return;
       }
       const ids = new Set(d.entries.map((e) => e.id));
       const cats = new Set(d.customCategories.map((c) => c.id));
       for (const c of backup.customCategories) if (!cats.has(c.id)) d.customCategories.push(structuredClone(c));
+      d.bankIcons = { ...backup.bankIcons, ...d.bankIcons };
       for (const e of backup.entries) if (!ids.has(e.id)) d.entries.push(structuredClone(e));
     });
   }
