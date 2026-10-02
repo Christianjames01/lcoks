@@ -402,6 +402,31 @@ export class VaultService {
     return this.toView(saved);
   }
 
+  /** Validate every item first, then add them all in a single encrypted write. */
+  async importEntries(inputs: unknown): Promise<number> {
+    if (!Array.isArray(inputs) || inputs.length === 0) throw new VaultError('EMPTY', 'Nothing to import.');
+    if (inputs.length > 5000) throw new VaultError('LIMIT', 'Import at most 5,000 items at a time.');
+    const categories = this.categories();
+    const valid = inputs.map((i) => validateEntryInput({ ...(i as object), id: undefined }, categories));
+    const now = this.now().toISOString();
+    await this.mutate((draft) => {
+      for (const v of valid) {
+        draft.entries.push({
+          id: randomUUID(),
+          categoryId: v.categoryId,
+          title: v.title,
+          fields: v.fields,
+          tags: v.tags,
+          favorite: v.favorite,
+          favoriteOrder: v.favorite ? nextFavoriteOrder(draft) : 0,
+          createdAt: now,
+          updatedAt: now
+        });
+      }
+    });
+    return valid.length;
+  }
+
   async deleteEntry(id: unknown): Promise<void> {
     this.findEntry(id);
     await this.mutate((draft) => {

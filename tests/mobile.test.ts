@@ -9,18 +9,65 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseFile } from '../src/mobile/crypto';
 import { AppError, MobileVault, VAULT_FILE } from '../src/mobile/mobileVault';
 import type { NativeVault } from '../src/mobile/native';
+import { QuickUnlock } from '../src/mobile/quickUnlock';
 import { BackupService } from '../src/main/vault/backupService';
 import { VaultService } from '../src/main/vault/vaultService';
 
 const PW = 'Phone-Master-Password-2026!';
 const SECRET = 'm0bile-S3cret-✓-密码';
 
+type Fake = NativeVault & {
+  files: Map<string, string>;
+  clipboard: string;
+  failNextWrite: boolean;
+  /** Next fingerprint prompt result. */
+  bio: 'ok' | 'cancel' | 'invalidated';
+  hasBiometric: boolean;
+  keys: Map<string, CryptoKey>;
+};
+
+// Simulated Android Keystore: real AES-GCM keys that never leave this object.
+async function ksEncrypt(self: Fake, alias: string, b64: string) {
+  if (!self.keys.has(alias)) self.keys.set(alias, await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, self.keys.get(alias)!, Buffer.from(b64, 'base64'));
+  return { iv: Buffer.from(iv).toString('base64'), data: Buffer.from(ct).toString('base64') };
+}
+async function ksDecrypt(self: Fake, alias: string, iv: string, b64: string) {
+  const key = self.keys.get(alias);
+  if (!key) throw Object.assign(new Error('missing'), { code: 'INVALIDATED' });
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: Buffer.from(iv, 'base64') }, key, Buffer.from(b64, 'base64'));
+  return Buffer.from(pt).toString('base64');
+}
+function bioGate(self: Fake) {
+  if (self.bio === 'cancel') throw Object.assign(new Error('c'), { code: 'CANCELED' });
+  if (self.bio === 'invalidated') {
+    self.keys.delete('bio');
+    throw Object.assign(new Error('i'), { code: 'INVALIDATED' });
+  }
+}
+
 function memoryNative() {
   const files = new Map<string, string>();
-  const self: NativeVault & { files: Map<string, string>; clipboard: string; failNextWrite: boolean } = {
+  const self: Fake = {
     files,
     clipboard: '',
     failNextWrite: false,
+    bio: 'ok',
+    hasBiometric: true,
+    keys: new Map(),
+    biometricAvailable: async () => self.hasBiometric,
+    bioEncrypt: async (d) => {
+      bioGate(self);
+      return ksEncrypt(self, 'bio', d);
+    },
+    bioDecrypt: async (iv, d) => {
+      bioGate(self);
+      return ksDecrypt(self, 'bio', iv, d);
+    },
+    deviceEncrypt: (d) => ksEncrypt(self, 'device', d),
+    deviceDecrypt: (iv, d) => ksDecrypt(self, 'device', iv, d),
+    resetKey: async (k) => void self.keys.delete(k === 'biometric' ? 'bio' : 'device'),
     read: async (n) => files.get(n) ?? null,
     writeAtomic: async (n, d) => {
       if (self.failNextWrite) {
@@ -174,5 +221,101 @@ describe('desktop ⇄ Android compatibility', () => {
     const b = new BackupService(desktop);
     const summary = await b.open(b.register(backupPath), PW);
     expect(summary.itemCount).toBe(1);
+  });
+});
+
+describe('fingerprint & PIN quick unlock', () => {
+  async function setup() {
+    const { native, v } = await phoneWithItem();
+    return { native, v, q: new QuickUnlock(native, v) };
+  }
+
+  it('PIN: requires the master password, unlocks, and counts wrong attempts', async () => {
+    const { native, v, q } = await setup();
+    await expect(q.enablePin('wrong-master', '2468')).rejects.toThrow();
+    await expect(q.enablePin(PW, '12a4')).rejects.toThrow();
+    await expect(q.enablePin(PW, '1111')).rejects.toThrow(); // too easy
+    await q.enablePin(PW, '2468');
+    expect(native.files.get('quick_pin.json')).not.toContain('2468');
+    v.lock();
+    await expect(q.unlockPin('9999')).rejects.toMatchObject({ code: 'WRONG_PIN', userMessage: 'Wrong PIN. 4 attempts left.' });
+    expect((await q.status()).pinAttemptsLeft).toBe(4);
+    await q.unlockPin('2468');
+    expect(v.isUnlocked).toBe(true);
+    expect((await q.status()).pinAttemptsLeft).toBe(5);
+  });
+
+  it('PIN: 5 wrong attempts turn PIN unlock off', async () => {
+    const { v, q } = await setup();
+    await q.enablePin(PW, '2468');
+    v.lock();
+    for (let i = 0; i < 4; i++) await expect(q.unlockPin('0001')).rejects.toMatchObject({ code: 'WRONG_PIN' });
+    await expect(q.unlockPin('0001')).rejects.toMatchObject({ code: 'PIN_LOCKED' });
+    expect((await q.status()).pin).toBe(false);
+    await expect(q.unlockPin('2468')).rejects.toMatchObject({ code: 'NOT_ENABLED' });
+  });
+
+  it('PIN: useless without the device Keystore key (no offline brute force)', async () => {
+    const { native, v, q } = await setup();
+    await q.enablePin(PW, '2468');
+    v.lock();
+    native.keys.delete('device');
+    await expect(q.unlockPin('2468')).rejects.toMatchObject({ code: 'INVALIDATED' });
+    expect((await q.status()).pin).toBe(false);
+  });
+
+  it('fingerprint: enable, unlock, cancel, and invalidation when fingerprints change', async () => {
+    const { native, v, q } = await setup();
+    native.bio = 'cancel';
+    await expect(q.enableBiometric(PW)).rejects.toMatchObject({ code: 'CANCELED' });
+    native.bio = 'ok';
+    await q.enableBiometric(PW);
+    v.lock();
+    native.bio = 'cancel';
+    await expect(q.unlockBiometric()).rejects.toMatchObject({ code: 'CANCELED' });
+    native.bio = 'ok';
+    await q.unlockBiometric();
+    expect(v.isUnlocked).toBe(true);
+    v.lock();
+    native.bio = 'invalidated';
+    await expect(q.unlockBiometric()).rejects.toMatchObject({ code: 'INVALIDATED' });
+    expect((await q.status()).biometric).toBe(false);
+  });
+
+  it('fingerprint: refused when no fingerprint is enrolled on the phone', async () => {
+    const { native, q } = await setup();
+    native.hasBiometric = false;
+    await expect(q.enableBiometric(PW)).rejects.toMatchObject({ code: 'NO_BIOMETRIC' });
+  });
+
+  it('stale quick unlock after a master-password change is detected and removed', async () => {
+    const { v, q } = await setup();
+    await q.enablePin(PW, '2468');
+    await v.changePassword(PW, 'Brand-New-Master-Pass-1', null);
+    v.lock();
+    await expect(q.unlockPin('2468')).rejects.toMatchObject({ code: 'QUICK_STALE' });
+    expect(v.isUnlocked).toBe(false);
+    expect((await q.status()).pin).toBe(false);
+  });
+});
+
+describe('bulk import', () => {
+  it('imports many items in one write, all-or-nothing (phone and desktop)', async () => {
+    const { native, v } = await phoneWithItem();
+    const before = native.files.get(VAULT_FILE);
+    const n = await v.importEntries([
+      { categoryId: 'personal', title: 'A', fields: { password: 'p1' }, tags: ['imported'], favorite: false },
+      { categoryId: 'notes', title: 'B', fields: { content: 'secret note' }, tags: ['imported'], favorite: false }
+    ]);
+    expect(n).toBe(2);
+    expect(native.files.get(VAULT_FILE)).not.toBe(before);
+    expect(v.snapshot().entries.map((e) => e.title)).toEqual(['Phone Bank', 'A', 'B']);
+    await expect(v.importEntries([{ categoryId: 'personal', title: '', fields: {}, tags: [], favorite: false }])).rejects.toThrow();
+    expect(v.snapshot().entries).toHaveLength(3);
+
+    const desktop = new VaultService(path.join(dir, 'vault', 'vault.vault'));
+    await desktop.create(PW, null);
+    expect(await desktop.importEntries([{ categoryId: 'wifi', title: 'Home', fields: { networkName: 'X', password: 'y' }, tags: [], favorite: false }])).toBe(1);
+    expect(desktop.snapshot().entries[0]!.secrets.password!.set).toBe(true);
   });
 });

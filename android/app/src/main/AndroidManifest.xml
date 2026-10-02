@@ -45,4 +45,5 @@
          requests: the Content-Security-Policy sets connect-src 'none', no
          network plugins are included, and cleartext traffic is disabled. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 </manifest>

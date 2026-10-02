@@ -5,6 +5,8 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { VaultApi } from '../shared/api';
 
+const unsupported = { ok: false as const, code: 'UNSUPPORTED', message: 'Not available on this device.' };
+
 const call = (channel: string) => (...args: unknown[]) => ipcRenderer.invoke(channel, ...args);
 
 const api: VaultApi = {
@@ -23,6 +25,7 @@ const api: VaultApi = {
   vault: {
     snapshot: call('vault.snapshot') as VaultApi['vault']['snapshot'],
     saveEntry: call('vault.saveEntry') as VaultApi['vault']['saveEntry'],
+    importEntries: call('vault.importEntries') as VaultApi['vault']['importEntries'],
     deleteEntry: call('vault.deleteEntry') as VaultApi['vault']['deleteEntry'],
     duplicateEntry: call('vault.duplicateEntry') as VaultApi['vault']['duplicateEntry'],
     setFavorite: call('vault.setFavorite') as VaultApi['vault']['setFavorite'],
@@ -46,6 +49,15 @@ const api: VaultApi = {
     discard: call('backup.discard') as VaultApi['backup']['discard'],
     restoreWhileLocked: call('backup.restoreWhileLocked') as VaultApi['backup']['restoreWhileLocked'],
     exportPlaintext: call('backup.exportPlaintext') as VaultApi['backup']['exportPlaintext']
+  },
+  // Fingerprint / PIN unlock is Android-only; the desktop always uses the master password.
+  quick: {
+    status: async () => ({ supported: false, biometricAvailable: false, biometric: false, pin: false, pinAttemptsLeft: 0 }),
+    enableBiometric: async () => unsupported,
+    enablePin: async () => unsupported,
+    disable: async () => unsupported,
+    unlockBiometric: async () => unsupported,
+    unlockPin: async () => unsupported
   },
   events: {
     onCommand(cb) {

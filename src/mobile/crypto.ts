@@ -124,15 +124,15 @@ export function validateKdfParams(p: KdfParams): void {
 }
 
 /**
- * Derive the AES key from the master password (NFC-normalized UTF-8, identical
- * to desktop) and import it as a non-extractable AES-GCM CryptoKey.
+ * Raw Argon2id output for a password (NFC-normalized UTF-8, identical to desktop).
+ * The caller owns the bytes and must wipe() them. Used directly only to wrap the
+ * key for fingerprint/PIN unlock; normal unlocks use deriveKey().
  */
-export async function deriveKey(password: string, params: KdfParams): Promise<CryptoKey> {
+export async function deriveRawKey(password: string, params: KdfParams): Promise<Uint8Array> {
   validateKdfParams(params);
   const pw = enc.encode(password.normalize('NFC'));
-  let raw: Uint8Array | undefined;
   try {
-    raw = await argon2id({
+    const raw = await argon2id({
       password: pw,
       salt: params.salt,
       iterations: params.iterations,
@@ -141,13 +141,48 @@ export async function deriveKey(password: string, params: KdfParams): Promise<Cr
       hashLength: KEY_LENGTH,
       outputType: 'binary'
     });
-    return await subtle().importKey('raw', raw as BufferSource, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    if (raw.length !== KEY_LENGTH) throw new MobileCryptoError('KDF_FAILED');
+    return raw;
   } catch (e) {
     if (e instanceof MobileCryptoError) throw e;
     throw new MobileCryptoError('KDF_FAILED');
   } finally {
     wipe(pw);
+  }
+}
+
+/** Import raw key bytes as a NON-EXTRACTABLE AES-GCM key, then wipe the bytes. */
+export async function importAesKey(raw: Uint8Array): Promise<CryptoKey> {
+  try {
+    return await subtle().importKey('raw', raw as BufferSource, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  } finally {
     wipe(raw);
+  }
+}
+
+/** Derive the session key from the master password as a non-extractable CryptoKey. */
+export async function deriveKey(password: string, params: KdfParams): Promise<CryptoKey> {
+  return importAesKey(await deriveRawKey(password, params));
+}
+
+/** AES-GCM seal of small blobs (used for the PIN-protected key wrap). Output: nonce‖ciphertext‖tag. */
+export async function sealBytes(key: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
+  const nonce = randomBytes(NONCE_LENGTH);
+  const ct = new Uint8Array(await subtle().encrypt({ name: 'AES-GCM', iv: nonce as BufferSource }, key, data as BufferSource));
+  const out = new Uint8Array(NONCE_LENGTH + ct.length);
+  out.set(nonce);
+  out.set(ct, NONCE_LENGTH);
+  return out;
+}
+
+export async function openBytes(key: CryptoKey, blob: Uint8Array): Promise<Uint8Array> {
+  if (blob.length < NONCE_LENGTH + TAG_LENGTH) throw new MobileCryptoError('AUTH_FAILED');
+  try {
+    return new Uint8Array(
+      await subtle().decrypt({ name: 'AES-GCM', iv: blob.subarray(0, NONCE_LENGTH) as BufferSource }, key, blob.subarray(NONCE_LENGTH) as BufferSource)
+    );
+  } catch {
+    throw new MobileCryptoError('AUTH_FAILED');
   }
 }
 

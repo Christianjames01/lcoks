@@ -1,0 +1,112 @@
+import { describe, expect, it } from 'vitest';
+import { BUILTIN_CATEGORIES } from '../src/shared/categories';
+import { classifyNote, importNotes, splitNotes } from '../src/shared/noteImport';
+
+const cats = [...BUILTIN_CATEGORIES];
+
+const PASTE = `BPI Savings
+Account number: 1234 5678 9012
+Username: juan.dc
+Password: Bpi$ecret2024
+PIN: 4321
+
+Gmail
+Email: juan@gmail.com
+Password: g-mail-pass-99
+Recovery phone: 09171234567
+
+Facebook
+Username: juan.fb
+Password: fbPass!77
+
+Home Wi-Fi
+SSID: PLDT_HOME_5G
+Password: wifiPass123
+
+Windows 11
+Product key: ABCDE-FGHIJ-KLMNO-PQRST-UVWXY
+
+Netflix
+email: juan@yahoo.com
+password: netflixPw1
+
+Grocery list
+eggs, milk, bread
+
+Backup codes
+8492 1173 5520
+9981 0042 7713`;
+
+describe('splitNotes', () => {
+  it('splits on blank lines by default', () => {
+    expect(splitNotes(PASTE)).toHaveLength(8);
+  });
+  it('uses --- separators when present (notes may contain blank lines)', () => {
+    const t = 'Note A\n\nstill A\n---\nNote B\n===\nNote C';
+    expect(splitNotes(t)).toEqual(['Note A\n\nstill A', 'Note B', 'Note C']);
+  });
+  it('supports two-blank-line mode and Windows line endings', () => {
+    expect(splitNotes('A\r\n\r\nA2\r\n\r\n\r\nB', 'blank2')).toEqual(['A\n\nA2', 'B']);
+  });
+  it('ignores empty input', () => {
+    expect(splitNotes('   \n\n  ')).toEqual([]);
+  });
+});
+
+describe('classifyNote', () => {
+  const items = importNotes(PASTE, cats);
+  const by = (t: string) => items.find((i) => i.title === t)!;
+
+  it('routes each note to the right category', () => {
+    expect(items.map((i) => [i.title, i.categoryId])).toEqual([
+      ['BPI Savings', 'banking'],
+      ['Gmail', 'email'],
+      ['Facebook', 'social'],
+      ['Home Wi-Fi', 'wifi'],
+      ['Windows 11', 'software'],
+      ['Netflix', 'personal'],
+      ['Grocery list', 'notes'],
+      ['Backup codes', 'notes']
+    ]);
+  });
+
+  it('fills the matching fields', () => {
+    expect(by('BPI Savings').fields).toMatchObject({
+      bankName: 'BPI',
+      accountNumber: '1234 5678 9012',
+      username: 'juan.dc',
+      password: 'Bpi$ecret2024',
+      pin: '4321'
+    });
+    expect(by('Gmail').fields).toMatchObject({ email: 'juan@gmail.com', password: 'g-mail-pass-99', recoveryPhone: '09171234567', service: 'Gmail' });
+    expect(by('Home Wi-Fi').fields).toMatchObject({ networkName: 'PLDT_HOME_5G', password: 'wifiPass123' });
+    expect(by('Windows 11').fields).toMatchObject({ licenseKey: 'ABCDE-FGHIJ-KLMNO-PQRST-UVWXY' });
+    expect(by('Netflix').fields).toMatchObject({ username: 'juan@yahoo.com', password: 'netflixPw1' });
+    expect(by('Facebook').fields).toMatchObject({ username: 'juan.fb', password: 'fbPass!77' });
+    expect(by('Backup codes').fields.content).toContain('8492 1173 5520');
+  });
+
+  it('never puts an unlabeled secret into a visible field', () => {
+    const n = classifyNote('My bank\nUsername: juan\nP@ssw0rd2024 is the password', cats);
+    expect(n.categoryId).toBe('notes');
+    expect(n.fields.content).toContain('P@ssw0rd2024');
+    expect(n.fields.notes).toBeUndefined();
+  });
+
+  it('does not mistake an email domain for a website', () => {
+    const n = classifyNote('Shop\nUsername: me@gmail.com\nPassword: x1', cats);
+    expect(n.fields.website).toBeUndefined();
+  });
+
+  it('handles notes without a title line', () => {
+    const n = classifyNote('Password: abc123\nUsername: someone', cats, 4);
+    expect(n.categoryId).toBe('personal');
+    expect(n.title).toBe('Imported Personal 5');
+  });
+
+  it('keeps unknown labels as notes and tags items as imported', () => {
+    const n = classifyNote('Spotify\nUsername: juan\nPassword: sp1\nPlan: Family', cats);
+    expect(n.fields.notes).toBe('Plan: Family');
+    expect(n.tags).toEqual(['imported']);
+  });
+});

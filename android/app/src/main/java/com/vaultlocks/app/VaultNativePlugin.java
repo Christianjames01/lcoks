@@ -9,6 +9,14 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PersistableBundle;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyPermanentlyInvalidatedException;
+import android.security.keystore.KeyProperties;
+import android.util.Base64;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentActivity;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -19,6 +27,11 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import java.util.regex.Pattern;
 
 /**
@@ -222,5 +235,216 @@ public class VaultNativePlugin extends Plugin {
         } catch (Exception ignored) {
             // Clipboard unavailable — nothing more we can do.
         }
+    }
+
+    // ------------------------------------------------- quick unlock keys ----
+    //
+    // SECURITY: two AES-256-GCM keys live in the Android Keystore (TEE/StrongBox
+    // hardware where available) and can never be exported:
+    //  * BIO_ALIAS    - usable only right after a strong biometric (fingerprint)
+    //                   authentication; invalidated if fingerprints are added/removed.
+    //  * DEVICE_ALIAS - binds the PIN-protected key wrap to this device, so the
+    //                   4-digit PIN cannot be brute-forced on another machine.
+
+    private static final String BIO_ALIAS = "vaultlocks_bio";
+    private static final String DEVICE_ALIAS = "vaultlocks_device";
+    private static final int GCM_TAG_BITS = 128;
+
+    private interface CipherAction {
+        void run(Cipher cipher) throws Exception;
+    }
+
+    private static KeyStore keyStore() throws Exception {
+        KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+        ks.load(null);
+        return ks;
+    }
+
+    private static SecretKey getOrCreateKey(String alias, boolean requireBiometric) throws Exception {
+        KeyStore ks = keyStore();
+        if (ks.containsAlias(alias)) return (SecretKey) ks.getKey(alias, null);
+        KeyGenParameterSpec.Builder b = new KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256);
+        if (requireBiometric) {
+            b.setUserAuthenticationRequired(true);
+            b.setInvalidatedByBiometricEnrollment(true);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                b.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
+            }
+        }
+        KeyGenerator kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+        kg.init(b.build());
+        return kg.generateKey();
+    }
+
+    private static void deleteKey(String alias) {
+        try {
+            keyStore().deleteEntry(alias);
+        } catch (Exception ignored) {}
+    }
+
+    private static String b64(byte[] b) {
+        return Base64.encodeToString(b, Base64.NO_WRAP);
+    }
+
+    private static byte[] unb64(String s) {
+        return Base64.decode(s, Base64.NO_WRAP);
+    }
+
+    @PluginMethod
+    public void biometricStatus(PluginCall call) {
+        int r = BiometricManager.from(getContext()).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG);
+        JSObject ret = new JSObject();
+        ret.put("available", r == BiometricManager.BIOMETRIC_SUCCESS);
+        call.resolve(ret);
+    }
+
+    /** Show the system fingerprint prompt bound to the cipher; run the action with the unlocked cipher. */
+    private void authenticate(PluginCall call, Cipher cipher, String title, CipherAction action) {
+        getActivity().runOnUiThread(() -> {
+            BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title)
+                .setSubtitle("VaultLocks")
+                .setNegativeButtonText("Cancel")
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .build();
+            BiometricPrompt prompt = new BiometricPrompt(
+                (FragmentActivity) getActivity(),
+                ContextCompat.getMainExecutor(getContext()),
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                        try {
+                            BiometricPrompt.CryptoObject co = result.getCryptoObject();
+                            if (co == null || co.getCipher() == null) throw new IllegalStateException();
+                            action.run(co.getCipher());
+                        } catch (Exception e) {
+                            call.reject("Fingerprint operation failed", "FAILED");
+                        }
+                    }
+
+                    @Override
+                    public void onAuthenticationError(int code, CharSequence msg) {
+                        boolean canceled = code == BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                            || code == BiometricPrompt.ERROR_USER_CANCELED
+                            || code == BiometricPrompt.ERROR_CANCELED;
+                        call.reject(canceled ? "Canceled" : String.valueOf(msg), canceled ? "CANCELED" : "ERROR");
+                    }
+                }
+            );
+            prompt.authenticate(info, new BiometricPrompt.CryptoObject(cipher));
+        });
+    }
+
+    @PluginMethod
+    public void bioEncrypt(PluginCall call) {
+        String data = call.getString("data");
+        if (data == null) {
+            call.reject("No data");
+            return;
+        }
+        try {
+            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+            try {
+                c.init(Cipher.ENCRYPT_MODE, getOrCreateKey(BIO_ALIAS, true));
+            } catch (KeyPermanentlyInvalidatedException e) {
+                deleteKey(BIO_ALIAS);
+                c.init(Cipher.ENCRYPT_MODE, getOrCreateKey(BIO_ALIAS, true));
+            }
+            authenticate(call, c, "Enable fingerprint unlock", (cipher) -> {
+                byte[] ct = cipher.doFinal(unb64(data));
+                JSObject ret = new JSObject();
+                ret.put("iv", b64(cipher.getIV()));
+                ret.put("data", b64(ct));
+                call.resolve(ret);
+            });
+        } catch (Exception e) {
+            call.reject("Fingerprint unlock is not available", "UNAVAILABLE");
+        }
+    }
+
+    @PluginMethod
+    public void bioDecrypt(PluginCall call) {
+        String iv = call.getString("iv");
+        String data = call.getString("data");
+        if (iv == null || data == null) {
+            call.reject("No data");
+            return;
+        }
+        try {
+            if (!keyStore().containsAlias(BIO_ALIAS)) {
+                call.reject("Fingerprint key missing", "INVALIDATED");
+                return;
+            }
+            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+            try {
+                c.init(Cipher.DECRYPT_MODE, getOrCreateKey(BIO_ALIAS, true), new GCMParameterSpec(GCM_TAG_BITS, unb64(iv)));
+            } catch (KeyPermanentlyInvalidatedException e) {
+                // Fingerprints changed since enrollment: the key is gone for good.
+                deleteKey(BIO_ALIAS);
+                call.reject("Fingerprints changed", "INVALIDATED");
+                return;
+            }
+            authenticate(call, c, "Unlock VaultLocks", (cipher) -> {
+                JSObject ret = new JSObject();
+                ret.put("data", b64(cipher.doFinal(unb64(data))));
+                call.resolve(ret);
+            });
+        } catch (Exception e) {
+            call.reject("Fingerprint unlock failed", "ERROR");
+        }
+    }
+
+    @PluginMethod
+    public void deviceEncrypt(PluginCall call) {
+        String data = call.getString("data");
+        if (data == null) {
+            call.reject("No data");
+            return;
+        }
+        try {
+            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+            c.init(Cipher.ENCRYPT_MODE, getOrCreateKey(DEVICE_ALIAS, false));
+            byte[] ct = c.doFinal(unb64(data));
+            JSObject ret = new JSObject();
+            ret.put("iv", b64(c.getIV()));
+            ret.put("data", b64(ct));
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Device key unavailable", "UNAVAILABLE");
+        }
+    }
+
+    @PluginMethod
+    public void deviceDecrypt(PluginCall call) {
+        String iv = call.getString("iv");
+        String data = call.getString("data");
+        if (iv == null || data == null) {
+            call.reject("No data");
+            return;
+        }
+        try {
+            if (!keyStore().containsAlias(DEVICE_ALIAS)) {
+                call.reject("Device key missing", "INVALIDATED");
+                return;
+            }
+            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+            c.init(Cipher.DECRYPT_MODE, getOrCreateKey(DEVICE_ALIAS, false), new GCMParameterSpec(GCM_TAG_BITS, unb64(iv)));
+            JSObject ret = new JSObject();
+            ret.put("data", b64(c.doFinal(unb64(data))));
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Device key unavailable", "INVALIDATED");
+        }
+    }
+
+    @PluginMethod
+    public void resetKey(PluginCall call) {
+        String kind = call.getString("kind", "");
+        if ("biometric".equals(kind)) deleteKey(BIO_ALIAS);
+        else if ("device".equals(kind)) deleteKey(DEVICE_ALIAS);
+        call.resolve();
     }
 }

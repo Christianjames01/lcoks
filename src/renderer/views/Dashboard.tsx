@@ -1,4 +1,4 @@
-import { Copy, Plus, Search, ShieldCheck, Star, TriangleAlert } from 'lucide-react';
+import { Copy, Plus, Search, ShieldCheck, Star, TriangleAlert, Upload } from 'lucide-react';
 import { subtitleFor } from '../../shared/categories';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
 import { CategoryIcon } from '../components/Icon';
@@ -13,9 +13,10 @@ interface Props {
   onNavigate: (r: Route) => void;
   onNew: () => void;
   onSearch: (q: string) => void;
+  onImport: () => void;
 }
 
-export function Dashboard({ snap, onOpen, onNavigate, onNew, onSearch }: Props) {
+export function Dashboard({ snap, onOpen, onNavigate, onNew, onSearch, onImport }: Props) {
   const toast = useToast();
   const recent = [...snap.entries].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
   const favorites = snap.entries.filter((e) => e.favorite).sort((a, b) => a.favoriteOrder - b.favoriteOrder).slice(0, 4);
@@ -129,9 +130,14 @@ export function Dashboard({ snap, onOpen, onNavigate, onNew, onSearch }: Props) 
             </div>
             <div className="h3">Your vault is empty</div>
             <div className="muted small">Add bank accounts, logins, Wi-Fi passwords, licenses and secure notes.</div>
-            <button type="button" className="btn primary" onClick={onNew} style={{ marginTop: 8 }}>
-              <Plus size={15} aria-hidden /> Add your first item
-            </button>
+            <div className="row-flex" style={{ marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button type="button" className="btn primary" onClick={onNew}>
+                <Plus size={15} aria-hidden /> Add your first item
+              </button>
+              <button type="button" className="btn" onClick={onImport}>
+                <Upload size={15} aria-hidden /> Import notes
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -150,9 +156,14 @@ export function Dashboard({ snap, onOpen, onNavigate, onNew, onSearch }: Props) 
             )}
             <div className="section-title">
               <span className="label">Recent items</span>
-              <button type="button" className="linkish" onClick={() => onNavigate({ view: 'items', filter: 'all' })}>
-                View all
-              </button>
+              <span className="row-flex" style={{ gap: 14 }}>
+                <button type="button" className="linkish" onClick={onImport}>
+                  Import notes
+                </button>
+                <button type="button" className="linkish" onClick={() => onNavigate({ view: 'items', filter: 'all' })}>
+                  View all
+                </button>
+              </span>
             </div>
             <ul className="list card" style={{ padding: 6 }}>
               {recent.map(row)}

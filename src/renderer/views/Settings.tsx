@@ -27,6 +27,8 @@ import { useToast } from '../components/Toast';
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
 import { daysSince, formatBytes, formatDateTime } from '../lib/format';
 import { isAndroid } from '../lib/platform';
+import { ImportNotesDialog } from './ImportNotes';
+import { QuickUnlockSettings } from './QuickUnlockSettings';
 
 type Tab = 'security' | 'appearance' | 'vault' | 'categories' | 'about';
 
@@ -151,6 +153,8 @@ function SecurityTab({ settings, update }: { settings: VaultSettings; update: (p
           </button>
         </Setting>
       </Group>
+
+      <QuickUnlockSettings />
 
       <Group title="Locking">
         <Setting title="Auto-lock" desc="Lock the vault after a period of inactivity.">
@@ -380,6 +384,7 @@ function VaultTab({ snap, update, onChanged }: { snap: VaultSnapshot; update: (p
   const [busy, setBusy] = useState(false);
   const [restoring, setRestoring] = useState<null | 'restore' | 'verify'>(null);
   const [plaintext, setPlaintext] = useState(false);
+  const [importing, setImporting] = useState(false);
   const toast = useToast();
   const { settings, meta } = snap;
 
@@ -482,6 +487,14 @@ function VaultTab({ snap, update, onChanged }: { snap: VaultSnapshot; update: (p
         </Setting>
       </Group>
 
+      <Group title="Import notes">
+        <Setting title="Import notes from another app" desc="Paste many notes at once — each becomes its own encrypted item in the right category.">
+          <button type="button" className="btn sm" onClick={() => setImporting(true)}>
+            <Upload size={14} aria-hidden /> Import notes…
+          </button>
+        </Setting>
+      </Group>
+
       <Group title="Restore & import">
         <Setting title="Restore or import encrypted backup" desc="Replace this vault with a backup, or merge items from a backup into it.">
           <button type="button" className="btn sm" onClick={() => setRestoring('restore')}>
@@ -539,6 +552,16 @@ function VaultTab({ snap, update, onChanged }: { snap: VaultSnapshot; update: (p
         />
       )}
       {plaintext && <PlaintextExportDialog onClose={() => setPlaintext(false)} />}
+      {importing && (
+        <ImportNotesDialog
+          snap={snap}
+          onClose={() => setImporting(false)}
+          onImported={async () => {
+            setImporting(false);
+            await onChanged();
+          }}
+        />
+      )}
     </>
   );
 }

@@ -120,6 +120,11 @@ export function registerIpc(d: IpcDeps): void {
   // ---------------------------------------------------------------- vault ----
   handle('vault.snapshot', () => d.vault.snapshot());
   handle('vault.saveEntry', (input: unknown) => d.vault.saveEntry(input));
+  handle('vault.importEntries', async (inputs: unknown) => {
+    const count = await d.vault.importEntries(inputs);
+    log('vault.imported', { count });
+    return { count };
+  });
   handle('vault.deleteEntry', (id: unknown) => d.vault.deleteEntry(id));
   handle('vault.duplicateEntry', (id: unknown) => d.vault.duplicateEntry(id));
   handle('vault.setFavorite', (id: unknown, fav: unknown) => d.vault.setFavorite(id, fav === true));

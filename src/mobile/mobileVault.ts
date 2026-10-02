@@ -34,6 +34,8 @@ import {
   MobileCryptoError,
   buildFile,
   deriveKey,
+  deriveRawKey,
+  importAesKey,
   newKdfParams,
   openFile,
   parseFile,
@@ -159,6 +161,47 @@ export class MobileVault {
   private registerFailure(): void {
     this.failedAttempts++;
     if (this.failedAttempts >= 3) this.lockedOutUntil = Date.now() + Math.min(60, 2 ** (this.failedAttempts - 3) * 2) * 1000;
+  }
+
+  /**
+   * Quick-unlock enrollment: verify the master password against the stored vault
+   * and return the RAW vault key so it can be wrapped by the Android Keystore.
+   * Caller must wipe() the result.
+   */
+  async rawKeyForEnrollment(password: string): Promise<Uint8Array> {
+    this.requireUnlocked();
+    const raw = await this.native.read(VAULT_FILE);
+    if (!raw) throw new AppError('LOCKED', 'The vault is locked.');
+    const file = parseFile(raw);
+    const bytes = await deriveRawKey(password, file.kdf);
+    try {
+      await openFile(file, await importAesKey(bytes.slice()));
+      return bytes;
+    } catch {
+      bytes.fill(0);
+      throw new ValidationError('master', 'Incorrect master password.');
+    }
+  }
+
+  /** Unlock with a raw key released by fingerprint/PIN. Consumes (wipes) the bytes. */
+  async unlockWithRawKey(rawKey: Uint8Array): Promise<void> {
+    const raw = await this.native.read(VAULT_FILE);
+    if (!raw) throw new AppError('UNLOCK_FAILED', UNLOCK_FAILED_MESSAGE);
+    const file = parseFile(raw);
+    const key = await importAesKey(rawKey);
+    let payload: VaultPayload;
+    try {
+      payload = validatePayload(JSON.parse(await openFile(file, key)));
+    } catch {
+      // The wrapped key no longer matches the vault (e.g. password changed elsewhere).
+      throw new AppError('QUICK_STALE', 'Quick unlock is out of date. Please use your master password.');
+    }
+    this.key = key;
+    this.kdf = file.kdf;
+    this.header = { createdAt: file.createdAt, hint: file.hint };
+    this.payload = payload;
+    this.failedAttempts = 0;
+    this.lockedOutUntil = 0;
   }
 
   /** Drop the key and all decrypted data. */
@@ -329,6 +372,30 @@ export class MobileVault {
       return e;
     });
     return this.toView(saved);
+  }
+
+  async importEntries(inputs: unknown): Promise<number> {
+    if (!Array.isArray(inputs) || inputs.length === 0) throw new AppError('EMPTY', 'Nothing to import.');
+    if (inputs.length > 5000) throw new AppError('LIMIT', 'Import at most 5,000 items at a time.');
+    const categories = this.categories();
+    const valid = inputs.map((i) => validateEntryInput({ ...(i as object), id: undefined }, categories));
+    const now = new Date().toISOString();
+    await this.mutate((d) => {
+      for (const v of valid) {
+        d.entries.push({
+          id: globalThis.crypto.randomUUID(),
+          categoryId: v.categoryId,
+          title: v.title,
+          fields: v.fields,
+          tags: v.tags,
+          favorite: v.favorite,
+          favoriteOrder: v.favorite ? nextFavoriteOrder(d) : 0,
+          createdAt: now,
+          updatedAt: now
+        });
+      }
+    });
+    return valid.length;
   }
 
   async deleteEntry(id: unknown): Promise<void> {

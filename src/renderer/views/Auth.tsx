@@ -1,9 +1,11 @@
 import { ArrowLeft, CircleAlert, FolderOpen, Info, Lock, TriangleAlert } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import type { QuickUnlockStatus } from '../../shared/api';
 import { estimateStrength } from '../../shared/strength';
 import { Dialog } from '../components/Dialog';
 import { PasswordInput } from '../components/PasswordInput';
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
+import { QuickUnlockPanel } from './QuickUnlockPanel';
 
 function Logo() {
   return (
@@ -204,6 +206,21 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
     return () => clearTimeout(t);
   }, [wait]);
 
+  // Fingerprint / PIN (Android) — shown instead of the password field when enabled.
+  const [quick, setQuick] = useState<QuickUnlockStatus | null>(null);
+  const [usePassword, setUsePassword] = useState(false);
+  const loadQuick = useCallback(async () => {
+    try {
+      setQuick(await api.quick.status());
+    } catch {
+      setQuick({ supported: false, biometricAvailable: false, biometric: false, pin: false, pinAttemptsLeft: 0 });
+    }
+  }, []);
+  useEffect(() => {
+    void loadQuick();
+  }, [loadQuick]);
+  const showQuick = !usePassword && !!quick && (quick.biometric || quick.pin);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!pw || busy || wait > 0) return;
@@ -231,6 +248,14 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
         <h1 className="auth-title">VAULT</h1>
         <p className="auth-sub">Your data stays on this device.</p>
 
+        {quick === null ? (
+          <div className="row-flex" style={{ justifyContent: 'center' }}>
+            <span className="spinner" aria-label="Loading" />
+          </div>
+        ) : showQuick ? (
+          <QuickUnlockPanel status={quick} onUnlocked={onUnlocked} onUsePassword={() => setUsePassword(true)} onStatusChanged={loadQuick} />
+        ) : (
+        <>
         <label htmlFor="unlock-pw" className="sr-only">
           Master password
         </label>
@@ -261,6 +286,8 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
             'Unlock'
           )}
         </button>
+        </>
+        )}
 
         <div className="row-flex" style={{ justifyContent: 'center', gap: 18, marginTop: 18 }}>
           {hasHint && (

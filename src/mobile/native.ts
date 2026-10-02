@@ -17,6 +17,16 @@ export interface NativeVault {
   /** Copy to clipboard flagged as sensitive; cleared natively after `seconds` if still ours. */
   copySecret(text: string, seconds: number): Promise<void>;
   clearClipboard(): Promise<void>;
+  /** Strong biometric (fingerprint) hardware present and enrolled. */
+  biometricAvailable(): Promise<boolean>;
+  /** Encrypt with the fingerprint-bound Keystore key (shows the fingerprint prompt). */
+  bioEncrypt(dataB64: string): Promise<{ iv: string; data: string }>;
+  /** Decrypt with the fingerprint-bound Keystore key (shows the fingerprint prompt). */
+  bioDecrypt(iv: string, dataB64: string): Promise<string>;
+  /** Encrypt/decrypt with the device-bound Keystore key (no prompt). */
+  deviceEncrypt(dataB64: string): Promise<{ iv: string; data: string }>;
+  deviceDecrypt(iv: string, dataB64: string): Promise<string>;
+  resetKey(kind: 'biometric' | 'device'): Promise<void>;
 }
 
 interface VaultNativePlugin {
@@ -28,6 +38,12 @@ interface VaultNativePlugin {
   clearExports(): Promise<void>;
   copySecret(o: { text: string; clearAfterSeconds: number }): Promise<void>;
   clearClipboard(): Promise<void>;
+  biometricStatus(): Promise<{ available: boolean }>;
+  bioEncrypt(o: { data: string }): Promise<{ iv: string; data: string }>;
+  bioDecrypt(o: { iv: string; data: string }): Promise<{ data: string }>;
+  deviceEncrypt(o: { data: string }): Promise<{ iv: string; data: string }>;
+  deviceDecrypt(o: { iv: string; data: string }): Promise<{ data: string }>;
+  resetKey(o: { kind: string }): Promise<void>;
 }
 
 const Plugin = registerPlugin<VaultNativePlugin>('VaultNative');
@@ -43,5 +59,11 @@ export const capacitorNative: NativeVault = {
   writeExport: async (name, data) => (await Plugin.writeExport({ name, data })).uri,
   clearExports: () => Plugin.clearExports(),
   copySecret: (text, seconds) => Plugin.copySecret({ text, clearAfterSeconds: seconds }),
-  clearClipboard: () => Plugin.clearClipboard()
+  clearClipboard: () => Plugin.clearClipboard(),
+  biometricAvailable: async () => (await Plugin.biometricStatus()).available,
+  bioEncrypt: (data) => Plugin.bioEncrypt({ data }),
+  bioDecrypt: async (iv, data) => (await Plugin.bioDecrypt({ iv, data })).data,
+  deviceEncrypt: (data) => Plugin.deviceEncrypt({ data }),
+  deviceDecrypt: async (iv, data) => (await Plugin.deviceDecrypt({ iv, data })).data,
+  resetKey: (kind) => Plugin.resetKey({ kind })
 };

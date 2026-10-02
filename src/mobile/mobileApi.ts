@@ -5,11 +5,12 @@
 import { App } from '@capacitor/app';
 import { AppLauncher } from '@capacitor/app-launcher';
 import { Share } from '@capacitor/share';
-import { PLAINTEXT_CONFIRM_PHRASE, type VaultApi } from '../shared/api';
+import { PLAINTEXT_CONFIRM_PHRASE, type QuickUnlockStatus, type VaultApi } from '../shared/api';
 import type { BackupSummary, Result, VaultPayload } from '../shared/types';
 import { ValidationError, validateMasterPassword } from '../main/vault/schema';
 import { AppError, MobileVault } from './mobileVault';
 import type { NativeVault } from './native';
+import { QuickUnlock } from './quickUnlock';
 
 const MAX_IMPORT_BYTES = 64 * 1024 * 1024;
 
@@ -29,6 +30,7 @@ async function wrap<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
 
 export function createMobileApi(native: NativeVault): VaultApi {
   const vault = new MobileVault(native);
+  const quick = new QuickUnlock(native, vault);
   const pending = new Map<string, { name: string; raw: string; decrypted?: VaultPayload }>();
   let lastActivity = Date.now();
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -150,6 +152,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
       create: (pw, hint) =>
         wrap(async () => {
           await vault.create(validateMasterPassword(pw), hint);
+          await quick.disableAll();
           armIdle();
         }),
       unlock: (pw) =>
@@ -160,11 +163,16 @@ export function createMobileApi(native: NativeVault): VaultApi {
         }),
       lock: async () => lock(),
       changePassword: (cur, next, hint) =>
-        wrap(() => vault.changePassword(validateMasterPassword(cur, 'current'), validateMasterPassword(next, 'next'), hint))
+        wrap(async () => {
+          await vault.changePassword(validateMasterPassword(cur, 'current'), validateMasterPassword(next, 'next'), hint);
+          // The wrapped key belongs to the old password: require re-enrollment.
+          await quick.disableAll();
+        })
     },
     vault: {
       snapshot: () => wrap(() => vault.snapshot()),
       saveEntry: (i) => wrap(() => vault.saveEntry(i)),
+      importEntries: (inputs) => wrap(async () => ({ count: await vault.importEntries(inputs) })),
       deleteEntry: (id) => wrap(() => vault.deleteEntry(id)),
       duplicateEntry: (id) => wrap(() => vault.duplicateEntry(id)),
       setFavorite: (id, f) => wrap(() => vault.setFavorite(id, f === true)),
@@ -241,6 +249,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
         wrap(async () => {
           const p = getPending(token);
           await vault.restoreWhileLocked(p.raw, validateMasterPassword(password));
+          await quick.disableAll();
           pending.delete(token);
           lastActivity = Date.now();
           armIdle();
@@ -254,6 +263,25 @@ export function createMobileApi(native: NativeVault): VaultApi {
           // Remove the plaintext copy from the app cache shortly after sharing.
           setTimeout(() => void native.clearExports().catch(() => undefined), 60_000);
           return name;
+        })
+    },
+    quick: {
+      status: (): Promise<QuickUnlockStatus> => quick.status(),
+      enableBiometric: (master) =>
+        wrap(() => withExternalUi(() => quick.enableBiometric(validateMasterPassword(master, 'master')))),
+      enablePin: (master, pin) => wrap(() => quick.enablePin(validateMasterPassword(master, 'master'), pin)),
+      disable: (kind) => wrap(() => (kind === 'biometric' ? quick.disableBiometric() : quick.disablePin())),
+      unlockBiometric: () =>
+        wrap(async () => {
+          await withExternalUi(() => quick.unlockBiometric());
+          lastActivity = Date.now();
+          armIdle();
+        }),
+      unlockPin: (pin) =>
+        wrap(async () => {
+          await quick.unlockPin(pin);
+          lastActivity = Date.now();
+          armIdle();
         })
     },
     events: {

@@ -11,6 +11,7 @@ import { MOBILE_QUERY, useMediaQuery } from '../lib/platform';
 import { searchEntries } from '../../shared/search';
 import { Dashboard } from './Dashboard';
 import { EntryForm } from './EntryForm';
+import { ImportNotesDialog } from './ImportNotes';
 import { ItemsView } from './Items';
 import { SettingsView } from './Settings';
 import { TitleBar } from './TitleBar';
@@ -30,6 +31,7 @@ export function VaultApp({ version }: { version: string }) {
   const [editor, setEditor] = useState<EditorState>(null);
   const [deleting, setDeleting] = useState<EntryView | null>(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
   const mobile = useMediaQuery(MOBILE_QUERY);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -302,6 +304,7 @@ export function VaultApp({ version }: { version: string }) {
               onOpen={openEntry}
               onNavigate={go}
               onNew={() => newItem()}
+              onImport={() => setImportOpen(true)}
               onSearch={(q) => {
                 setQuery(q);
                 searchRef.current?.focus();
@@ -376,6 +379,18 @@ export function VaultApp({ version }: { version: string }) {
       )}
 
       {generatorOpen && <GeneratorDialog onClose={() => setGeneratorOpen(false)} />}
+      {importOpen && (
+        <ImportNotesDialog
+          snap={snap}
+          onClose={() => setImportOpen(false)}
+          onImported={async () => {
+            setImportOpen(false);
+            await refresh();
+            setSelectedId(null);
+            setRoute({ view: 'items', filter: 'tag:imported' });
+          }}
+        />
+      )}
     </>
   );
 }

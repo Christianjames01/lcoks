@@ -33,6 +33,8 @@ export interface VaultApi {
   vault: {
     snapshot(): Promise<Result<VaultSnapshot>>;
     saveEntry(input: EntryInput): Promise<Result<EntryView>>;
+    /** Add many items in ONE encrypted write (used by note import). */
+    importEntries(inputs: EntryInput[]): Promise<Result<{ count: number }>>;
     deleteEntry(id: string): Promise<Result<void>>;
     duplicateEntry(id: string): Promise<Result<EntryView>>;
     setFavorite(id: string, favorite: boolean): Promise<Result<void>>;
@@ -57,10 +59,33 @@ export interface VaultApi {
     restoreWhileLocked(token: string, password: string): Promise<Result<void>>;
     exportPlaintext(password: string, confirmPhrase: string): Promise<Result<string | null>>;
   };
+  /**
+   * Quick unlock (Android): fingerprint and 4-digit PIN. The vault key is wrapped by
+   * a hardware-backed Android Keystore key; the master password is still required
+   * to enable it. Desktop reports `supported: false`.
+   */
+  quick: {
+    status(): Promise<QuickUnlockStatus>;
+    enableBiometric(masterPassword: string): Promise<Result<void>>;
+    enablePin(masterPassword: string, pin: string): Promise<Result<void>>;
+    disable(kind: 'biometric' | 'pin'): Promise<Result<void>>;
+    unlockBiometric(): Promise<Result<void>>;
+    unlockPin(pin: string): Promise<Result<void>>;
+  };
   events: {
     /** Commands triggered from the tray / OS (e.g. "show settings"). */
     onCommand(cb: (command: 'new-item' | 'search' | 'settings') => void): () => void;
   };
 }
+
+export interface QuickUnlockStatus {
+  supported: boolean;
+  biometricAvailable: boolean;
+  biometric: boolean;
+  pin: boolean;
+  pinAttemptsLeft: number;
+}
+
+export const MAX_PIN_ATTEMPTS = 5;
 
 export const PLAINTEXT_CONFIRM_PHRASE = 'EXPORT PLAINTEXT';
