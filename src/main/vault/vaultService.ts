@@ -15,6 +15,7 @@
 import { promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { BUILTIN_CATEGORIES } from '../../shared/categories';
+import { detectCardNetwork } from '../../shared/cards';
 import { estimateStrength } from '../../shared/strength';
 import {
   DEFAULT_SETTINGS,
@@ -298,6 +299,7 @@ export class VaultService {
         const meta: SecretMeta = { set: value.length > 0 };
         if (def.partialMask && value.length > 4) meta.preview = '•••• ' + value.replace(/\s/g, '').slice(-4);
         if (def.type === 'password' && value) meta.strength = estimateStrength(value).score;
+        if ((def.key === 'cardNumber' || def.key === 'accountNumber') && value) meta.network = detectCardNetwork(value);
         secrets[def.key] = meta;
       } else if (value) {
         fields[def.key] = value;

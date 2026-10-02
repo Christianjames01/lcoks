@@ -84,6 +84,8 @@ export interface SecretMeta {
   preview?: string;
   /** Strength score 0..4 for password-type fields. */
   strength?: number;
+  /** Card network detected from a card number (e.g. "visa"); the number itself is never sent. */
+  network?: string;
 }
 
 /**

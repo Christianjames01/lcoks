@@ -86,6 +86,12 @@ describe('classifyNote', () => {
     expect(by('Backup codes').fields.content).toContain('8492 1173 5520');
   });
 
+  it('detects bank cards', () => {
+    const c = classifyNote('BDO Visa Debit\nCard number: 4111 1111 1111 1111\nExpiry: 8/2028\nCVV: 123\nName on card: Juan Dela Cruz\nPIN: 9876', cats);
+    expect(c.categoryId).toBe('cards');
+    expect(c.fields).toMatchObject({ bankName: 'BDO', cardNumber: '4111 1111 1111 1111', expiry: '08/28', cvv: '123', cardholder: 'Juan Dela Cruz', pin: '9876' });
+  });
+
   it('detects game accounts', () => {
     const a = classifyNote('Mobile Legends\nIGN: JuanSlayer\nUID: 123456789 (2034)\nEmail: juan@gmail.com\nPassword: mlbbPass1', cats);
     expect(a.categoryId).toBe('games');

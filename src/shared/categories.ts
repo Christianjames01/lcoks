@@ -21,6 +21,22 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
     ]
   },
   {
+    id: 'cards',
+    name: 'Cards',
+    icon: 'card',
+    builtin: true,
+    fields: [
+      { key: 'bankName', label: 'Bank / issuer', type: 'text', placeholder: 'BPI, BDO, GCash…' },
+      { key: 'cardType', label: 'Card type', type: 'select', options: ['Debit', 'Credit', 'Prepaid', 'ATM', 'Virtual'] },
+      { key: 'cardholder', label: 'Cardholder name', type: 'text' },
+      { key: 'cardNumber', label: 'Card number', type: 'secret', partialMask: true },
+      { key: 'expiry', label: 'Expiry (MM/YY)', type: 'text', placeholder: 'MM/YY' },
+      { key: 'cvv', label: 'CVV / CVC', type: 'pin' },
+      { key: 'pin', label: 'PIN', type: 'pin' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
     id: 'email',
     name: 'Email',
     icon: 'mail',
@@ -125,7 +141,7 @@ export const BUILTIN_IDS: ReadonlySet<string> = new Set(BUILTIN_CATEGORIES.map((
 /** Field key used to pick a "subtitle" for list rows. */
 export function subtitleFor(category: CategoryDef | undefined, fields: Record<string, string>): string {
   if (!category) return '';
-  const order = ['username', 'email', 'accountName', 'networkName', 'service', 'platform', 'product', 'accountId', 'website'];
+  const order = ['cardholder', 'username', 'email', 'accountName', 'networkName', 'service', 'platform', 'product', 'accountId', 'website'];
   for (const key of order) {
     const def = category.fields.find((f) => f.key === key);
     if (def && fields[key]) return fields[key];

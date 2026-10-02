@@ -6,6 +6,7 @@
 // secret, the whole note is imported as a Secure Note (hidden by default)
 // instead of risking a password ending up in a visible "Notes" field.
 
+import { normalizeExpiry } from './cards';
 import type { CategoryDef } from './types';
 
 export type SplitMode = 'auto' | 'separator' | 'blank' | 'blank2';
@@ -70,6 +71,10 @@ type Semantic =
   | 'phone'
   | 'platform'
   | 'accountId'
+  | 'cardNumber'
+  | 'cvv'
+  | 'cardholder'
+  | 'cardType'
   | 'notes';
 
 const ALIASES: [RegExp, Semantic][] = [
@@ -82,7 +87,12 @@ const ALIASES: [RegExp, Semantic][] = [
   [/^(recovery (phone|number|mobile)|backup (phone|number))$/, 'recoveryPhone'],
   [/^(pass ?word|pass|pw|pwd|passwd|passcode|password ?\d?)$/, 'password'],
   [/^(pin|m-?pin|atm pin|card pin|pin code|pincode|otp pin)$/, 'pin'],
-  [/^(account (number|no\.?|num|#)|acct (no\.?|number|#)|acc (no\.?|number|#)|card (number|no\.?)|account)$/, 'accountNumber'],
+  [/^(card (number|no\.?|#)|cc( number)?|debit card|credit card)$/, 'cardNumber'],
+  [/^(cvv|cvc|cvv2|cvc2|security code|card code)$/, 'cvv'],
+  [/^(card ?holder( name)?|name on card)$/, 'cardholder'],
+  [/^(card type|type)$/, 'cardType'],
+  [/^(exp|exp\.? date|expiry|valid thru|good thru)$/, 'expirationDate'],
+  [/^(account (number|no\.?|num|#)|acct (no\.?|number|#)|acc (no\.?|number|#)|account)$/, 'accountNumber'],
   [/^(account name|name on (account|card)|account holder)$/, 'accountName'],
   [/^(bank|bank name)$/, 'bankName'],
   [/^(customer (number|no\.?|id)|cif( no\.?)?|client (id|number))$/, 'customerNumber'],
@@ -179,7 +189,9 @@ export function classifyNote(text: string, categories: CategoryDef[], index = 0,
 
   const hasCreds = Boolean(kv.password || kv.username || kv.email);
   let categoryId: string;
-  if (kv.bankName || kv.accountNumber || kv.customerNumber || (BANKS.test(all) && (kv.pin || kv.password || kv.accountNumber || kv.username))) {
+  if (kv.cardNumber || kv.cvv) {
+    categoryId = 'cards';
+  } else if (kv.bankName || kv.accountNumber || kv.customerNumber || (BANKS.test(all) && (kv.pin || kv.password || kv.accountNumber || kv.username))) {
     categoryId = 'banking';
   } else if (kv.network || (WIFI.test(all) && kv.password)) {
     categoryId = 'wifi';
@@ -230,13 +242,21 @@ export function classifyNote(text: string, categories: CategoryDef[], index = 0,
     put('recoveryPhone', kv.recoveryPhone ?? kv.phone);
     put('platform', kv.platform);
     put('accountId', kv.accountId);
+    put('cardNumber', kv.cardNumber);
+    put('cvv', kv.cvv);
+    put('cardholder', kv.cardholder ?? kv.accountName);
+    put('cardType', kv.cardType && ['Debit', 'Credit', 'Prepaid', 'ATM', 'Virtual'].find((o) => kv.cardType!.toLowerCase().includes(o.toLowerCase())));
+    if (has('expiry') && kv.expirationDate) {
+      const exp = normalizeExpiry(kv.expirationDate);
+      if (exp) fields.expiry = exp;
+    }
     put('service', kv.platform);
     // Email address: the dedicated field where one exists, otherwise use it as the username.
     const emailValue = kv.email ?? (kv.username && EMAIL_VALUE.test(kv.username) ? undefined : all.match(EMAIL_VALUE)?.[0]);
     if (has('email')) put('email', emailValue);
     else if (!kv.username) put('username', emailValue);
     put('username', kv.username);
-    if (category.id === 'banking' && !fields.bankName) {
+    if ((category.id === 'banking' || category.id === 'cards') && !fields.bankName) {
       const m = all.match(BANKS);
       if (m && !/^(bank|atm|debit|savings|checking)$/i.test(m[1]!)) fields.bankName = m[1]!.toUpperCase();
     }

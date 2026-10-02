@@ -2,7 +2,9 @@ import { ArrowDown, ArrowLeft, ArrowUp, Copy, CopyPlus, ExternalLink, Eye, EyeOf
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { subtitleFor } from '../../shared/categories';
 import { isSecretType, type EntryView, type FavoriteSort, type FieldDef, type VaultSnapshot } from '../../shared/types';
+import { BankCard } from '../components/BankCard';
 import { CategoryIcon } from '../components/Icon';
+import { cardTheme } from '../../shared/cards';
 import { StrengthMeter } from '../components/StrengthMeter';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
@@ -126,7 +128,14 @@ export function ItemsView({ snap, filter, query, entries, mobile, selectedId, on
                     tabIndex={isSel || (!selected && i === 0) ? 0 : -1}
                     onClick={() => onSelect(e.id)}
                   >
-                    <span className="row-icon">
+                    <span
+                      className="row-icon"
+                      style={
+                        e.categoryId === 'banking' || e.categoryId === 'cards'
+                          ? { background: cardTheme(e.fields.bankName, e.title).background, color: '#fff', borderColor: 'transparent' }
+                          : undefined
+                      }
+                    >
                       <CategoryIcon icon={cat?.icon} />
                     </span>
                     <span className="row-main">
@@ -135,6 +144,7 @@ export function ItemsView({ snap, filter, query, entries, mobile, selectedId, on
                       </span>
                       <span className="row-sub" style={{ display: 'block' }}>
                         {subtitleFor(cat, e.fields)}
+                        {e.secrets.cardNumber?.preview ? ` · ${e.secrets.cardNumber.preview}` : ''}
                       </span>
                     </span>
                     {e.favorite && (
@@ -277,6 +287,10 @@ function EntryDetail({
           </button>
         </div>
       </div>
+
+      {(entry.categoryId === 'cards' || (entry.categoryId === 'banking' && (entry.secrets.accountNumber?.set || entry.fields.bankName))) && (
+        <BankCard entry={entry} revealSeconds={snap.settings.revealTimeoutSeconds} />
+      )}
 
       {(category?.fields ?? []).map((def) => (
         <DetailField key={def.key} entry={entry} def={def} snap={snap} />
