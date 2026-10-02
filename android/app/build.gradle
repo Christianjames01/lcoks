@@ -8,8 +8,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // CI passes -PversionCode / -PversionName so every build can update the previous install.
-        versionCode (project.findProperty("versionCode") ?: "1").toString().toInteger()
-        versionName (project.findProperty("versionName") ?: "1.0.0")
+        versionCode = Integer.parseInt((project.findProperty("versionCode") ?: "1").toString())
+        versionName = (project.findProperty("versionName") ?: "1.0.0").toString()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -35,7 +35,7 @@ android {
             // Without the release keystore (e.g. a fork without secrets) fall back to the
             // debug key so the APK is still installable; such builds cannot update a
             // release-signed install.
-            signingConfig(System.getenv("VAULTLOCKS_KEYSTORE_FILE") ? signingConfigs.release : signingConfigs.debug)
+            signingConfig = System.getenv("VAULTLOCKS_KEYSTORE_FILE") ? signingConfigs.release : signingConfigs.debug
             debuggable false
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

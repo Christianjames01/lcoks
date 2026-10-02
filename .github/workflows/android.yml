@@ -66,7 +66,7 @@ jobs:
         run: |
           chmod +x gradlew
           set +e
-          ./gradlew assembleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=$VERSION 2>&1 | tee gradle.log
+          ./gradlew assembleRelease --no-daemon --stacktrace -PversionCode=${{ github.run_number }} -PversionName=$VERSION 2>&1 | tee gradle.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
             # Surface the actual Gradle/compiler error as a (public) annotation.
