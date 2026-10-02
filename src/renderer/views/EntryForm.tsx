@@ -194,7 +194,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
       busy={busy}
       footer={
         <>
-          <span className="left help-text">Enter to save · Esc to cancel</span>
+          <span className="left help-text desktop-only">Enter to save · Esc to cancel</span>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
             Cancel
           </button>

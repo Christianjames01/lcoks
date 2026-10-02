@@ -4,3 +4,7 @@ dist-electron/
 release/
 *.vault
 *.log
+dist-mobile/
+*.p12
+*.jks
+*.keystore

@@ -1,0 +1,19 @@
+{
+  "appId": "com.vaultlocks.app",
+  "appName": "VaultLocks",
+  "webDir": "dist-mobile",
+  "backgroundColor": "#000000",
+  "loggingBehavior": "none",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false,
+    "captureInput": true
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK",
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover"
+    }
+  }
+}

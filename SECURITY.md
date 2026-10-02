@@ -150,9 +150,28 @@ behind re-authentication, a typed confirmation phrase and a native save dialog.
 | `src/preload/preload.ts`         | The only API exposed to the renderer |
 | `src/shared/generator.ts`        | CSPRNG password/passphrase generation |
 
-## 7. Testing
+## 7. Android app
 
-`npm test` runs 65 automated tests, including:
+* Same file format and parameters; implemented with WebCrypto (AES-256-GCM) and
+  hash-wasm (Argon2id). The session key is a **non-extractable** `CryptoKey`.
+* Vault stored in app-private internal storage via a native plugin with atomic
+  writes; `allowBackup=false` + data-extraction rules exclude it from Google cloud
+  backup and device transfer.
+* `FLAG_SECURE` blocks screenshots, screen recording and the recents thumbnail.
+* Clipboard: values are flagged `EXTRA_IS_SENSITIVE` and cleared by a native timer
+  that keeps running while the app is in the background.
+* Locks when the app goes to the background (configurable) and enforces the
+  auto-lock timeout on resume; locking reloads the WebView.
+* CSP: `connect-src 'none'`; the only extra allowance is `'wasm-unsafe-eval'` for the
+  Argon2id WebAssembly module. Cleartext traffic is disabled. The `INTERNET`
+  permission remains only because Android WebView needs it to load the app's
+  bundled pages; the app makes no network requests.
+* Release APKs are signed with a dedicated key stored only as GitHub secrets and
+  on the owner's machine (never in the repository).
+
+## 8. Testing
+
+`npm test` runs 73 automated tests, including:
 
 * correct / wrong master password, throttling, Unicode (NFC vs NFD) and ~1000-char
   master passwords, application restart;
@@ -168,6 +187,8 @@ behind re-authentication, a typed confirmation phrase and a native save dialog.
   replace restore, restore while locked (corrupted vault);
 * generator length/charset/uniformity/passphrases, strength estimation;
 * clipboard auto-clear (and not clearing values copied later), auto-lock timer;
+* Android vault: unlock/tamper/write-failure/password-change/backup tests and full
+  **desktop ⇄ Android file compatibility** in both directions;
 * logger redaction, plus static checks that the source contains no console logging,
   no `Math.random`, no MD5/SHA-1 and no network APIs.
 

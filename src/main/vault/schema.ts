@@ -2,7 +2,6 @@
 // decrypted payload read from disk. Objects are rebuilt field-by-field so that
 // unexpected properties (e.g. prototype-pollution keys) are dropped.
 
-import { randomUUID } from 'node:crypto';
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../../shared/categories';
 import {
   DEFAULT_SETTINGS,
@@ -17,6 +16,10 @@ import {
   type VaultPayload,
   type VaultSettings
 } from '../../shared/types';
+
+
+// Isomorphic: Web Crypto randomUUID works in Node 19+, Electron and Android WebView.
+const randomUUID = () => globalThis.crypto.randomUUID();
 
 export class ValidationError extends Error {
   constructor(readonly field: string, readonly userMessage: string) {

@@ -26,6 +26,7 @@ import { PasswordInput } from '../components/PasswordInput';
 import { useToast } from '../components/Toast';
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
 import { daysSince, formatBytes, formatDateTime } from '../lib/format';
+import { isAndroid } from '../lib/platform';
 
 type Tab = 'security' | 'appearance' | 'vault' | 'categories' | 'about';
 
@@ -167,15 +168,23 @@ function SecurityTab({ settings, update }: { settings: VaultSettings; update: (p
             onChange={(v) => update({ autoLockMinutes: v })}
           />
         </Setting>
-        <Setting title="Lock when minimized" desc="Also applies when hidden to the system tray." htmlFor="s-min">
+        <Setting
+          title={isAndroid() ? 'Lock when app goes to background' : 'Lock when minimized'}
+          desc={isAndroid() ? 'Also locks when the screen turns off or you switch apps.' : 'Also applies when hidden to the system tray.'}
+          htmlFor="s-min"
+        >
           <input id="s-min" type="checkbox" className="switch" checked={settings.lockOnMinimize} onChange={(e) => update({ lockOnMinimize: e.target.checked })} />
         </Setting>
-        <Setting title="Lock when computer locks or sleeps" htmlFor="s-sys">
-          <input id="s-sys" type="checkbox" className="switch" checked={settings.lockOnSystemLock} onChange={(e) => update({ lockOnSystemLock: e.target.checked })} />
-        </Setting>
-        <Setting title="Keep running in system tray when closed" desc="Only while unlocked. Use Quit from the tray menu to exit." htmlFor="s-tray">
-          <input id="s-tray" type="checkbox" className="switch" checked={settings.closeToTray} onChange={(e) => update({ closeToTray: e.target.checked })} />
-        </Setting>
+        {!isAndroid() && (
+          <>
+            <Setting title="Lock when computer locks or sleeps" htmlFor="s-sys">
+              <input id="s-sys" type="checkbox" className="switch" checked={settings.lockOnSystemLock} onChange={(e) => update({ lockOnSystemLock: e.target.checked })} />
+            </Setting>
+            <Setting title="Keep running in system tray when closed" desc="Only while unlocked. Use Quit from the tray menu to exit." htmlFor="s-tray">
+              <input id="s-tray" type="checkbox" className="switch" checked={settings.closeToTray} onChange={(e) => update({ closeToTray: e.target.checked })} />
+            </Setting>
+          </>
+        )}
       </Group>
 
       <Group title="Clipboard & visibility">
@@ -423,6 +432,11 @@ function VaultTab({ snap, update, onChanged }: { snap: VaultSnapshot; update: (p
             {busy ? <span className="spinner" aria-hidden /> : <Download size={14} aria-hidden />} Back up now
           </button>
         </Setting>
+        {isAndroid() ? (
+          <Setting title="Where backups go" desc="Back up now opens Android's share sheet: save the encrypted file to Files, a USB drive, or send it to your computer.">
+            <span />
+          </Setting>
+        ) : (
         <Setting title="Backup location" desc={<span className="selectable">{settings.backupDirectory ?? 'Documents folder (default)'}</span>}>
           <button
             type="button"
@@ -439,6 +453,7 @@ function VaultTab({ snap, update, onChanged }: { snap: VaultSnapshot; update: (p
             <FolderOpen size={14} aria-hidden /> Choose…
           </button>
         </Setting>
+        )}
         <Setting title="Backup reminder" htmlFor="s-remind">
           <select
             id="s-remind"
@@ -505,9 +520,11 @@ function VaultTab({ snap, update, onChanged }: { snap: VaultSnapshot; update: (p
         )}
         <div className="setting" style={{ borderTop: '1px solid var(--border)' }}>
           <div className="grow desc">The vault file contains only encrypted data and the parameters needed to decrypt it.</div>
-          <button type="button" className="btn sm" onClick={() => void api.vault.showVaultFolder()}>
-            <FolderOpen size={14} aria-hidden /> Show in folder
-          </button>
+          {!isAndroid() && (
+            <button type="button" className="btn sm" onClick={() => void api.vault.showVaultFolder()}>
+              <FolderOpen size={14} aria-hidden /> Show in folder
+            </button>
+          )}
         </div>
       </Group>
 
@@ -1035,8 +1052,18 @@ function AboutTab({ version }: { version: string }) {
           <dd>All file metadata is authenticated; any modification is detected and rejected.</dd>
           <dt>Master password</dt>
           <dd>Never stored, logged or displayed. There is no recovery or bypass.</dd>
-          <dt>Keyboard shortcuts</dt>
-          <dd>Ctrl+K search · Ctrl+N new item · Ctrl+L lock · Ctrl+G generator · Ctrl+, settings · Esc close</dd>
+          {!isAndroid() && (
+            <>
+              <dt>Keyboard shortcuts</dt>
+              <dd>Ctrl+K search · Ctrl+N new item · Ctrl+L lock · Ctrl+G generator · Ctrl+, settings · Esc close</dd>
+            </>
+          )}
+          {isAndroid() && (
+            <>
+              <dt>Android protections</dt>
+              <dd>Screenshots and the recent-apps preview are blocked. Copied secrets are marked sensitive and cleared automatically. App data is excluded from Android cloud backup.</dd>
+            </>
+          )}
         </dl>
       </Group>
       <Group title="Open-source licenses">
@@ -1046,6 +1073,8 @@ function AboutTab({ version }: { version: string }) {
           <dt>React</dt>
           <dd>MIT</dd>
           <dt>hash-wasm (Argon2id)</dt>
+          <dd>MIT</dd>
+          <dt>Capacitor (Android)</dt>
           <dd>MIT</dd>
           <dt>Lucide icons</dt>
           <dd>ISC</dd>

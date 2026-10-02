@@ -19,10 +19,29 @@ See [SECURITY.md](SECURITY.md) for the full security design and threat model.
 npm install
 npm start          # build and launch the app
 npm run dev        # development mode with hot reload (DevTools enabled)
-npm test           # 65 automated security & functionality tests
+npm test           # 73 automated security & functionality tests
 npm run typecheck
 npm run dist       # build a Windows installer into release/
 ```
+
+## Android app (APK)
+
+The same app runs on Android phones (Capacitor). Every push to `main` is built by
+GitHub Actions and published on the **[Releases page](https://github.com/Christianjames01/lcoks/releases/latest)**:
+download `VaultLocks-x.y.z.apk` on your phone, open it, and allow installing from
+your browser/files app when asked.
+
+* Vault and backup files are **identical to the desktop format** — a backup made on
+  your PC restores on your phone and vice versa.
+* Android hardening: screenshots and the recent-apps preview are blocked, copied
+  secrets are flagged sensitive and auto-cleared, app data is excluded from Android
+  cloud backup, the vault lives in app-private storage, the app locks when sent to
+  the background.
+* Build locally (needs JDK 21 + Android SDK): `npm run android:sync`, then
+  `cd android && ./gradlew assembleRelease`.
+* Release signing uses three repository secrets (`VAULTLOCKS_KEYSTORE_BASE64`,
+  `VAULTLOCKS_KEYSTORE_PASSWORD`, `VAULTLOCKS_KEY_ALIAS`); without them CI signs
+  with a temporary debug key.
 
 ## Where is my data?
 
@@ -31,6 +50,7 @@ The encrypted vault is stored at:
 * Windows: `%APPDATA%\VaultLocks\vault\vault.vault`
 * macOS: `~/Library/Application Support/VaultLocks/vault/vault.vault`
 * Linux: `~/.config/VaultLocks/vault/vault.vault`
+* Android: app-private internal storage (`files/vault/vault.vault`), not readable by other apps
 
 **Make encrypted backups** (Settings → Vault & Backup). Losing both your device and
 your backup, or forgetting your master password, makes the data unrecoverable.
@@ -61,7 +81,10 @@ src/
 │   └── storage/              atomicFile.ts
 ├── preload/preload.ts        the only API exposed to the UI (window.vault)
 ├── shared/                   types, categories, generator, strength, search
-└── renderer/                 React UI (sandboxed, no Node.js, no secrets at rest)
+├── renderer/                 React UI (sandboxed, no Node.js, no secrets at rest)
+├── mobile/                   Android vault: WebCrypto + Argon2id, same file format
+└── mobile-web/               Android entry point
+android/                      Capacitor project + native plugin (storage, clipboard, FLAG_SECURE)
 tests/                        Vitest suites
 ```
 

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Copy, CopyPlus, ExternalLink, Eye, EyeOff, Pencil, Plus, Search, Star, Trash } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Copy, CopyPlus, ExternalLink, Eye, EyeOff, Pencil, Plus, Search, Star, Trash } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { subtitleFor } from '../../shared/categories';
 import { isSecretType, type EntryView, type FavoriteSort, type FieldDef, type VaultSnapshot } from '../../shared/types';
@@ -14,6 +14,8 @@ interface Props {
   filter: string;
   query: string;
   entries: EntryView[];
+  /** Phone layout: list and detail are separate screens. */
+  mobile?: boolean;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onNew: () => void;
@@ -31,7 +33,7 @@ function filterTitle(snap: VaultSnapshot, filter: string, query: string): string
   return snap.categories.find((c) => c.id === filter.slice(4))?.name ?? 'Items';
 }
 
-export function ItemsView({ snap, filter, query, entries, selectedId, onSelect, onNew, onEdit, onDelete, onChanged }: Props) {
+export function ItemsView({ snap, filter, query, entries, mobile, selectedId, onSelect, onNew, onEdit, onDelete, onChanged }: Props) {
   const listRef = useRef<HTMLUListElement>(null);
   const toast = useToast();
   const selected = entries.find((e) => e.id === selectedId) ?? null;
@@ -39,8 +41,8 @@ export function ItemsView({ snap, filter, query, entries, selectedId, onSelect, 
 
   // Keep a valid selection when the list changes.
   useEffect(() => {
-    if (!selected && entries.length > 0 && !query.trim()) onSelect(entries[0]!.id);
-  }, [entries, selected, onSelect, query]);
+    if (!mobile && !selected && entries.length > 0 && !query.trim()) onSelect(entries[0]!.id);
+  }, [entries, selected, onSelect, query, mobile]);
 
   const onListKey = (e: KeyboardEvent<HTMLUListElement>) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key) || entries.length === 0) return;
@@ -76,7 +78,7 @@ export function ItemsView({ snap, filter, query, entries, selectedId, onSelect, 
   };
 
   return (
-    <div className="items-layout">
+    <div className={`items-layout ${mobile ? (selected ? 'stack show-detail' : 'stack') : ''}`}>
       <section className="list-pane" aria-label={filterTitle(snap, filter, query)}>
         <div className="list-head">
           <div className="list-head-row">
@@ -178,6 +180,7 @@ export function ItemsView({ snap, filter, query, entries, selectedId, onSelect, 
         {selected ? (
           <EntryDetail
             key={selected.id}
+            onBack={mobile ? () => onSelect(null) : undefined}
             entry={selected}
             snap={snap}
             onEdit={() => onEdit(selected.id)}
@@ -203,8 +206,10 @@ function EntryDetail({
   onEdit,
   onDelete,
   onChanged,
-  onSelect
+  onSelect,
+  onBack
 }: {
+  onBack?: () => void;
   entry: EntryView;
   snap: VaultSnapshot;
   onEdit: () => void;
@@ -238,6 +243,11 @@ function EntryDetail({
 
   return (
     <div className="detail-inner">
+      {onBack && (
+        <button type="button" className="btn ghost sm" style={{ marginBottom: 12, marginLeft: -10 }} onClick={onBack}>
+          <ArrowLeft size={15} aria-hidden /> Back
+        </button>
+      )}
       <div className="detail-head">
         <span className="row-icon">
           <CategoryIcon icon={category?.icon} size={22} />

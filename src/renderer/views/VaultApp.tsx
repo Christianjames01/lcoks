@@ -1,4 +1,4 @@
-import { House, Layers, Lock, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, Star, Tag, X } from 'lucide-react';
+import { House, Layers, Lock, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, Star, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog } from '../components/Dialog';
@@ -7,6 +7,7 @@ import { CategoryIcon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { useActivityReporter, useHotkeys } from '../lib/hooks';
+import { MOBILE_QUERY, useMediaQuery } from '../lib/platform';
 import { searchEntries } from '../../shared/search';
 import { Dashboard } from './Dashboard';
 import { EntryForm } from './EntryForm';
@@ -30,6 +31,8 @@ export function VaultApp({ version }: { version: string }) {
   const [deleting, setDeleting] = useState<EntryView | null>(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
+  const mobile = useMediaQuery(MOBILE_QUERY);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
@@ -84,7 +87,7 @@ export function VaultApp({ version }: { version: string }) {
   );
 
   const settingsSidebar = snap?.settings.sidebar ?? 'auto';
-  const collapsed = settingsSidebar === 'collapsed' || (settingsSidebar === 'auto' && narrow);
+  const collapsed = !mobile && (settingsSidebar === 'collapsed' || (settingsSidebar === 'auto' && narrow));
 
   const toggleSidebar = async () => {
     const next = collapsed ? 'expanded' : 'collapsed';
@@ -115,7 +118,24 @@ export function VaultApp({ version }: { version: string }) {
   const go = (r: Route) => {
     setQuery('');
     setRoute(r);
+    setDrawerOpen(false);
+    if (mobile) setSelectedId(null);
   };
+
+  // Android hardware back button: close drawer → close item → go to dashboard → (else app minimizes).
+  const backRef = useRef<() => boolean>(() => false);
+  backRef.current = () => {
+    if (drawerOpen) return setDrawerOpen(false), true;
+    if (query) return setQuery(''), true;
+    if (mobile && selectedId && shownRoute.view === 'items') return setSelectedId(null), true;
+    if (route.view !== 'dashboard') return go({ view: 'dashboard' }), true;
+    return false;
+  };
+  useEffect(() => {
+    const onBack = (e: Event) => backRef.current() && e.preventDefault();
+    window.addEventListener('vault:back', onBack);
+    return () => window.removeEventListener('vault:back', onBack);
+  }, []);
 
   const openEntry = (id: string) => {
     setSelectedId(id);
@@ -159,15 +179,28 @@ export function VaultApp({ version }: { version: string }) {
   return (
     <>
       <TitleBar>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={toggleSidebar}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-        </button>
+        {mobile ? (
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setDrawerOpen((o) => !o)}
+            aria-label="Open navigation"
+            aria-expanded={drawerOpen}
+            aria-controls="vault-nav"
+          >
+            <Menu size={18} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        )}
         <div className="drag" />
         <div className="search" role="search">
           <Search size={15} className="search-icon" aria-hidden />
@@ -206,16 +239,17 @@ export function VaultApp({ version }: { version: string }) {
           )}
         </div>
         <div className="drag" />
-        <button type="button" className="btn sm primary" onClick={() => newItem(currentCategory(route))} title="New item (Ctrl+N)">
-          <Plus size={14} aria-hidden /> New item
+        <button type="button" className="btn sm primary" onClick={() => newItem(currentCategory(route))} title="New item (Ctrl+N)" aria-label="New item">
+          <Plus size={14} aria-hidden /> <span className="btn-text">New item</span>
         </button>
-        <button type="button" className="btn sm" onClick={lock} title="Lock vault (Ctrl+L)">
-          <Lock size={14} aria-hidden /> Lock
+        <button type="button" className="btn sm" onClick={lock} title="Lock vault (Ctrl+L)" aria-label="Lock vault">
+          <Lock size={14} aria-hidden /> <span className="btn-text">Lock</span>
         </button>
       </TitleBar>
 
       <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
-        <nav className="sidebar" aria-label="Vault navigation">
+        {mobile && drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden />}
+        <nav id="vault-nav" className={`sidebar ${drawerOpen ? 'open' : ''}`} aria-label="Vault navigation">
           <button
             type="button"
             className="nav-item"
@@ -280,6 +314,7 @@ export function VaultApp({ version }: { version: string }) {
               filter={shownRoute.filter}
               query={query}
               entries={visibleEntries}
+              mobile={mobile}
               selectedId={selectedId}
               onSelect={setSelectedId}
               onNew={() => newItem(currentCategory(shownRoute))}
