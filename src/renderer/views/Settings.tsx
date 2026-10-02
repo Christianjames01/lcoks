@@ -920,7 +920,8 @@ const FIELD_TYPE_LABELS: [FieldType, string][] = [
   ['phone', 'Phone'],
   ['date', 'Date'],
   ['textarea', 'Notes'],
-  ['secretTextarea', 'Secure note (secret)']
+  ['secretTextarea', 'Secure note (secret)'],
+  ['secretImage', 'Photo (secret)']
 ];
 
 function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef | null; onClose: () => void; onSaved: () => Promise<void> }) {

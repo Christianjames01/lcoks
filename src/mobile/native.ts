@@ -29,6 +29,8 @@ export interface NativeVault {
   resetKey(kind: 'biometric' | 'device'): Promise<void>;
   readClipboard(): Promise<string>;
   takeSharedText(): Promise<string | null>;
+  /** Delete temporary (unencrypted) camera photos. */
+  purgeCaptures(): Promise<void>;
 }
 
 interface VaultNativePlugin {
@@ -48,6 +50,7 @@ interface VaultNativePlugin {
   resetKey(o: { kind: string }): Promise<void>;
   readClipboard(): Promise<{ text: string }>;
   takeSharedText(): Promise<{ text: string | null }>;
+  purgeCaptures(): Promise<void>;
 }
 
 const Plugin = registerPlugin<VaultNativePlugin>('VaultNative');
@@ -71,5 +74,6 @@ export const capacitorNative: NativeVault = {
   deviceDecrypt: async (iv, data) => (await Plugin.deviceDecrypt({ iv, data })).data,
   resetKey: (kind) => Plugin.resetKey({ kind }),
   readClipboard: async () => (await Plugin.readClipboard()).text ?? '',
-  takeSharedText: async () => (await Plugin.takeSharedText()).text ?? null
+  takeSharedText: async () => (await Plugin.takeSharedText()).text ?? null,
+  purgeCaptures: () => Plugin.purgeCaptures()
 };

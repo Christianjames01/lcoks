@@ -457,3 +457,25 @@ describe('Wi-Fi → Others migration', () => {
     expect(e.tags).toEqual(['home', 'wifi']);
   });
 });
+
+describe('card photos', () => {
+  const JPEG = 'data:image/jpeg;base64,' + 'A'.repeat(5000);
+  it('stores front/back photos encrypted and keeps them out of snapshots', async () => {
+    const v = new VaultService(file);
+    await v.create(PW, null);
+    const e = await v.saveEntry({ categoryId: 'cards', title: 'BDO', fields: { bankName: 'BDO', frontImage: JPEG, backImage: JPEG }, tags: [], favorite: false });
+    expect(e.secrets.frontImage).toMatchObject({ set: true });
+    expect(JSON.stringify(v.snapshot())).not.toContain('AAAAAAAAAA');
+    expect((await fs.readFile(file, 'utf8')).includes('AAAAAAAAAA')).toBe(false);
+    v.lock();
+    await v.unlock(PW);
+    expect(v.getSecret(e.id, 'backImage')).toBe(JPEG);
+  });
+  it('rejects anything that is not an image data URL, or too large', async () => {
+    const v = new VaultService(file);
+    await v.create(PW, null);
+    for (const bad of ['javascript:alert(1)', 'data:text/html;base64,PGI+', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/jpeg;base64,' + 'A'.repeat(400_001)]) {
+      await expect(v.saveEntry({ categoryId: 'ids', title: 'X', fields: { frontImage: bad }, tags: [], favorite: false })).rejects.toThrow();
+    }
+  });
+});

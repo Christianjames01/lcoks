@@ -59,8 +59,9 @@ describe('password generator', () => {
 
   it('generates passphrases from the EFF list', () => {
     expect(EFF_WORDS).toHaveLength(7776);
-    const p = generatePassphrase({ words: 6, separator: '-', capitalize: false, includeNumber: false });
-    const words = p.split('-');
+    // Space separator: a few EFF words contain hyphens (t-shirt, yo-yo), so '-' is ambiguous to split on.
+    const p = generatePassphrase({ words: 6, separator: ' ', capitalize: false, includeNumber: false });
+    const words = p.split(' ');
     expect(words).toHaveLength(6);
     for (const w of words) expect(EFF_WORDS.includes(w)).toBe(true);
   });

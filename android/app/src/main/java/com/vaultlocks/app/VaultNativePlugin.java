@@ -71,6 +71,22 @@ public class VaultNativePlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /**
+     * SECURITY: the system camera saves the photo it takes for us UNENCRYPTED in
+     * app-specific storage (Pictures/). As soon as the app has read it, delete it.
+     */
+    @PluginMethod
+    public void purgeCaptures(PluginCall call) {
+        try {
+            java.io.File dir = getContext().getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES);
+            java.io.File[] files = dir == null ? null : dir.listFiles();
+            if (files != null) {
+                for (java.io.File f : files) f.delete();
+            }
+        } catch (Exception ignored) {}
+        call.resolve();
+    }
+
     @PluginMethod
     public void readClipboard(PluginCall call) {
         String text = "";

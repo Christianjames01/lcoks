@@ -166,6 +166,10 @@ behind re-authentication, a typed confirmation phrase and a native save dialog.
   Argon2id WebAssembly module. Cleartext traffic is disabled. The `INTERNET`
   permission remains only because Android WebView needs it to load the app's
   bundled pages; the app makes no network requests.
+* Card photos (front/back) are stored encrypted inside the vault like any other
+  secret: never in lists or search, revealed only on "Show real card" and auto-hidden.
+  The system camera writes its photo unencrypted to app-specific storage; VaultLocks
+  deletes it immediately after reading it (and again on every start).
 * Release APKs are signed with a dedicated key stored only as GitHub secrets and
   on the owner's machine (never in the repository).
 

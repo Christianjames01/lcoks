@@ -16,7 +16,8 @@ const api: VaultApi = {
     reportActivity: () => ipcRenderer.send('app.activity'),
     openExternal: call('app.openExternal') as VaultApi['app']['openExternal'],
     readClipboardText: call('app.readClipboard') as VaultApi['app']['readClipboardText'],
-    takeSharedText: async () => null
+    takeSharedText: async () => null,
+    suspendAutoLock: () => undefined
   },
   auth: {
     create: call('auth.create') as VaultApi['auth']['create'],

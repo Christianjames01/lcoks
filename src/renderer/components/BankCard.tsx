@@ -1,4 +1,4 @@
-import { Copy, Eye, EyeOff, Nfc, RotateCw } from 'lucide-react';
+import { Copy, Eye, EyeOff, Image as ImageIcon, Nfc, RotateCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { EntryView } from '../../shared/types';
 import { api, errorMessage, unwrap } from '../lib/api';
@@ -50,12 +50,15 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
   const [number, setNumber] = useState<string | null>(null);
   const [cvv, setCvv] = useState<string | null>(null);
   const [flipped, setFlipped] = useState(false);
+  const [photos, setPhotos] = useState<{ front?: string; back?: string } | null>(null);
+  const hasPhotos = Boolean(entry.secrets.frontImage?.set || entry.secrets.backImage?.set);
   const toast = useToast();
   const stageRef = useRef<HTMLDivElement>(null);
   const down = useRef<{ x: number; y: number } | null>(null);
 
   useTimeout(number !== null, revealSeconds * 1000, () => setNumber(null));
   useTimeout(cvv !== null, revealSeconds * 1000, () => setCvv(null));
+  useTimeout(photos !== null, revealSeconds * 1000, () => setPhotos(null));
   useEffect(
     () => () => {
       setNumber(null);
@@ -130,6 +133,18 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
       toast(errorMessage(e), 'error');
     }
   };
+  const togglePhotos = async () => {
+    if (photos) return setPhotos(null);
+    try {
+      const get = async (k: string) => (entry.secrets[k]?.set ? await unwrap(api.vault.reveal(entry.id, k)) : undefined);
+      const [front, back] = await Promise.all([get('frontImage'), get('backImage')]);
+      setPhotos({ front, back });
+      setFlipped(!front && Boolean(back));
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    }
+  };
+
   const copy = async () => {
     if (!numberKey) return;
     try {
@@ -155,9 +170,9 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
         onClick={(e) => {
           // A tap flips the card; a drag only tilts it.
           const d = down.current;
-          if (hasCvv && (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) < 8)) setFlipped((f) => !f);
+          if ((hasCvv || photos?.back) && (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) < 8)) setFlipped((f) => !f);
         }}
-        style={{ cursor: hasCvv ? 'pointer' : 'grab' }}
+        style={{ cursor: hasCvv || photos?.back ? 'pointer' : 'grab' }}
       >
         <div className="card-shadow" aria-hidden />
         <div className="card-float">
@@ -177,6 +192,7 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
             {spec.kind === 'id' ? (
               <div className="face front id-face">
                 <div className="glare" aria-hidden />
+                {photos?.front && <img className="face-photo" src={photos.front} alt="" />}
                 <div className="id-band" style={faceStyle}>
                   <span className="id-country">Republic of the Philippines</span>
                   <span className="id-title">{entry.fields.idType && entry.fields.idType !== 'Other' ? entry.fields.idType : theme.label}</span>
@@ -221,6 +237,7 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
             ) : (
             <div className="face front" style={faceStyle}>
               <div className="glare" aria-hidden />
+              {photos?.front && <img className="face-photo" src={photos.front} alt="" />}
               <div className="card-top">
                 <span className="card-bank">{theme.label}</span>
                 <span className="card-type">{spec.topRight}</span>
@@ -249,6 +266,7 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
             )}
             <div className="face back" style={faceStyle}>
               <div className="glare" aria-hidden />
+              {photos?.back && <img className="face-photo" src={photos.back} alt="" />}
               <div className="stripe" aria-hidden />
               {hasCvv ? (
                 <>
@@ -272,6 +290,16 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
       </div>
 
       <div className="card-actions">
+        {hasPhotos && (
+          <button type="button" className="btn sm" onClick={() => void togglePhotos()} aria-pressed={photos !== null}>
+            <ImageIcon size={14} aria-hidden /> {photos ? 'Hide real card' : 'Show real card'}
+          </button>
+        )}
+        {!hasCvv && photos?.back && (
+          <button type="button" className="btn sm ghost" onClick={() => setFlipped((f) => !f)} aria-label="Flip card">
+            <RotateCw size={14} aria-hidden /> Flip
+          </button>
+        )}
         {meta?.set && (
           <>
             <button type="button" className="btn sm" onClick={() => void reveal(numberKey!, setNumber, number)} aria-pressed={number !== null}>

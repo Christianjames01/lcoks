@@ -45,7 +45,7 @@ export const LIMITS = {
 
 const FIELD_TYPES: FieldType[] = [
   'text', 'username', 'email', 'phone', 'url', 'date', 'select', 'textarea',
-  'password', 'pin', 'secret', 'secretTextarea'
+  'password', 'pin', 'secret', 'secretTextarea', 'secretImage'
 ];
 const ICONS: CategoryIcon[] = [
   'bank', 'mail', 'globe', 'wifi', 'key', 'user', 'note', 'card', 'lock',
@@ -76,6 +76,10 @@ export function normalizeTags(v: unknown): string[] {
   return out;
 }
 
+/** A card photo: JPEG/PNG/WebP data URL, at most ~400 KB of text. */
+export const MAX_IMAGE_CHARS = 400_000;
+const IMAGE_DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+
 function isLong(type: FieldType): boolean {
   return type === 'textarea' || type === 'secretTextarea';
 }
@@ -86,8 +90,12 @@ export function sanitizeFields(category: CategoryDef, raw: unknown): Record<stri
   const out: Record<string, string> = Object.create(null);
   for (const def of category.fields) {
     if (UNSAFE_KEYS.has(def.key)) continue;
-    const value = str(src[def.key], def.key, isLong(def.type) ? LIMITS.longField : LIMITS.shortField);
+    const max = def.type === 'secretImage' ? MAX_IMAGE_CHARS : isLong(def.type) ? LIMITS.longField : LIMITS.shortField;
+    const value = str(src[def.key], def.key, max);
     if (value === '') continue;
+    if (def.type === 'secretImage' && !IMAGE_DATA_URL.test(value)) {
+      throw new ValidationError(def.key, 'That photo could not be saved.');
+    }
     if (def.type === 'url' && /^\s*(javascript|data|vbscript|file):/i.test(value)) {
       throw new ValidationError(def.key, 'This URL scheme is not allowed.');
     }

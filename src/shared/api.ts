@@ -27,6 +27,8 @@ export interface VaultApi {
     readClipboardText(): Promise<Result<string>>;
     /** Text shared into the app from another app (Android "Share → VaultLocks"); returned once. */
     takeSharedText(): Promise<string | null>;
+    /** Pause lock-on-background while the camera / photo picker is open; resuming also deletes temporary camera files. */
+    suspendAutoLock(on: boolean): void;
   };
   auth: {
     create(password: string, hint: string | null): Promise<Result<void>>;

@@ -18,6 +18,8 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
       { key: 'website', label: 'Website', type: 'url' },
       { key: 'customerNumber', label: 'Customer number', type: 'text' },
       { key: 'securityQA', label: 'Security questions & answers', type: 'secretTextarea' },
+      { key: 'frontImage', label: 'Card photo · front', type: 'secretImage' },
+      { key: 'backImage', label: 'Card photo · back', type: 'secretImage' },
       { ...NOTES_FIELD }
     ]
   },
@@ -34,6 +36,8 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
       { key: 'expiry', label: 'Expiry (MM/YY)', type: 'text', placeholder: 'MM/YY' },
       { key: 'cvv', label: 'CVV / CVC', type: 'pin' },
       { key: 'pin', label: 'PIN', type: 'pin' },
+      { key: 'frontImage', label: 'Card photo · front', type: 'secretImage' },
+      { key: 'backImage', label: 'Card photo · back', type: 'secretImage' },
       { ...NOTES_FIELD }
     ]
   },
@@ -145,6 +149,8 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
       { key: 'issueDate', label: 'Issued', type: 'date' },
       { key: 'expiryDate', label: 'Expires', type: 'date' },
       { key: 'issuedBy', label: 'Issued by / place', type: 'text' },
+      { key: 'frontImage', label: 'Card photo · front', type: 'secretImage' },
+      { key: 'backImage', label: 'Card photo · back', type: 'secretImage' },
       { ...NOTES_FIELD }
     ]
   },
@@ -163,6 +169,8 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
       { key: 'bloodType', label: 'Blood type', type: 'select', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
       { key: 'allergies', label: 'Allergies & medical conditions', type: 'textarea' },
       { key: 'emergencyContacts', label: 'Emergency contacts', type: 'textarea' },
+      { key: 'frontImage', label: 'Card photo · front', type: 'secretImage' },
+      { key: 'backImage', label: 'Card photo · back', type: 'secretImage' },
       { ...NOTES_FIELD }
     ]
   },

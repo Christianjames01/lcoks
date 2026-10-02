@@ -111,8 +111,9 @@ export function createMobileApi(native: NativeVault): VaultApi {
     return p;
   };
 
-  // Remove leftover share files (e.g. a plaintext export) from previous sessions.
+  // Remove leftover share files (e.g. a plaintext export) and camera photos from previous sessions.
   void native.clearExports().catch(() => undefined);
+  void native.purgeCaptures().catch(() => undefined);
 
   return {
     app: {
@@ -143,6 +144,16 @@ export function createMobileApi(native: NativeVault): VaultApi {
         } catch {
           return null;
         }
+      },
+      suspendAutoLock(on: boolean) {
+        if (on) {
+          externalUiOpen = true;
+          return;
+        }
+        lastActivity = Date.now();
+        setTimeout(() => (externalUiOpen = false), 1500);
+        // The camera wrote an unencrypted photo to app storage: delete it now.
+        void native.purgeCaptures().catch(() => undefined);
       },
       reportActivity() {
         lastActivity = Date.now();

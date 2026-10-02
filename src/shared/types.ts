@@ -14,13 +14,16 @@ export type FieldType =
   | 'password'
   | 'pin'
   | 'secret'
-  | 'secretTextarea';
+  | 'secretTextarea'
+  // Photo of a card (data: URL). Encrypted, hidden, revealed on demand.
+  | 'secretImage';
 
 export const SECRET_FIELD_TYPES: ReadonlySet<FieldType> = new Set<FieldType>([
   'password',
   'pin',
   'secret',
-  'secretTextarea'
+  'secretTextarea',
+  'secretImage'
 ]);
 
 export function isSecretType(type: FieldType): boolean {

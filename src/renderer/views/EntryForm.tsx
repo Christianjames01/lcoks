@@ -1,6 +1,7 @@
 import { CircleAlert, Info, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { EntryView, FieldDef, VaultSnapshot } from '../../shared/types';
+import { CardPhotoField } from '../components/CardPhotoField';
 import { Dialog } from '../components/Dialog';
 import { PasswordInput } from '../components/PasswordInput';
 import { TagInput } from '../components/TagInput';
@@ -119,7 +120,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
       'aria-invalid': errors[def.key] ? true : undefined,
       'aria-describedby': errors[def.key] ? `${id}-err` : undefined
     } as const;
-    const wide = def.type === 'textarea' || def.type === 'secretTextarea';
+    const wide = def.type === 'textarea' || def.type === 'secretTextarea' || def.type === 'secretImage';
     let control: React.ReactNode;
     switch (def.type) {
       case 'password':
@@ -147,6 +148,9 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
             </span>
           </>
         );
+        break;
+      case 'secretImage':
+        control = <CardPhotoField id={id} value={value} onChange={(v) => setField(def.key, v)} />;
         break;
       case 'textarea':
         control = (

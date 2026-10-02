@@ -329,6 +329,7 @@ function EntryDetail({
 }
 
 function DetailField({ entry, def, snap }: { entry: EntryView; def: FieldDef; snap: VaultSnapshot }) {
+  if (def.type === 'secretImage') return null; // shown on the card via "Show real card"
   if (isSecretType(def.type)) return <SecretField entry={entry} def={def} revealSeconds={snap.settings.revealTimeoutSeconds} />;
   const value = entry.fields[def.key];
   if (!value) return null;

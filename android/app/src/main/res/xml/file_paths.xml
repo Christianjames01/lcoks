@@ -2,4 +2,6 @@
 <!-- Only the private cache "exports" folder (encrypted backups being shared) is exposed to the share sheet. -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="exports" path="exports/" />
+    <!-- Temporary camera photo (deleted right after it is read). -->
+    <external-files-path name="captures" path="Pictures/" />
 </paths>
