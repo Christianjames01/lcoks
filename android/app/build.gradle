@@ -35,7 +35,7 @@ android {
             // Without the release keystore (e.g. a fork without secrets) fall back to the
             // debug key so the APK is still installable; such builds cannot update a
             // release-signed install.
-            signingConfig System.getenv("VAULTLOCKS_KEYSTORE_FILE") ? signingConfigs.release : signingConfigs.debug
+            signingConfig(System.getenv("VAULTLOCKS_KEYSTORE_FILE") ? signingConfigs.release : signingConfigs.debug)
             debuggable false
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
