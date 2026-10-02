@@ -1,8 +1,8 @@
-import { Copy, Eye, EyeOff, Nfc, RotateCw } from 'lucide-react';
+import { Copy, Eye, EyeOff, Nfc, RotateCw, UserRound } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { cardTheme } from '../../shared/cards';
 import type { EntryView } from '../../shared/types';
 import { api, errorMessage, unwrap } from '../lib/api';
+import type { CardSpec } from '../lib/cardSpec';
 import { useTimeout } from '../lib/hooks';
 import { useToast } from './Toast';
 
@@ -19,6 +19,8 @@ const NETWORK_LABEL: Record<string, string> = {
 const EDGE_LAYERS = 9;
 
 function groups(digits: string): string {
+  // IDs like SSS 34-1234567-8 or passports keep their own formatting.
+  if (/[^\d\s]/.test(digits)) return digits;
   const d = digits.replace(/\s+/g, '');
   if (/^3[47]\d{13}$/.test(d)) return `${d.slice(0, 4)} ${d.slice(4, 10)} ${d.slice(10)}`; // Amex 4-6-5
   return d.replace(/(.{4})/g, '$1 ').trim();
@@ -36,14 +38,14 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
  * The number shows only its last 4 digits until "Show number" (fetched on demand,
  * auto-hidden). Tapping the card flips it to the CVV side.
  */
-export function BankCard({ entry, revealSeconds }: { entry: EntryView; revealSeconds: number }) {
-  const isCard = entry.categoryId === 'cards';
-  const numberKey = isCard ? 'cardNumber' : 'accountNumber';
-  const meta = entry.secrets[numberKey];
-  const theme = cardTheme(entry.fields.bankName, entry.title);
-  const holder = (entry.fields.cardholder ?? entry.fields.accountName ?? '').toUpperCase();
-  const last4 = meta?.preview?.replace(/\D/g, '').slice(-4) ?? '';
-  const hasCvv = isCard && entry.secrets.cvv?.set;
+export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spec: CardSpec; revealSeconds: number }) {
+  const { theme } = spec;
+  const numberKey = spec.numberKey;
+  const meta = numberKey ? entry.secrets[numberKey] : undefined;
+  const holder = spec.holder.toUpperCase();
+  const last4 = meta?.preview?.replace(/^[•\s]+/, '') ?? '';
+  const hasCvv = Boolean(spec.backKey);
+  const isCard = spec.kind === 'bank';
 
   const [number, setNumber] = useState<string | null>(null);
   const [cvv, setCvv] = useState<string | null>(null);
@@ -129,17 +131,18 @@ export function BankCard({ entry, revealSeconds }: { entry: EntryView; revealSec
     }
   };
   const copy = async () => {
+    if (!numberKey) return;
     try {
       const { seconds } = await unwrap(api.vault.copyField(entry.id, numberKey));
-      toast(`${isCard ? 'Card' : 'Account'} number copied. Clipboard clears in ${seconds}s.`);
+      toast(`Number copied. Clipboard clears in ${seconds}s.`);
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
   };
 
-  const maskedNumber = last4 ? `•••• •••• •••• ${last4}` : meta?.set ? '•••• •••• •••• ••••' : isCard ? 'No card number' : 'No account number';
+  const maskedNumber = spec.mainText ?? (last4 ? (isCard ? `•••• •••• •••• ${last4}` : `•••• •••• ${last4}`) : meta?.set ? '•••• •••• ••••' : 'No number saved');
   const faceStyle = { background: theme.background, color: theme.color };
-  const label = `${theme.label} ${meta?.network ? NETWORK_LABEL[meta.network] : ''} ${isCard ? 'card' : 'account'}${last4 ? ` ending ${last4}` : ''}`;
+  const label = `${theme.label} ${spec.topRight} ${meta?.network ? NETWORK_LABEL[meta.network] : ''} card${last4 ? ` ending ${last4}` : ''}`;
 
   return (
     <div className="bank-card-block">
@@ -170,26 +173,35 @@ export function BankCard({ entry, revealSeconds }: { entry: EntryView; revealSec
             ))}
             <div className="face front" style={faceStyle}>
               <div className="glare" aria-hidden />
+              {spec.emblem && <div className="card-emblem">{spec.emblem}</div>}
               <div className="card-top">
                 <span className="card-bank">{theme.label}</span>
-                <span className="card-type">{entry.fields.cardType ?? ''}</span>
+                <span className="card-type">{spec.topRight}</span>
               </div>
-              <div className="card-mid">
-                <span className="chip" aria-hidden />
-                <Nfc size={22} strokeWidth={1.6} aria-hidden style={{ opacity: 0.85 }} />
+              <div className={`card-mid ${spec.kind}`}>
+                {spec.kind === 'id' ? (
+                  <span className="id-photo" aria-hidden>
+                    <UserRound size={30} strokeWidth={1.4} />
+                  </span>
+                ) : spec.chip ? (
+                  <span className="chip" aria-hidden />
+                ) : null}
+                {spec.contactless && <Nfc size={22} strokeWidth={1.6} aria-hidden style={{ opacity: 0.85 }} />}
               </div>
-              <div className="card-number">{number !== null ? groups(number) : maskedNumber}</div>
+              {spec.mainCaption && <span className="card-caption card-main-caption">{spec.mainCaption}</span>}
+              <div className={`card-number ${spec.mainText && !numberKey ? 'text' : ''}`}>{number !== null ? groups(number) : maskedNumber}</div>
               <div className="card-bottom">
                 <div className="card-holder">
-                  <span className="card-caption">{isCard ? 'Cardholder' : 'Account name'}</span>
+                  <span className="card-caption">{spec.holderCaption}</span>
                   <span>{holder || '—'}</span>
                 </div>
-                {entry.fields.expiry && (
+                {spec.extra && (
                   <div className="card-expiry">
-                    <span className="card-caption">Valid thru</span>
-                    <span>{entry.fields.expiry}</span>
+                    <span className="card-caption">{spec.extraCaption}</span>
+                    <span>{spec.extra}</span>
                   </div>
                 )}
+                {spec.badge && <span className="card-badge">{spec.badge}</span>}
                 {meta?.network && <span className={`card-network ${meta.network}`}>{NETWORK_LABEL[meta.network]}</span>}
               </div>
             </div>
@@ -220,7 +232,7 @@ export function BankCard({ entry, revealSeconds }: { entry: EntryView; revealSec
       <div className="card-actions">
         {meta?.set && (
           <>
-            <button type="button" className="btn sm" onClick={() => void reveal(numberKey, setNumber, number)} aria-pressed={number !== null}>
+            <button type="button" className="btn sm" onClick={() => void reveal(numberKey!, setNumber, number)} aria-pressed={number !== null}>
               {number !== null ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />} {number !== null ? 'Hide number' : 'Show number'}
             </button>
             <button type="button" className="btn sm" onClick={copy}>
@@ -235,7 +247,7 @@ export function BankCard({ entry, revealSeconds }: { entry: EntryView; revealSec
               className="btn sm"
               onClick={() => {
                 setFlipped(true);
-                void reveal('cvv', setCvv, cvv);
+                void reveal(spec.backKey!, setCvv, cvv);
               }}
               aria-pressed={cvv !== null}
             >

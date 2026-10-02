@@ -17,6 +17,7 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
       { key: 'pin', label: 'PIN', type: 'pin' },
       { key: 'website', label: 'Website', type: 'url' },
       { key: 'customerNumber', label: 'Customer number', type: 'text' },
+      { key: 'securityQA', label: 'Security questions & answers', type: 'secretTextarea' },
       { ...NOTES_FIELD }
     ]
   },
@@ -33,6 +34,22 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
       { key: 'expiry', label: 'Expiry (MM/YY)', type: 'text', placeholder: 'MM/YY' },
       { key: 'cvv', label: 'CVV / CVC', type: 'pin' },
       { key: 'pin', label: 'PIN', type: 'pin' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'wallets',
+    name: 'E-Wallets',
+    icon: 'wallet',
+    builtin: true,
+    fields: [
+      { key: 'provider', label: 'E-wallet', type: 'text', placeholder: 'GCash, Maya, ShopeePay, GrabPay…' },
+      { key: 'mobileNumber', label: 'Registered mobile number', type: 'phone' },
+      { key: 'accountName', label: 'Account name', type: 'text' },
+      { key: 'email', label: 'Email', type: 'email' },
+      { key: 'mpin', label: 'MPIN', type: 'pin' },
+      { key: 'password', label: 'Password', type: 'password' },
+      { key: 'securityQA', label: 'Security questions & answers', type: 'secretTextarea' },
       { ...NOTES_FIELD }
     ]
   },
@@ -99,6 +116,74 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
     ]
   },
   {
+    id: 'ids',
+    name: 'IDs & Government',
+    icon: 'id',
+    builtin: true,
+    fields: [
+      {
+        key: 'idType',
+        label: 'ID type',
+        type: 'select',
+        options: [
+          'PhilSys National ID',
+          'SSS',
+          'PhilHealth',
+          'Pag-IBIG (HDMF)',
+          'TIN (BIR)',
+          'UMID',
+          'Passport',
+          "Driver's License",
+          'PRC License',
+          'Postal ID',
+          "Voter's ID",
+          'Other'
+        ]
+      },
+      { key: 'idNumber', label: 'ID number', type: 'secret', partialMask: true },
+      { key: 'fullName', label: 'Name on ID', type: 'text' },
+      { key: 'issueDate', label: 'Issued', type: 'date' },
+      { key: 'expiryDate', label: 'Expires', type: 'date' },
+      { key: 'issuedBy', label: 'Issued by / place', type: 'text' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'insurance',
+    name: 'Insurance & Medical',
+    icon: 'health',
+    builtin: true,
+    fields: [
+      { key: 'provider', label: 'Provider', type: 'text', placeholder: 'Maxicare, PhilHealth, Sun Life…' },
+      { key: 'policyType', label: 'Type', type: 'select', options: ['HMO', 'PhilHealth', 'Health insurance', 'Life insurance', 'Car insurance', 'Other'] },
+      { key: 'memberNumber', label: 'Policy / member number', type: 'secret', partialMask: true },
+      { key: 'insured', label: 'Insured person', type: 'text' },
+      { key: 'coverage', label: 'Coverage / plan', type: 'text' },
+      { key: 'expiryDate', label: 'Valid until', type: 'date' },
+      { key: 'bloodType', label: 'Blood type', type: 'select', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
+      { key: 'allergies', label: 'Allergies & medical conditions', type: 'textarea' },
+      { key: 'emergencyContacts', label: 'Emergency contacts', type: 'textarea' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'subscriptions',
+    name: 'Subscriptions',
+    icon: 'calendar',
+    builtin: true,
+    fields: [
+      { key: 'service', label: 'Service', type: 'text', placeholder: 'Netflix, Spotify, YouTube Premium…' },
+      { key: 'email', label: 'Login email', type: 'email' },
+      { key: 'password', label: 'Password', type: 'password' },
+      { key: 'plan', label: 'Plan', type: 'text', placeholder: 'Premium, Family…' },
+      { key: 'price', label: 'Price', type: 'text', placeholder: '₱549' },
+      { key: 'billingCycle', label: 'Billing', type: 'select', options: ['Monthly', 'Yearly', 'Quarterly', 'Weekly', 'One-time'] },
+      { key: 'renewalDate', label: 'Next renewal', type: 'date' },
+      { key: 'paymentMethod', label: 'Paid with', type: 'text' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
     id: 'personal',
     name: 'Personal',
     icon: 'user',
@@ -138,7 +223,7 @@ export const BUILTIN_IDS: ReadonlySet<string> = new Set(BUILTIN_CATEGORIES.map((
 /** Field key used to pick a "subtitle" for list rows. */
 export function subtitleFor(category: CategoryDef | undefined, fields: Record<string, string>): string {
   if (!category) return '';
-  const order = ['cardholder', 'username', 'email', 'accountName', 'name', 'service', 'platform', 'product', 'accountId', 'website'];
+  const order = ['cardholder', 'fullName', 'insured', 'mobileNumber', 'plan', 'username', 'email', 'accountName', 'name', 'service', 'platform', 'product', 'accountId', 'website'];
   for (const key of order) {
     const def = category.fields.find((f) => f.key === key);
     if (def && fields[key]) return fields[key];

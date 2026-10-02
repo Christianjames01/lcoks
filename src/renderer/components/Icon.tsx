@@ -1,10 +1,12 @@
 import {
   Briefcase,
+  CalendarClock,
   CreditCard,
   FileText,
   Folder,
   Gamepad2,
   Globe,
+  HeartPulse,
   House,
   IdCard,
   KeyRound,
@@ -15,6 +17,7 @@ import {
   Server,
   Shield,
   User,
+  Wallet,
   Wifi,
   type LucideIcon
 } from 'lucide-react';
@@ -37,7 +40,10 @@ export const CATEGORY_ICONS: Record<IconName, LucideIcon> = {
   phone: Phone,
   id: IdCard,
   folder: Folder,
-  gamepad: Gamepad2
+  gamepad: Gamepad2,
+  wallet: Wallet,
+  health: HeartPulse,
+  calendar: CalendarClock
 };
 
 export function CategoryIcon({ icon, size = 16 }: { icon: IconName | undefined; size?: number }) {

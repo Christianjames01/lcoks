@@ -75,9 +75,39 @@ type Semantic =
   | 'cvv'
   | 'cardholder'
   | 'cardType'
+  | 'idNumber'
+  | 'fullName'
+  | 'issueDate'
+  | 'issuedBy'
+  | 'policyNumber'
+  | 'coverage'
+  | 'bloodType'
+  | 'allergies'
+  | 'emergency'
+  | 'plan'
+  | 'price'
+  | 'renewal'
+  | 'billing'
+  | 'payment'
+  | 'securityQA'
   | 'notes';
 
 const ALIASES: [RegExp, Semantic][] = [
+  [/^((sss|tin|philhealth|pag-?ibig|hdmf|mid|umid|crn|passport|prc|philsys|psn|national id|postal id|voter'?s? id|driver'?s? licen[cs]e)( (number|no\.?|#|id))?|(licen[cs]e|id) (number|no\.?|#))$/, 'idNumber'],
+  [/^(policy( number| no\.?| #)?|member( id| number| no\.?)|hmo( number| no\.?| id)?)$/, 'policyNumber'],
+  [/^(full name|name on id|insured( person)?|member name|holder)$/, 'fullName'],
+  [/^(issued?( on| date)?|date issued|issue date)$/, 'issueDate'],
+  [/^(issued by|issuing office|place (of )?issue)$/, 'issuedBy'],
+  [/^(coverage|benefits?|plan type)$/, 'coverage'],
+  [/^(blood( type| group)?)$/, 'bloodType'],
+  [/^(allerg(y|ies)|medical( conditions?)?|conditions?|medications?)$/, 'allergies'],
+  [/^(emergency( contacts?| contact person)?|in case of emergency|ice)$/, 'emergency'],
+  [/^(plan|subscription|tier)$/, 'plan'],
+  [/^(price|amount|cost|fee|monthly fee)$/, 'price'],
+  [/^(renew(al|s)?( date)?|next (billing|payment|renewal)( date)?|billing date|due date)$/, 'renewal'],
+  [/^(billing( cycle)?|frequency)$/, 'billing'],
+  [/^(paid with|payment( method)?|card used)$/, 'payment'],
+  [/^(security question|secret question|question ?\d?|q ?\d|answer ?\d?|a ?\d|secret answer)$/, 'securityQA'],
   [/^(title|name|label|app|application|account for)$/, 'title'],
   [/^(uid|account id|player id|game id|riot id|psn id|steam id|server id)$/, 'accountId'],
   [/^(ign|in-?game name|nickname|gamer ?tag)$/, 'username'],
@@ -116,6 +146,8 @@ function semanticOf(label: string): Semantic | null {
 
 const KV_LINE = /^\s*([A-Za-z][A-Za-z0-9 #./-]{0,28}?)\s*(?::|=|\s-\s|–|—)\s*(.+?)\s*$/;
 
+let idLabel = '';
+
 interface Parsed {
   kv: Partial<Record<Semantic, string>>;
   unlabeled: string[];
@@ -123,6 +155,7 @@ interface Parsed {
 }
 
 function parseLines(text: string): Parsed {
+  idLabel = '';
   const kv: Partial<Record<Semantic, string>> = {};
   const unlabeled: string[] = [];
   const extraLabeled: string[] = [];
@@ -132,6 +165,11 @@ function parseLines(text: string): Parsed {
     const m = KV_LINE.exec(line);
     if (m && !/^\/\//.test(m[2]!) && !/^https?$/i.test(m[1]!)) {
       const sem = semanticOf(m[1]!);
+      if (sem === 'securityQA') {
+        kv.securityQA = (kv.securityQA ? kv.securityQA + '\n' : '') + line;
+        continue;
+      }
+      if (sem === 'idNumber' && kv.idNumber === undefined) idLabel = m[1]!;
       if (sem && kv[sem] === undefined) {
         kv[sem] = m[2]!;
         continue;
@@ -152,6 +190,53 @@ const SOCIAL =
   /\b(facebook|fb|instagram|ig|tiktok|twitter|x\.com|discord|snapchat|reddit|youtube|telegram|messenger|linkedin|threads|pinterest|twitch|viber|wechat|line)\b/i;
 const GAMES =
   /\b(steam|epic games|playstation|psn|xbox|nintendo|riot|valorant|league of legends|lol|wild rift|mobile legends|mlbb|ml|genshin|honkai|hoyoverse|star rail|zenless|roblox|minecraft|call of duty|codm|pubg|free fire|garena|clash of clans|clash royale|supercell|ea games|origin|ubisoft|battle\.net|blizzard|honor of kings|dota|fortnite|among us|game|gaming|ign|uid)\b/i;
+const WALLETS = /\b(gcash|maya|paymaya|shopee ?pay|grab ?pay|coins\.ph)\b/i;
+const IDS =
+  /\b(sss|tin|phil ?health|pag-?ibig|hdmf|umid|passport|driver'?s? licen[cs]e|prc|philsys|national id|postal id|voter'?s? id)\b/i;
+const INSURERS =
+  /\b(maxicare|intellicare|medicard|philcare|phil ?health|sun ?life|axa|pru ?life|prudential|manulife|fwd|insular|pioneer|etiqa|cocolife|hmo|insurance)\b/i;
+const SUBSCRIPTIONS =
+  /\b(netflix|spotify|youtube premium|yt premium|disney\+?|prime video|amazon prime|hbo|viu|icloud|apple (music|one|tv)|google one|canva|chatgpt|crunchyroll|game ?pass|ps ?plus|playstation plus)\b/i;
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/** Convert common date formats (YYYY-MM-DD, MM/DD/YYYY, "Oct 5, 2026", "5 Oct 2026") to YYYY-MM-DD. */
+export function toIsoDate(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const v = value.trim();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const ok = (y: number, mo: number, d: number) =>
+    y >= 1900 && y <= 2200 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31 ? `${y}-${pad(mo)}-${pad(d)}` : undefined;
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v);
+  if (m) return ok(+m[1]!, +m[2]!, +m[3]!);
+  m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(v);
+  if (m) return ok(+m[3]!, +m[1]!, +m[2]!); // Philippine forms use MM/DD/YYYY
+  m = /^([A-Za-z]{3,9})\.? (\d{1,2}),? (\d{4})$/.exec(v);
+  if (m) {
+    const mo = MONTHS.indexOf(m[1]!.slice(0, 3).toLowerCase());
+    if (mo >= 0) return ok(+m[3]!, mo + 1, +m[2]!);
+  }
+  m = /^(\d{1,2}) ([A-Za-z]{3,9})\.?,? (\d{4})$/.exec(v);
+  if (m) {
+    const mo = MONTHS.indexOf(m[2]!.slice(0, 3).toLowerCase());
+    if (mo >= 0) return ok(+m[3]!, mo + 1, +m[1]!);
+  }
+  return undefined;
+}
+
+const ID_TYPES: [RegExp, string][] = [
+  [/philsys|national id|\bpsn\b/i, 'PhilSys National ID'],
+  [/\bsss\b/i, 'SSS'],
+  [/phil ?health/i, 'PhilHealth'],
+  [/pag-?ibig|hdmf|\bmid\b/i, 'Pag-IBIG (HDMF)'],
+  [/\btin\b|\bbir\b/i, 'TIN (BIR)'],
+  [/umid|\bcrn\b/i, 'UMID'],
+  [/passport/i, 'Passport'],
+  [/driver|licen[cs]e|\blto\b/i, "Driver's License"],
+  [/\bprc\b/i, 'PRC License'],
+  [/postal/i, 'Postal ID'],
+  [/voter/i, "Voter's ID"]
+];
+
 const EMAIL_PROVIDERS = /\b(gmail|google account|yahoo|outlook|hotmail|live\.com|icloud|proton ?mail|zoho|e-?mail)\b/i;
 const WIFI = /\b(wi-?fi|ssid|router|hotspot|pldt|converge|globe at home|sky ?fiber|modem)\b/i;
 const SOFTWARE = /\b(license|licence|serial|product key|activation|windows|office 365|microsoft office|adobe|antivirus|steam key)\b/i;
@@ -188,9 +273,20 @@ export function classifyNote(text: string, categories: CategoryDef[], index = 0,
   }
 
   const hasCreds = Boolean(kv.password || kv.username || kv.email);
+  const brandText = title + ' ' + (kv.platform ?? '');
   let categoryId: string;
   if (kv.cardNumber || kv.cvv) {
     categoryId = 'cards';
+  } else if (WALLETS.test(brandText) && (kv.pin || kv.phone || kv.password || kv.accountName || kv.securityQA)) {
+    categoryId = 'wallets';
+  } else if (kv.idNumber) {
+    categoryId = 'ids';
+  } else if (kv.policyNumber || kv.bloodType || kv.allergies || kv.emergency || (INSURERS.test(brandText) && (kv.accountNumber || kv.phone || kv.fullName || kv.coverage))) {
+    categoryId = 'insurance';
+  } else if (IDS.test(title) && (kv.phone || kv.accountNumber)) {
+    categoryId = 'ids';
+  } else if (SUBSCRIPTIONS.test(brandText) && (hasCreds || kv.plan || kv.price || kv.renewal)) {
+    categoryId = 'subscriptions';
   } else if (kv.bankName || kv.accountNumber || kv.customerNumber || (BANKS.test(all) && (kv.pin || kv.password || kv.accountNumber || kv.username))) {
     categoryId = 'banking';
   } else if (kv.network || (WIFI.test(all) && kv.password)) {
@@ -259,7 +355,54 @@ export function classifyNote(text: string, categories: CategoryDef[], index = 0,
       const m = all.match(BANKS);
       if (m && !/^(bank|atm|debit|savings|checking)$/i.test(m[1]!)) fields.bankName = m[1]!.toUpperCase();
     }
-    const notes = [...leftovers, kv.securityType ? `Wi-Fi security: ${kv.securityType}` : '', kv.notes ?? ''].filter(Boolean).join('\n');
+    const extraNotes: string[] = [];
+    const date = (key: string, value: string | undefined, label: string) => {
+      if (!value || !has(key)) return;
+      const iso = toIsoDate(value);
+      if (iso) put(key, iso);
+      else extraNotes.push(`${label}: ${value}`);
+    };
+    if (category.id === 'wallets') {
+      put('provider', kv.platform ?? capitalize(brandText.match(WALLETS)?.[1] ?? ''));
+      put('mobileNumber', kv.phone);
+      put('mpin', kv.pin);
+    }
+    if (category.id === 'ids') {
+      const idSource = `${idLabel} ${title}`;
+      put('idType', ID_TYPES.find(([re]) => re.test(idSource))?.[1] ?? 'Other');
+      put('idNumber', kv.idNumber ?? kv.phone ?? kv.accountNumber);
+      date('expiryDate', kv.expirationDate, 'Expires');
+      date('issueDate', kv.issueDate, 'Issued');
+      put('issuedBy', kv.issuedBy);
+    }
+    if (category.id === 'insurance') {
+      put('provider', kv.platform ?? capitalize(brandText.match(INSURERS)?.[1] ?? ''));
+      const t = `${title} ${kv.platform ?? ''} ${kv.coverage ?? ''}`.toLowerCase();
+      put(
+        'policyType',
+        /philhealth/.test(t) ? 'PhilHealth' : /maxicare|intellicare|medicard|philcare|hmo/.test(t) ? 'HMO' : /life/.test(t) ? 'Life insurance' : /car|auto|vehicle/.test(t) ? 'Car insurance' : undefined
+      );
+      put('memberNumber', kv.policyNumber ?? kv.idNumber ?? kv.accountNumber);
+      put('coverage', kv.coverage);
+      date('expiryDate', kv.expirationDate, 'Valid until');
+      put('bloodType', kv.bloodType && ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].find((b) => b === kv.bloodType!.replace(/\s/g, '').toUpperCase()));
+      put('allergies', kv.allergies);
+      put('emergencyContacts', kv.emergency);
+    }
+    if (category.id === 'subscriptions') {
+      put('service', kv.platform ?? (title && !title.startsWith('Imported') ? title : undefined));
+      put('plan', kv.plan);
+      put('price', kv.price);
+      const cyc = `${kv.billing ?? ''} ${kv.price ?? ''} ${kv.plan ?? ''}`.toLowerCase();
+      put('billingCycle', /year|annual/.test(cyc) ? 'Yearly' : /quarter/.test(cyc) ? 'Quarterly' : /week/.test(cyc) ? 'Weekly' : /month|\/mo/.test(cyc) ? 'Monthly' : undefined);
+      date('renewalDate', kv.renewal, 'Renews');
+      put('paymentMethod', kv.payment);
+    }
+    put('fullName', kv.fullName ?? kv.accountName);
+    put('insured', kv.fullName ?? kv.accountName);
+    put('securityQA', kv.securityQA);
+    if (kv.securityQA && !has('securityQA')) extraNotes.push('(security questions were moved to a hidden field)');
+    const notes = [...leftovers, ...extraNotes.filter((n) => !n.startsWith('(')), kv.securityType ? `Wi-Fi security: ${kv.securityType}` : '', kv.notes ?? ''].filter(Boolean).join('\n');
     put('notes', notes);
   }
 

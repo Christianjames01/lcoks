@@ -64,7 +64,7 @@ describe('classifyNote', () => {
       ['Facebook', 'social'],
       ['Home Wi-Fi', 'others'],
       ['Windows 11', 'software'],
-      ['Netflix', 'personal'],
+      ['Netflix', 'subscriptions'],
       ['Grocery list', 'notes'],
       ['Backup codes', 'notes']
     ]);
@@ -81,7 +81,7 @@ describe('classifyNote', () => {
     expect(by('Gmail').fields).toMatchObject({ email: 'juan@gmail.com', password: 'g-mail-pass-99', recoveryPhone: '09171234567', service: 'Gmail' });
     expect(by('Home Wi-Fi').fields).toMatchObject({ name: 'PLDT_HOME_5G', password: 'wifiPass123' });
     expect(by('Windows 11').fields).toMatchObject({ licenseKey: 'ABCDE-FGHIJ-KLMNO-PQRST-UVWXY' });
-    expect(by('Netflix').fields).toMatchObject({ username: 'juan@yahoo.com', password: 'netflixPw1' });
+    expect(by('Netflix').fields).toMatchObject({ service: 'Netflix', email: 'juan@yahoo.com', password: 'netflixPw1' });
     expect(by('Facebook').fields).toMatchObject({ username: 'juan.fb', password: 'fbPass!77' });
     expect(by('Backup codes').fields.content).toContain('8492 1173 5520');
   });
@@ -90,6 +90,35 @@ describe('classifyNote', () => {
     const c = classifyNote('BDO Visa Debit\nCard number: 4111 1111 1111 1111\nExpiry: 8/2028\nCVV: 123\nName on card: Juan Dela Cruz\nPIN: 9876', cats);
     expect(c.categoryId).toBe('cards');
     expect(c.fields).toMatchObject({ bankName: 'BDO', cardNumber: '4111 1111 1111 1111', expiry: '08/28', cvv: '123', cardholder: 'Juan Dela Cruz', pin: '9876' });
+  });
+
+  it('detects e-wallets with MPIN and security questions (kept hidden)', () => {
+    const w = classifyNote('GCash\nMobile: 09171234567\nAccount name: Juan Dela Cruz\nMPIN: 1357\nQuestion: First pet?\nAnswer: Bantay', cats);
+    expect(w.categoryId).toBe('wallets');
+    expect(w.fields).toMatchObject({ provider: 'GCash', mobileNumber: '09171234567', accountName: 'Juan Dela Cruz', mpin: '1357' });
+    expect(w.fields.securityQA).toBe('Question: First pet?\nAnswer: Bantay');
+    expect(w.fields.notes ?? '').not.toContain('Bantay');
+  });
+
+  it('detects government IDs and converts dates', () => {
+    const p = classifyNote('Passport\nPassport no: P1234567A\nName on ID: Juan Dela Cruz\nExpiry: 10/05/2030', cats);
+    expect(p.categoryId).toBe('ids');
+    expect(p.fields).toMatchObject({ idType: 'Passport', idNumber: 'P1234567A', fullName: 'Juan Dela Cruz', expiryDate: '2030-10-05' });
+    const sss = classifyNote('SSS\nNumber: 34-1234567-8', cats);
+    expect(sss.fields).toMatchObject({ idType: 'SSS', idNumber: '34-1234567-8' });
+    expect(classifyNote('TIN: 123-456-789-000', cats).fields.idType).toBe('TIN (BIR)');
+  });
+
+  it('detects insurance / medical info', () => {
+    const i = classifyNote('Maxicare\nMember ID: 1122334455\nBlood type: o+\nAllergies: Penicillin\nEmergency contact: Maria 0918 000 0000\nValid until: Dec 31, 2026', cats);
+    expect(i.categoryId).toBe('insurance');
+    expect(i.fields).toMatchObject({ policyType: 'HMO', memberNumber: '1122334455', bloodType: 'O+', allergies: 'Penicillin', emergencyContacts: 'Maria 0918 000 0000', expiryDate: '2026-12-31' });
+  });
+
+  it('detects subscriptions with renewal dates', () => {
+    const s = classifyNote('Spotify\nEmail: juan@gmail.com\nPassword: sp0t!fy\nPlan: Premium Family\nPrice: ₱279/month\nRenewal: Oct 15, 2026', cats);
+    expect(s.categoryId).toBe('subscriptions');
+    expect(s.fields).toMatchObject({ service: 'Spotify', plan: 'Premium Family', price: '₱279/month', billingCycle: 'Monthly', renewalDate: '2026-10-15' });
   });
 
   it('detects game accounts', () => {
@@ -119,8 +148,8 @@ describe('classifyNote', () => {
   });
 
   it('keeps unknown labels as notes and tags items as imported', () => {
-    const n = classifyNote('Spotify\nUsername: juan\nPassword: sp1\nPlan: Family', cats);
-    expect(n.fields.notes).toBe('Plan: Family');
+    const n = classifyNote('Library card\nUsername: juan\nPassword: sp1\nBranch: Makati', cats);
+    expect(n.fields.notes).toBe('Branch: Makati');
     expect(n.tags).toEqual(['imported']);
   });
 });

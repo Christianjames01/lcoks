@@ -27,4 +27,3 @@ export function BankIcon({ bankName, title, size = 34, radius = 6 }: { bankName:
   );
 }
 
-export const isBankItem = (categoryId: string) => categoryId === 'banking' || categoryId === 'cards';

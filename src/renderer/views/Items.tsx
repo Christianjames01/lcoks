@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { subtitleFor } from '../../shared/categories';
 import { isSecretType, type EntryView, type FavoriteSort, type FieldDef, type VaultSnapshot } from '../../shared/types';
 import { BankCard } from '../components/BankCard';
-import { BankIcon, isBankItem } from '../components/BankIcon';
+import { BankIcon } from '../components/BankIcon';
+import { brandOf, cardSpec, isCardCategory } from '../lib/cardSpec';
 import { CategoryIcon } from '../components/Icon';
 import { StrengthMeter } from '../components/StrengthMeter';
 import { useToast } from '../components/Toast';
@@ -128,8 +129,8 @@ export function ItemsView({ snap, filter, query, entries, mobile, selectedId, on
                     tabIndex={isSel || (!selected && i === 0) ? 0 : -1}
                     onClick={() => onSelect(e.id)}
                   >
-                    {isBankItem(e.categoryId) ? (
-                      <BankIcon bankName={e.fields.bankName} title={e.title} />
+                    {isCardCategory(e.categoryId) ? (
+                      <BankIcon bankName={brandOf(e)} title={e.title} />
                     ) : (
                       <span className="row-icon">
                         <CategoryIcon icon={cat?.icon} />
@@ -256,8 +257,8 @@ function EntryDetail({
         </button>
       )}
       <div className="detail-head">
-        {isBankItem(entry.categoryId) ? (
-          <BankIcon bankName={entry.fields.bankName} title={entry.title} size={48} radius={10} />
+        {isCardCategory(entry.categoryId) ? (
+          <BankIcon bankName={brandOf(entry)} title={entry.title} size={48} radius={10} />
         ) : (
           <span className="row-icon">
             <CategoryIcon icon={category?.icon} size={22} />
@@ -289,9 +290,10 @@ function EntryDetail({
         </div>
       </div>
 
-      {(entry.categoryId === 'cards' || (entry.categoryId === 'banking' && (entry.secrets.accountNumber?.set || entry.fields.bankName))) && (
-        <BankCard entry={entry} revealSeconds={snap.settings.revealTimeoutSeconds} />
-      )}
+      {(() => {
+        const spec = cardSpec(entry);
+        return spec ? <BankCard entry={entry} spec={spec} revealSeconds={snap.settings.revealTimeoutSeconds} /> : null;
+      })()}
 
       {(category?.fields ?? []).map((def) => (
         <DetailField key={def.key} entry={entry} def={def} snap={snap} />

@@ -1,7 +1,9 @@
-import { Copy, Plus, Search, ShieldCheck, Star, TriangleAlert, Upload } from 'lucide-react';
+import { CalendarClock, Copy, Plus, Search, ShieldCheck, Star, TriangleAlert, Upload } from 'lucide-react';
 import { subtitleFor } from '../../shared/categories';
+import { describeUpcoming, upcomingDates } from '../../shared/expiry';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
-import { BankIcon, isBankItem } from '../components/BankIcon';
+import { BankIcon } from '../components/BankIcon';
+import { brandOf, isCardCategory } from '../lib/cardSpec';
 import { CategoryIcon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
@@ -23,6 +25,7 @@ export function Dashboard({ snap, onOpen, onNavigate, onNew, onSearch, onImport 
   const favorites = snap.entries.filter((e) => e.favorite).sort((a, b) => a.favoriteOrder - b.favoriteOrder).slice(0, 4);
   const { settings, meta, stats } = snap;
   const backupDue = settings.backupReminderDays > 0 && stats.total > 0 && daysSince(meta.lastBackupAt) > settings.backupReminderDays;
+  const upcoming = upcomingDates(snap.entries).slice(0, 6);
   const lockText = settings.autoLockMinutes === 0 ? 'Auto-lock is off' : `Auto-locks after ${settings.autoLockMinutes} min of inactivity`;
 
   const copyPassword = async (e: EntryView) => {
@@ -42,8 +45,8 @@ export function Dashboard({ snap, onOpen, onNavigate, onNew, onSearch, onImport 
     return (
       <li key={e.id} className="row-flex" style={{ gap: 4 }}>
         <button type="button" className="row" onClick={() => onOpen(e.id)}>
-          {isBankItem(e.categoryId) ? (
-            <BankIcon bankName={e.fields.bankName} title={e.title} />
+          {isCardCategory(e.categoryId) ? (
+            <BankIcon bankName={brandOf(e)} title={e.title} />
           ) : (
             <span className="row-icon">
               <CategoryIcon icon={cat?.icon} />
@@ -101,6 +104,41 @@ export function Dashboard({ snap, onOpen, onNavigate, onNew, onSearch, onImport 
             <span className="label">Weak passwords</span>
           </button>
         </div>
+
+        {upcoming.length > 0 && (
+          <section className="card" style={{ marginBottom: 20, padding: '12px 6px 6px' }} aria-label="Expiring soon">
+            <div className="row-flex" style={{ padding: '0 12px 6px', gap: 8 }}>
+              <CalendarClock size={16} aria-hidden />
+              <span className="label" style={{ color: 'var(--fg)' }}>
+                Expiring soon
+              </span>
+            </div>
+            <ul className="list" style={{ padding: 0 }}>
+              {upcoming.map((u) => (
+                <li key={u.entry.id}>
+                  <button type="button" className="row" onClick={() => onOpen(u.entry.id)}>
+                    {isCardCategory(u.entry.categoryId) ? (
+                      <BankIcon bankName={brandOf(u.entry)} title={u.entry.title} />
+                    ) : (
+                      <span className="row-icon">
+                        <CategoryIcon icon={snap.categories.find((c) => c.id === u.entry.categoryId)?.icon} />
+                      </span>
+                    )}
+                    <span className="row-main">
+                      <span className="row-title" style={{ display: 'block' }}>
+                        {u.entry.title}
+                      </span>
+                      <span className="row-sub" style={{ display: 'block', color: u.days < 0 ? 'var(--fg)' : undefined }}>
+                        {describeUpcoming(u)} · {u.date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </span>
+                    </span>
+                    {u.days <= 7 && <TriangleAlert size={15} aria-label="Soon" />}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {backupDue && (
           <div className="banner strong" role="status" style={{ marginBottom: 20 }}>
