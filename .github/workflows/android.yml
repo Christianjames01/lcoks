@@ -70,7 +70,7 @@ jobs:
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
             # Surface the actual Gradle/compiler error as a (public) annotation.
-            { grep -E '\.(java|kt|xml):[0-9]+.*[Ee]rror' gradle.log; grep -A14 'What went wrong' gradle.log; } | head -60 > err.txt
+            { grep -E '\.(java|kt|xml):[0-9]+.*[Ee]rror' gradle.log; grep -A6 'What went wrong' gradle.log; grep -E 'Caused by|build\.gradle' gradle.log | head -15; } | head -60 > err.txt
             echo "::error title=Gradle build failed::$(sed 's/%/%25/g' err.txt | awk 'BEGIN{ORS="%0A"} {print}')"
             exit "$status"
           fi
