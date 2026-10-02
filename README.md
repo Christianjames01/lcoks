@@ -31,6 +31,8 @@ GitHub Actions and published on the **[Releases page](https://github.com/Christi
 download `VaultLocks-x.y.z.apk` on your phone, open it, and allow installing from
 your browser/files app when asked.
 
+* **Import notes:** paste many notes at once, or in any app select text → **Share → VaultLocks**; each note becomes its own encrypted item in the right category (Banking, Email, Social, Wi-Fi, Software, Games, Personal, Secure Notes).
+* **Fingerprint / 4-digit PIN unlock** (Settings → Security), backed by the Android Keystore.
 * Vault and backup files are **identical to the desktop format** — a backup made on
   your PC restores on your phone and vice versa.
 * Android hardening: screenshots and the recent-apps preview are blocked, copied

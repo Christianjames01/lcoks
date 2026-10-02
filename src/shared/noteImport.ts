@@ -69,10 +69,13 @@ type Semantic =
   | 'recoveryPhone'
   | 'phone'
   | 'platform'
+  | 'accountId'
   | 'notes';
 
 const ALIASES: [RegExp, Semantic][] = [
   [/^(title|name|label|app|application|account for)$/, 'title'],
+  [/^(uid|account id|player id|game id|riot id|psn id|steam id|server id)$/, 'accountId'],
+  [/^(ign|in-?game name|nickname|gamer ?tag)$/, 'username'],
   [/^(user ?name|user|login|log ?in|user ?id|id|handle)$/, 'username'],
   [/^(e-?mail|email address|gmail|mail)$/, 'email'],
   [/^(recovery e-?mail|backup e-?mail|alternate e-?mail)$/, 'recoveryEmail'],
@@ -137,6 +140,8 @@ const BANKS =
   /\b(bank|bpi|bdo|metrobank|landbank|land bank|pnb|unionbank|union bank|rcbc|china ?bank|security bank|eastwest|east west|gcash|maya|paymaya|seabank|gotyme|cimb|ing|tonik|psbank|ub|atm|debit|credit card|savings|checking|paypal)\b/i;
 const SOCIAL =
   /\b(facebook|fb|instagram|ig|tiktok|twitter|x\.com|discord|snapchat|reddit|youtube|telegram|messenger|linkedin|threads|pinterest|twitch|viber|wechat|line)\b/i;
+const GAMES =
+  /\b(steam|epic games|playstation|psn|xbox|nintendo|riot|valorant|league of legends|lol|wild rift|mobile legends|mlbb|ml|genshin|honkai|hoyoverse|star rail|zenless|roblox|minecraft|call of duty|codm|pubg|free fire|garena|clash of clans|clash royale|supercell|ea games|origin|ubisoft|battle\.net|blizzard|honor of kings|dota|fortnite|among us|game|gaming|ign|uid)\b/i;
 const EMAIL_PROVIDERS = /\b(gmail|google account|yahoo|outlook|hotmail|live\.com|icloud|proton ?mail|zoho|e-?mail)\b/i;
 const WIFI = /\b(wi-?fi|ssid|router|hotspot|pldt|converge|globe at home|sky ?fiber|modem)\b/i;
 const SOFTWARE = /\b(license|licence|serial|product key|activation|windows|office 365|microsoft office|adobe|antivirus|steam key)\b/i;
@@ -180,6 +185,8 @@ export function classifyNote(text: string, categories: CategoryDef[], index = 0,
     categoryId = 'wifi';
   } else if (kv.licenseKey || (SOFTWARE.test(all) && (kv.product || /key|serial/i.test(all)))) {
     categoryId = 'software';
+  } else if ((kv.accountId || GAMES.test(title + ' ' + (kv.platform ?? '') + ' ' + (kv.website ?? ''))) && (hasCreds || kv.accountId)) {
+    categoryId = 'games';
   } else if (SOCIAL.test(title + ' ' + (kv.platform ?? '') + ' ' + (kv.website ?? '')) && hasCreds) {
     categoryId = 'social';
   } else if (EMAIL_PROVIDERS.test(title + ' ' + (kv.platform ?? '')) && kv.password) {
@@ -222,6 +229,7 @@ export function classifyNote(text: string, categories: CategoryDef[], index = 0,
     put('recoveryEmail', kv.recoveryEmail);
     put('recoveryPhone', kv.recoveryPhone ?? kv.phone);
     put('platform', kv.platform);
+    put('accountId', kv.accountId);
     put('service', kv.platform);
     // Email address: the dedicated field where one exists, otherwise use it as the username.
     const emailValue = kv.email ?? (kv.username && EMAIL_VALUE.test(kv.username) ? undefined : all.match(EMAIL_VALUE)?.[0]);
@@ -246,6 +254,7 @@ export function classifyNote(text: string, categories: CategoryDef[], index = 0,
       (category.id === 'notes' ? firstWords(text.split('\n')[0] ?? '') : '') ||
       `Imported ${category.name} ${index + 1}`;
   }
+  if (category.id === 'games' && !fields.platform && title && !title.startsWith('Imported')) fields.platform = title;
   if (category.id === 'email' && !fields.service && EMAIL_PROVIDERS.test(title)) fields.service = capitalize(title.match(EMAIL_PROVIDERS)![1]!.toLowerCase());
 
   return { title: firstWords(title, 200), categoryId: category.id, fields, tags: ['imported'], source: text };

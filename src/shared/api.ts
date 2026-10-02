@@ -23,6 +23,10 @@ export interface VaultApi {
     /** Throttled by the renderer; resets the auto-lock timer. */
     reportActivity(): void;
     openExternal(url: string): Promise<Result<void>>;
+    /** Read plain text from the system clipboard (user-initiated "Paste"). */
+    readClipboardText(): Promise<Result<string>>;
+    /** Text shared into the app from another app (Android "Share → VaultLocks"); returned once. */
+    takeSharedText(): Promise<string | null>;
   };
   auth: {
     create(password: string, hint: string | null): Promise<Result<void>>;

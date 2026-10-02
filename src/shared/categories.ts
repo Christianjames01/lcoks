@@ -80,6 +80,26 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
     ]
   },
   {
+    id: 'games',
+    name: 'Games',
+    icon: 'gamepad',
+    builtin: true,
+    fields: [
+      {
+        key: 'platform',
+        label: 'Game / platform',
+        type: 'text',
+        placeholder: 'Steam, Mobile Legends, Genshin, Roblox…'
+      },
+      { key: 'username', label: 'Username / in-game name', type: 'username' },
+      { key: 'accountId', label: 'Account ID / UID', type: 'text' },
+      { key: 'email', label: 'Login email', type: 'email' },
+      { key: 'password', label: 'Password', type: 'password' },
+      { key: 'website', label: 'Website', type: 'url' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
     id: 'personal',
     name: 'Personal',
     icon: 'user',
@@ -105,7 +125,7 @@ export const BUILTIN_IDS: ReadonlySet<string> = new Set(BUILTIN_CATEGORIES.map((
 /** Field key used to pick a "subtitle" for list rows. */
 export function subtitleFor(category: CategoryDef | undefined, fields: Record<string, string>): string {
   if (!category) return '';
-  const order = ['username', 'email', 'accountName', 'networkName', 'service', 'platform', 'product', 'website'];
+  const order = ['username', 'email', 'accountName', 'networkName', 'service', 'platform', 'product', 'accountId', 'website'];
   for (const key of order) {
     const def = category.fields.find((f) => f.key === key);
     if (def && fields[key]) return fields[key];

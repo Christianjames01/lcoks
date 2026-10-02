@@ -3,6 +3,7 @@ import {
   CreditCard,
   FileText,
   Folder,
+  Gamepad2,
   Globe,
   House,
   IdCard,
@@ -35,7 +36,8 @@ export const CATEGORY_ICONS: Record<IconName, LucideIcon> = {
   home: House,
   phone: Phone,
   id: IdCard,
-  folder: Folder
+  folder: Folder,
+  gamepad: Gamepad2
 };
 
 export function CategoryIcon({ icon, size = 16 }: { icon: IconName | undefined; size?: number }) {

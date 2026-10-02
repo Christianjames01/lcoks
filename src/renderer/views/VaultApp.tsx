@@ -32,6 +32,7 @@ export function VaultApp({ version }: { version: string }) {
   const [deleting, setDeleting] = useState<EntryView | null>(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [sharedText, setSharedText] = useState<string | undefined>(undefined);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
   const mobile = useMediaQuery(MOBILE_QUERY);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -56,6 +57,21 @@ export function VaultApp({ version }: { version: string }) {
     const onResize = () => setNarrow(window.innerWidth < 1180);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Text shared from another app (Android "Share → VaultLocks") opens the importer.
+  useEffect(() => {
+    const check = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const t = await api.app.takeSharedText();
+      if (t && t.trim()) {
+        setSharedText(t);
+        setImportOpen(true);
+      }
+    };
+    void check();
+    document.addEventListener('visibilitychange', check);
+    return () => document.removeEventListener('visibilitychange', check);
   }, []);
 
   // Apply appearance settings.
@@ -221,7 +237,6 @@ export function VaultApp({ version }: { version: string }) {
                 setSelectedId(visibleEntries[0].id);
               }
             }}
-            spellCheck={false}
             autoComplete="off"
           />
           {query ? (
@@ -381,10 +396,16 @@ export function VaultApp({ version }: { version: string }) {
       {generatorOpen && <GeneratorDialog onClose={() => setGeneratorOpen(false)} />}
       {importOpen && (
         <ImportNotesDialog
+          key={sharedText ?? 'manual'}
           snap={snap}
-          onClose={() => setImportOpen(false)}
+          initialText={sharedText}
+          onClose={() => {
+            setImportOpen(false);
+            setSharedText(undefined);
+          }}
           onImported={async () => {
             setImportOpen(false);
+            setSharedText(undefined);
             await refresh();
             setSelectedId(null);
             setRoute({ view: 'items', filter: 'tag:imported' });

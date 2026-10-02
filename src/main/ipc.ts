@@ -6,7 +6,7 @@
 //  * Errors are converted to { code, message } with SAFE messages only — no stack
 //    traces, crypto details or user data ever cross back to the renderer or logs.
 
-import { app, dialog, ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent } from 'electron';
+import { app, clipboard, dialog, ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import path from 'node:path';
 import { PLAINTEXT_CONFIRM_PHRASE } from '../shared/api';
 import type { AppState, Result } from '../shared/types';
@@ -75,6 +75,11 @@ export function registerIpc(d: IpcDeps): void {
   handle('app.getHint', () => d.vault.getHint());
   ipcMain.on('app.activity', (event) => {
     if (d.isTrustedSender(event) && d.vault.isUnlocked) d.autoLock.reset();
+  });
+  handle('app.readClipboard', async () => {
+    if (!d.vault.isUnlocked) throw new VaultError('LOCKED', 'The vault is locked.');
+    const text = await clipboard.readText();
+    return text.slice(0, 1_000_000);
   });
   handle('app.openExternal', async (url: unknown) => {
     // Only http(s) links stored by the user, opened in the system browser.

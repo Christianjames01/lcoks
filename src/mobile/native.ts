@@ -27,6 +27,8 @@ export interface NativeVault {
   deviceEncrypt(dataB64: string): Promise<{ iv: string; data: string }>;
   deviceDecrypt(iv: string, dataB64: string): Promise<string>;
   resetKey(kind: 'biometric' | 'device'): Promise<void>;
+  readClipboard(): Promise<string>;
+  takeSharedText(): Promise<string | null>;
 }
 
 interface VaultNativePlugin {
@@ -44,6 +46,8 @@ interface VaultNativePlugin {
   deviceEncrypt(o: { data: string }): Promise<{ iv: string; data: string }>;
   deviceDecrypt(o: { iv: string; data: string }): Promise<{ data: string }>;
   resetKey(o: { kind: string }): Promise<void>;
+  readClipboard(): Promise<{ text: string }>;
+  takeSharedText(): Promise<{ text: string | null }>;
 }
 
 const Plugin = registerPlugin<VaultNativePlugin>('VaultNative');
@@ -65,5 +69,7 @@ export const capacitorNative: NativeVault = {
   bioDecrypt: async (iv, data) => (await Plugin.bioDecrypt({ iv, data })).data,
   deviceEncrypt: (data) => Plugin.deviceEncrypt({ data }),
   deviceDecrypt: async (iv, data) => (await Plugin.deviceDecrypt({ iv, data })).data,
-  resetKey: (kind) => Plugin.resetKey({ kind })
+  resetKey: (kind) => Plugin.resetKey({ kind }),
+  readClipboard: async () => (await Plugin.readClipboard()).text ?? '',
+  takeSharedText: async () => (await Plugin.takeSharedText()).text ?? null
 };

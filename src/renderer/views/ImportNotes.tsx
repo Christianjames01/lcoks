@@ -16,10 +16,23 @@ interface Row extends ImportedNote {
  * item in the right category. The pasted text lives only in this dialog's state
  * and is discarded when it closes.
  */
-export function ImportNotesDialog({ snap, onClose, onImported }: { snap: VaultSnapshot; onClose: () => void; onImported: () => Promise<void> }) {
-  const [text, setText] = useState('');
+export function ImportNotesDialog({
+  snap,
+  onClose,
+  onImported,
+  initialText
+}: {
+  snap: VaultSnapshot;
+  onClose: () => void;
+  onImported: () => Promise<void>;
+  /** Text shared from another app: go straight to the preview. */
+  initialText?: string;
+}) {
+  const [text, setText] = useState(initialText ?? '');
   const [mode, setMode] = useState<SplitMode>('auto');
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const [rows, setRows] = useState<Row[] | null>(() =>
+    initialText ? splitNotes(initialText, 'auto').map((p, i) => ({ ...classifyNote(p, snap.categories, i), include: true })) : null
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
@@ -33,11 +46,12 @@ export function ImportNotesDialog({ snap, onClose, onImported }: { snap: VaultSn
   };
 
   const pasteFromClipboard = async () => {
-    try {
-      const t = await navigator.clipboard.readText();
-      if (t) setText((cur) => (cur ? cur + '\n\n' : '') + t);
-    } catch {
-      setError('Could not read the clipboard. Long-press the box and choose Paste instead.');
+    const r = await api.app.readClipboardText();
+    if (r.ok && r.value.trim()) {
+      setError(null);
+      setText((cur) => (cur ? cur + '\n\n' : '') + r.value);
+    } else {
+      setError(r.ok ? 'The clipboard is empty — copy your notes first.' : 'Could not read the clipboard. Long-press the box and choose Paste instead.');
     }
   };
 
@@ -111,7 +125,8 @@ export function ImportNotesDialog({ snap, onClose, onImported }: { snap: VaultSn
           <div className="notice" style={{ marginBottom: 14 }}>
             <Info size={15} aria-hidden />
             <span>
-              In your Notes app, copy each note and paste it here, <strong style={{ color: 'var(--fg)' }}>leaving an empty line between notes</strong> (or a line
+              Tip: in your Notes app you can also select text and tap <strong style={{ color: 'var(--fg)' }}>Share → VaultLocks</strong>.
+              Or copy each note and paste it here, <strong style={{ color: 'var(--fg)' }}>leaving an empty line between notes</strong> (or a line
               with <span className="mono">---</span>). Lines like <span className="mono">Password: …</span>, <span className="mono">PIN: …</span> or{' '}
               <span className="mono">Username: …</span> go into the right fields automatically.
             </span>

@@ -68,6 +68,8 @@ function memoryNative() {
     deviceEncrypt: (d) => ksEncrypt(self, 'device', d),
     deviceDecrypt: (iv, d) => ksDecrypt(self, 'device', iv, d),
     resetKey: async (k) => void self.keys.delete(k === 'biometric' ? 'bio' : 'device'),
+    readClipboard: async () => self.clipboard,
+    takeSharedText: async () => null,
     read: async (n) => files.get(n) ?? null,
     writeAtomic: async (n, d) => {
       if (self.failNextWrite) {

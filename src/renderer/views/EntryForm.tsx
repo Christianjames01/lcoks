@@ -149,7 +149,9 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
         );
         break;
       case 'textarea':
-        control = <textarea {...common} className="textarea" value={value} onChange={(e) => setField(def.key, e.target.value)} />;
+        control = (
+          <textarea {...common} className="textarea" value={value} onChange={(e) => setField(def.key, e.target.value)} autoCapitalize="sentences" autoCorrect="on" spellCheck />
+        );
         break;
       case 'select':
         control = (
@@ -171,8 +173,12 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
             type={def.type === 'date' ? 'date' : def.type === 'email' ? 'email' : def.type === 'phone' ? 'tel' : def.type === 'url' ? 'url' : 'text'}
             value={value}
             onChange={(e) => setField(def.key, e.target.value)}
-            placeholder={def.type === 'url' ? 'https://' : undefined}
-            spellCheck={false}
+            placeholder={def.placeholder ?? (def.type === 'url' ? 'https://' : undefined)}
+            // Keyboard suggestions are allowed for ordinary (non-secret) fields only;
+            // secret fields use PasswordInput, which keeps them off.
+            spellCheck={def.type === 'text'}
+            autoCorrect={def.type === 'text' ? 'on' : 'off'}
+            autoCapitalize={def.type === 'text' ? 'sentences' : 'none'}
             autoComplete="off"
           />
         );
@@ -246,6 +252,9 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
                 aria-describedby={errors.title ? 'f-title-err' : duplicate ? 'f-title-dup' : undefined}
                 data-autofocus
                 autoComplete="off"
+                autoCapitalize="sentences"
+                autoCorrect="on"
+                spellCheck
               />
               {fieldError('title')}
               {duplicate && !errors.title && (

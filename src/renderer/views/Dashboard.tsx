@@ -118,7 +118,6 @@ export function Dashboard({ snap, onOpen, onNavigate, onNew, onSearch, onImport 
             aria-label="Search vault"
             style={{ height: 40, paddingLeft: 36 }}
             onChange={(e) => onSearch(e.target.value)}
-            spellCheck={false}
             autoComplete="off"
           />
         </div>

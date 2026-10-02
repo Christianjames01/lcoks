@@ -86,6 +86,14 @@ describe('classifyNote', () => {
     expect(by('Backup codes').fields.content).toContain('8492 1173 5520');
   });
 
+  it('detects game accounts', () => {
+    const a = classifyNote('Mobile Legends\nIGN: JuanSlayer\nUID: 123456789 (2034)\nEmail: juan@gmail.com\nPassword: mlbbPass1', cats);
+    expect(a.categoryId).toBe('games');
+    expect(a.fields).toMatchObject({ platform: 'Mobile Legends', username: 'JuanSlayer', accountId: '123456789 (2034)', email: 'juan@gmail.com', password: 'mlbbPass1' });
+    expect(classifyNote('Steam\nUsername: juan_gamer\nPassword: st3am!', cats).categoryId).toBe('games');
+    expect(classifyNote('Genshin Impact\nUID: 800123456', cats).categoryId).toBe('games');
+  });
+
   it('never puts an unlabeled secret into a visible field', () => {
     const n = classifyNote('My bank\nUsername: juan\nP@ssw0rd2024 is the password', cats);
     expect(n.categoryId).toBe('notes');

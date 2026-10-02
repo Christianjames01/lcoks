@@ -211,7 +211,8 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
   const [usePassword, setUsePassword] = useState(false);
   const loadQuick = useCallback(async () => {
     try {
-      setQuick(await api.quick.status());
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
+      setQuick(await Promise.race([api.quick.status(), timeout]));
     } catch {
       setQuick({ supported: false, biometricAvailable: false, biometric: false, pin: false, pinAttemptsLeft: 0 });
     }

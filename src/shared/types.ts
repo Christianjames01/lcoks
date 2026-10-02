@@ -53,7 +53,8 @@ export type CategoryIcon =
   | 'home'
   | 'phone'
   | 'id'
-  | 'folder';
+  | 'folder'
+  | 'gamepad';
 
 export interface CategoryDef {
   id: string;

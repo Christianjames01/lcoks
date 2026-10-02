@@ -17,6 +17,7 @@ import androidx.biometric.BiometricManager;
 import androidx.biometric.BiometricPrompt;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
+import androidx.lifecycle.Lifecycle;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -53,6 +54,37 @@ public class VaultNativePlugin extends Plugin {
     private static final int MAX_BYTES = 64 * 1024 * 1024;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+
+    // Text shared into the app ("Share -> VaultLocks"); kept in memory only, handed over once.
+    private static String pendingSharedText;
+
+    static void setSharedText(String text) {
+        if (text == null || text.isEmpty()) return;
+        pendingSharedText = text.length() > 1_000_000 ? text.substring(0, 1_000_000) : text;
+    }
+
+    @PluginMethod
+    public void takeSharedText(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("text", pendingSharedText == null ? JSObject.NULL : pendingSharedText);
+        pendingSharedText = null;
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void readClipboard(PluginCall call) {
+        String text = "";
+        try {
+            ClipData clip = clipboard().getPrimaryClip();
+            if (clip != null && clip.getItemCount() > 0) {
+                CharSequence cs = clip.getItemAt(0).coerceToText(getContext());
+                if (cs != null) text = cs.toString();
+            }
+        } catch (Exception ignored) {}
+        JSObject ret = new JSObject();
+        ret.put("text", text);
+        call.resolve(ret);
+    }
     private Runnable pendingClear;
 
     // ------------------------------------------------------------ storage ----
@@ -304,6 +336,13 @@ public class VaultNativePlugin extends Plugin {
     /** Show the system fingerprint prompt bound to the cipher; run the action with the unlocked cipher. */
     private void authenticate(PluginCall call, Cipher cipher, String title, CipherAction action) {
         getActivity().runOnUiThread(() -> {
+          try {
+            FragmentActivity activity = (FragmentActivity) getActivity();
+            if (activity == null || !activity.getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.RESUMED)) {
+                // Android will not show the prompt for a background app — report it instead of hanging.
+                call.reject("App is not in the foreground", "NOT_VISIBLE");
+                return;
+            }
             BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
                 .setTitle(title)
                 .setSubtitle("VaultLocks")
@@ -311,7 +350,7 @@ public class VaultNativePlugin extends Plugin {
                 .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
                 .build();
             BiometricPrompt prompt = new BiometricPrompt(
-                (FragmentActivity) getActivity(),
+                activity,
                 ContextCompat.getMainExecutor(getContext()),
                 new BiometricPrompt.AuthenticationCallback() {
                     @Override
@@ -335,6 +374,9 @@ public class VaultNativePlugin extends Plugin {
                 }
             );
             prompt.authenticate(info, new BiometricPrompt.CryptoObject(cipher));
+          } catch (Exception e) {
+            call.reject("Fingerprint prompt unavailable", "NOT_VISIBLE");
+          }
         });
     }
 

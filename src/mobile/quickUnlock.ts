@@ -97,6 +97,7 @@ export class QuickUnlock {
     } catch (e) {
       const code = nativeCode(e);
       if (code === 'CANCELED') throw new AppError('CANCELED', 'Fingerprint unlock canceled.');
+      if (code === 'NOT_VISIBLE') throw new AppError('NOT_VISIBLE', 'Open the app to use your fingerprint.');
       if (code === 'INVALIDATED') {
         await this.disableBiometric();
         throw new AppError('INVALIDATED', 'Fingerprints on this phone changed, so fingerprint unlock was turned off. Use your master password.');

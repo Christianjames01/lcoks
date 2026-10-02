@@ -1,9 +1,15 @@
 import { CircleAlert, Fingerprint } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { QuickUnlockStatus } from '../../shared/api';
 import { api } from '../lib/api';
 
-/** Fingerprint / PIN unlock shown on the lock screen when enabled (Android). */
+/**
+ * Fingerprint / PIN unlock shown on the lock screen when enabled (Android).
+ *
+ * The app locks itself (and reloads this screen) while it is in the background,
+ * where Android refuses to show the fingerprint prompt. So the prompt is only
+ * opened once the screen is actually visible, and the PIN box never waits on it.
+ */
 export function QuickUnlockPanel({
   status,
   onUnlocked,
@@ -16,38 +22,53 @@ export function QuickUnlockPanel({
   onStatusChanged: () => void;
 }) {
   const [pin, setPin] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [bioBusy, setBioBusy] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const autoPrompted = useRef(false);
+  const prompted = useRef(false);
+  const bioPending = useRef(false);
   const pinRef = useRef<HTMLInputElement>(null);
 
-  const fingerprint = async () => {
-    setBusy(true);
+  const fingerprint = useCallback(async () => {
+    if (bioPending.current) return;
+    bioPending.current = true;
+    setBioBusy(true);
     setError(null);
     const r = await api.quick.unlockBiometric();
+    bioPending.current = false;
+    setBioBusy(false);
     if (r.ok) return onUnlocked();
-    setBusy(false);
+    if (r.code === 'NOT_VISIBLE') {
+      prompted.current = false; // try again when the app comes back to the front
+      return;
+    }
     if (r.code !== 'CANCELED') setError(r.message);
     if (r.code === 'INVALIDATED' || r.code === 'QUICK_STALE') onStatusChanged();
-  };
+  }, [onUnlocked, onStatusChanged]);
 
-  // Open the fingerprint prompt automatically once when the lock screen appears.
+  // Open the fingerprint prompt once, as soon as the lock screen is visible.
   useEffect(() => {
-    if (status.biometric && !autoPrompted.current) {
-      autoPrompted.current = true;
-      void fingerprint();
-    } else if (status.pin) {
-      pinRef.current?.focus();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const maybePrompt = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (status.biometric && !prompted.current) {
+        prompted.current = true;
+        // Small delay lets Android finish bringing the app to the foreground.
+        setTimeout(() => void fingerprint(), 300);
+      } else if (status.pin && !status.biometric) {
+        pinRef.current?.focus();
+      }
+    };
+    maybePrompt();
+    document.addEventListener('visibilitychange', maybePrompt);
+    return () => document.removeEventListener('visibilitychange', maybePrompt);
+  }, [status.biometric, status.pin, fingerprint]);
 
   const submitPin = async (value: string) => {
-    setBusy(true);
+    setPinBusy(true);
     setError(null);
     const r = await api.quick.unlockPin(value);
     if (r.ok) return onUnlocked();
-    setBusy(false);
+    setPinBusy(false);
     setPin('');
     setError(r.message);
     if (r.code !== 'WRONG_PIN') onStatusChanged();
@@ -57,8 +78,8 @@ export function QuickUnlockPanel({
   return (
     <div className="stack" style={{ gap: 16, alignItems: 'stretch' }}>
       {status.biometric && (
-        <button type="button" className="btn primary wide block" onClick={fingerprint} disabled={busy} style={{ height: 52 }}>
-          <Fingerprint size={20} aria-hidden /> Unlock with fingerprint
+        <button type="button" className="btn primary wide block" onClick={() => void fingerprint()} disabled={bioBusy} style={{ height: 52 }}>
+          <Fingerprint size={20} aria-hidden /> {bioBusy ? 'Waiting for fingerprint…' : 'Unlock with fingerprint'}
         </button>
       )}
       {status.pin && (
@@ -73,7 +94,7 @@ export function QuickUnlockPanel({
             pattern="[0-9]*"
             autoComplete="off"
             maxLength={4}
-            disabled={busy}
+            disabled={pinBusy}
             value={pin}
             aria-invalid={!!error || undefined}
             aria-describedby={error ? 'quick-err' : undefined}
@@ -86,7 +107,7 @@ export function QuickUnlockPanel({
           />
         </div>
       )}
-      {busy && (
+      {pinBusy && (
         <div className="row-flex muted small" style={{ justifyContent: 'center' }}>
           <span className="spinner" aria-hidden /> Unlocking…
         </div>

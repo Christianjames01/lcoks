@@ -49,7 +49,7 @@ const FIELD_TYPES: FieldType[] = [
 ];
 const ICONS: CategoryIcon[] = [
   'bank', 'mail', 'globe', 'wifi', 'key', 'user', 'note', 'card', 'lock',
-  'briefcase', 'server', 'shield', 'home', 'phone', 'id', 'folder'
+  'briefcase', 'server', 'shield', 'home', 'phone', 'id', 'folder', 'gamepad'
 ];
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;

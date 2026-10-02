@@ -132,6 +132,18 @@ export function createMobileApi(native: NativeVault): VaultApi {
         };
       },
       getHint: () => wrap(() => vault.getHint()),
+      readClipboardText: () =>
+        wrap(async () => {
+          requireUnlocked();
+          return (await native.readClipboard()).slice(0, 1_000_000);
+        }),
+      takeSharedText: async () => {
+        try {
+          return await native.takeSharedText();
+        } catch {
+          return null;
+        }
+      },
       reportActivity() {
         lastActivity = Date.now();
         armIdle();

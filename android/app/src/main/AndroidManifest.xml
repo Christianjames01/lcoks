@@ -26,6 +26,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- "Share -> VaultLocks": import text shared from other apps (e.g. Notes). -->
+            <intent-filter android:label="Save to VaultLocks">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
         </activity>
 
         <provider
