@@ -317,36 +317,8 @@ describe('bulk import', () => {
 
     const desktop = new VaultService(path.join(dir, 'vault', 'vault.vault'));
     await desktop.create(PW, null);
-    expect(await desktop.importEntries([{ categoryId: 'wifi', title: 'Home', fields: { networkName: 'X', password: 'y' }, tags: [], favorite: false }])).toBe(1);
+    expect(await desktop.importEntries([{ categoryId: 'others', title: 'Home', fields: { name: 'X', password: 'y' }, tags: [], favorite: false }])).toBe(1);
     expect(desktop.snapshot().entries[0]!.secrets.password!.set).toBe(true);
   });
 });
 
-describe('bank icons', () => {
-  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-  it('stores a custom bank logo encrypted, survives re-unlock, and can be removed', async () => {
-    const { native, v } = await phoneWithItem();
-    await v.setBankIcon('bdo', PNG);
-    expect(native.files.get(VAULT_FILE)).not.toContain('iVBORw0KGgo');
-    v.lock();
-    await v.unlock(PW);
-    expect(v.snapshot().bankIcons).toEqual({ bdo: PNG });
-    await v.setBankIcon('bdo', null);
-    expect(v.snapshot().bankIcons).toEqual({});
-  });
-  it('rejects anything that is not a small image data URL', async () => {
-    const { v } = await phoneWithItem();
-    for (const bad of ['javascript:alert(1)', 'data:text/html;base64,PHNjcmlwdD4=', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,' + 'A'.repeat(70_000)]) {
-      await expect(v.setBankIcon('bdo', bad)).rejects.toMatchObject({ code: 'INVALID_ICON' });
-    }
-    await expect(v.setBankIcon('__proto__', PNG)).rejects.toMatchObject({ code: 'INVALID_ICON' });
-  });
-  it('desktop vault supports bank icons too', async () => {
-    const desktop = new VaultService(path.join(dir, 'vault', 'vault.vault'));
-    await desktop.create(PW, null);
-    await desktop.setBankIcon('bpi', PNG);
-    desktop.lock();
-    await desktop.unlock(PW);
-    expect(desktop.snapshot().bankIcons.bpi).toBe(PNG);
-  });
-});

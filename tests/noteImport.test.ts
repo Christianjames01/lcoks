@@ -62,7 +62,7 @@ describe('classifyNote', () => {
       ['BPI Savings', 'banking'],
       ['Gmail', 'email'],
       ['Facebook', 'social'],
-      ['Home Wi-Fi', 'wifi'],
+      ['Home Wi-Fi', 'others'],
       ['Windows 11', 'software'],
       ['Netflix', 'personal'],
       ['Grocery list', 'notes'],
@@ -79,7 +79,7 @@ describe('classifyNote', () => {
       pin: '4321'
     });
     expect(by('Gmail').fields).toMatchObject({ email: 'juan@gmail.com', password: 'g-mail-pass-99', recoveryPhone: '09171234567', service: 'Gmail' });
-    expect(by('Home Wi-Fi').fields).toMatchObject({ networkName: 'PLDT_HOME_5G', password: 'wifiPass123' });
+    expect(by('Home Wi-Fi').fields).toMatchObject({ name: 'PLDT_HOME_5G', password: 'wifiPass123' });
     expect(by('Windows 11').fields).toMatchObject({ licenseKey: 'ABCDE-FGHIJ-KLMNO-PQRST-UVWXY' });
     expect(by('Netflix').fields).toMatchObject({ username: 'juan@yahoo.com', password: 'netflixPw1' });
     expect(by('Facebook').fields).toMatchObject({ username: 'juan.fb', password: 'fbPass!77' });

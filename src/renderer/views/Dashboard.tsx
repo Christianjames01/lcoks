@@ -43,7 +43,7 @@ export function Dashboard({ snap, onOpen, onNavigate, onNew, onSearch, onImport 
       <li key={e.id} className="row-flex" style={{ gap: 4 }}>
         <button type="button" className="row" onClick={() => onOpen(e.id)}>
           {isBankItem(e.categoryId) ? (
-            <BankIcon bankName={e.fields.bankName} title={e.title} icons={snap.bankIcons} />
+            <BankIcon bankName={e.fields.bankName} title={e.title} />
           ) : (
             <span className="row-icon">
               <CategoryIcon icon={cat?.icon} />

@@ -19,7 +19,7 @@ const TITLE_SOURCE: Record<string, string> = {
   banking: 'bankName',
   email: 'service',
   social: 'platform',
-  wifi: 'networkName',
+  others: 'name',
   software: 'product'
 };
 

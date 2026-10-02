@@ -1,34 +1,17 @@
-import { bankKey, cardTheme } from '../../shared/cards';
+import { cardTheme } from '../../shared/cards';
 
-/**
- * Icon for Banking / Cards items: the user's own logo image for that bank if they
- * set one, otherwise a badge in the bank's colour with its short name.
- */
-export function BankIcon({
-  bankName,
-  title,
-  icons,
-  size = 34,
-  radius = 6
-}: {
-  bankName: string | undefined;
-  title: string;
-  icons: Record<string, string>;
-  size?: number;
-  radius?: number;
-}) {
-  const custom = icons[bankKey(bankName, title)];
+/** Fixed icon for Banking / Cards items: a badge in the bank's colours with its short name. */
+export function BankIcon({ bankName, title, size = 34, radius = 6 }: { bankName: string | undefined; title: string; size?: number; radius?: number }) {
   const theme = cardTheme(bankName, title);
-  const common = { width: size, height: size, borderRadius: radius, flex: 'none' as const };
-  if (custom) {
-    return <img src={custom} alt="" aria-hidden style={{ ...common, objectFit: 'cover', background: '#fff', display: 'block' }} />;
-  }
   const len = theme.short.length;
   return (
     <span
       aria-hidden
       style={{
-        ...common,
+        width: size,
+        height: size,
+        borderRadius: radius,
+        flex: 'none',
         display: 'grid',
         placeItems: 'center',
         background: theme.background,

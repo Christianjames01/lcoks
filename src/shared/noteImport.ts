@@ -194,7 +194,7 @@ export function classifyNote(text: string, categories: CategoryDef[], index = 0,
   } else if (kv.bankName || kv.accountNumber || kv.customerNumber || (BANKS.test(all) && (kv.pin || kv.password || kv.accountNumber || kv.username))) {
     categoryId = 'banking';
   } else if (kv.network || (WIFI.test(all) && kv.password)) {
-    categoryId = 'wifi';
+    categoryId = 'others';
   } else if (kv.licenseKey || (SOFTWARE.test(all) && (kv.product || /key|serial/i.test(all)))) {
     categoryId = 'software';
   } else if ((kv.accountId || GAMES.test(title + ' ' + (kv.platform ?? '') + ' ' + (kv.website ?? ''))) && (hasCreds || kv.accountId)) {
@@ -232,8 +232,7 @@ export function classifyNote(text: string, categories: CategoryDef[], index = 0,
     put('customerNumber', kv.customerNumber);
     put('website', kv.website ?? (all.replace(/[^\s@]+@[^\s@]+/g, ' ').match(URL_VALUE)?.[1] ?? undefined));
     put('profileUrl', kv.website);
-    put('networkName', kv.network);
-    put('securityType', kv.securityType && ['WPA3', 'WPA2/WPA3', 'WPA2', 'WPA', 'WEP', 'Open', 'Enterprise'].find((o) => o.toLowerCase() === kv.securityType!.toLowerCase()));
+    put('name', kv.network);
     put('licenseKey', kv.licenseKey);
     put('product', kv.product);
     put('purchaseDate', kv.purchaseDate && /^\d{4}-\d{2}-\d{2}$/.test(kv.purchaseDate) ? kv.purchaseDate : undefined);
@@ -260,14 +259,14 @@ export function classifyNote(text: string, categories: CategoryDef[], index = 0,
       const m = all.match(BANKS);
       if (m && !/^(bank|atm|debit|savings|checking)$/i.test(m[1]!)) fields.bankName = m[1]!.toUpperCase();
     }
-    const notes = [...leftovers, kv.notes ?? ''].filter(Boolean).join('\n');
+    const notes = [...leftovers, kv.securityType ? `Wi-Fi security: ${kv.securityType}` : '', kv.notes ?? ''].filter(Boolean).join('\n');
     put('notes', notes);
   }
 
   if (!title) {
     title =
       fields.bankName ||
-      fields.networkName ||
+      fields.name ||
       fields.product ||
       fields.platform ||
       fields.service ||

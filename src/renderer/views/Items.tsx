@@ -129,7 +129,7 @@ export function ItemsView({ snap, filter, query, entries, mobile, selectedId, on
                     onClick={() => onSelect(e.id)}
                   >
                     {isBankItem(e.categoryId) ? (
-                      <BankIcon bankName={e.fields.bankName} title={e.title} icons={snap.bankIcons} />
+                      <BankIcon bankName={e.fields.bankName} title={e.title} />
                     ) : (
                       <span className="row-icon">
                         <CategoryIcon icon={cat?.icon} />
@@ -257,7 +257,7 @@ function EntryDetail({
       )}
       <div className="detail-head">
         {isBankItem(entry.categoryId) ? (
-          <BankIcon bankName={entry.fields.bankName} title={entry.title} icons={snap.bankIcons} size={48} radius={10} />
+          <BankIcon bankName={entry.fields.bankName} title={entry.title} size={48} radius={10} />
         ) : (
           <span className="row-icon">
             <CategoryIcon icon={category?.icon} size={22} />
@@ -290,7 +290,7 @@ function EntryDetail({
       </div>
 
       {(entry.categoryId === 'cards' || (entry.categoryId === 'banking' && (entry.secrets.accountNumber?.set || entry.fields.bankName))) && (
-        <BankCard entry={entry} revealSeconds={snap.settings.revealTimeoutSeconds} bankIcons={snap.bankIcons} onChanged={onChanged} />
+        <BankCard entry={entry} revealSeconds={snap.settings.revealTimeoutSeconds} />
       )}
 
       {(category?.fields ?? []).map((def) => (

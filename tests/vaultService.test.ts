@@ -420,3 +420,40 @@ describe('backup and restore', () => {
     await expect(b.apply(token, 'merge')).rejects.toMatchObject({ code: 'EXPIRED' });
   });
 });
+
+describe('Wi-Fi → Others migration', () => {
+  it('converts old Wi-Fi items on unlock without losing data', async () => {
+    const { buildVaultFile } = await import('../src/main/security/vaultFile');
+    const { deriveKey, newKdfParams, passwordToBytes } = await import('../src/main/security/crypto');
+    const kdf = newKdfParams();
+    const key = await deriveKey(passwordToBytes(PW), kdf);
+    const payload = {
+      schema: 1,
+      entries: [
+        {
+          id: 'w1',
+          categoryId: 'wifi',
+          title: 'Home Wi-Fi',
+          fields: { networkName: 'PLDT_5G', password: 'wifi-secret', securityType: 'WPA2', notes: 'Router in hall' },
+          tags: ['home'],
+          favorite: false,
+          favoriteOrder: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      customCategories: [],
+      settings: {},
+      meta: {}
+    };
+    const header = { kind: 'vault' as const, createdAt: new Date().toISOString(), kdf, hint: null };
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, buildVaultFile(header, key, Buffer.from(JSON.stringify(payload))));
+    const v = new VaultService(file);
+    await v.unlock(PW);
+    const e = v.getEntryForEdit('w1');
+    expect(e.categoryId).toBe('others');
+    expect(e.fields).toEqual({ name: 'PLDT_5G', password: 'wifi-secret', notes: 'Router in hall\nWi-Fi security: WPA2' });
+    expect(e.tags).toEqual(['home', 'wifi']);
+  });
+});

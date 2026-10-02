@@ -118,20 +118,3 @@ function initials(name: string): string {
     .map((w) => w[0]!.toUpperCase())
     .join('');
 }
-
-/**
- * Stable key for a bank, used to share one custom icon across all of its items:
- * the recognised brand (e.g. "bdo") or the lower-cased bank name.
- */
-export function bankKey(bankName: string | undefined, title: string): string {
-  const t = cardTheme(bankName, title);
-  return t.label
-    .toLowerCase()
-    .replace(/[^a-z0-9 .&-]/g, '')
-    .trim()
-    .slice(0, 40);
-}
-
-export const BANK_ICON_MAX_CHARS = 60_000;
-export const BANK_ICON_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
-export const BANK_KEY_RE = /^[a-z0-9 .&-]{1,40}$/;

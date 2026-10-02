@@ -153,7 +153,6 @@ export function registerIpc(d: IpcDeps): void {
     d.onSettingsChanged();
     return s;
   });
-  handle('vault.setBankIcon', (key: unknown, dataUrl: unknown) => d.vault.setBankIcon(key, dataUrl));
   handle('vault.databaseInfo', () => d.vault.databaseInfo());
   handle('vault.showVaultFolder', () => {
     if (!d.vault.isUnlocked) throw new VaultError('LOCKED', 'The vault is locked.');

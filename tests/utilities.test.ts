@@ -177,7 +177,7 @@ describe('search', () => {
   const entries = [
     mk({ title: 'GitHub', fields: { username: 'octocat', website: 'github.com' }, tags: ['work'] }),
     mk({ title: 'BPI Savings', categoryId: 'banking', fields: { notes: 'Personal savings account' }, tags: ['bank'] }),
-    mk({ title: 'Home Wi-Fi', categoryId: 'wifi', secrets: { password: { set: true } } })
+    mk({ title: 'Home Wi-Fi', categoryId: 'others', secrets: { password: { set: true } } })
   ];
   it('matches titles, usernames, websites, categories, notes and tags', () => {
     expect(searchEntries(entries, cats, 'octo')[0]!.title).toBe('GitHub');

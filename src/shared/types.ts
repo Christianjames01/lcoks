@@ -152,8 +152,6 @@ export interface VaultPayload {
   customCategories: CategoryDef[];
   settings: VaultSettings;
   meta: VaultMeta;
-  /** User-chosen bank logo images (small data: URLs), keyed by bankKey(). Encrypted with the vault. */
-  bankIcons: Record<string, string>;
 }
 
 export interface VaultStats {
@@ -170,7 +168,6 @@ export interface VaultSnapshot {
   settings: VaultSettings;
   stats: VaultStats;
   meta: VaultMeta;
-  bankIcons: Record<string, string>;
 }
 
 export type AppStatus = 'no-vault' | 'locked' | 'unlocked';

@@ -2,7 +2,6 @@
 // decrypted payload read from disk. Objects are rebuilt field-by-field so that
 // unexpected properties (e.g. prototype-pollution keys) are dropped.
 
-import { BANK_ICON_MAX_CHARS, BANK_ICON_RE, BANK_KEY_RE } from '../../shared/cards';
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../../shared/categories';
 import {
   DEFAULT_SETTINGS,
@@ -202,9 +201,11 @@ export function validatePayload(v: unknown): VaultPayload {
   const categories = [...BUILTIN_CATEGORIES, ...customCategories];
 
   if (p.entries.length > LIMITS.entries) throw new ValidationError('payload', 'Too many items.');
+  const hasCustomWifi = customCategories.some((c) => c.id === 'wifi');
   const entries: VaultEntry[] = [];
   const ids = new Set<string>();
-  for (const e of p.entries) {
+  for (const raw of p.entries) {
+    const e = hasCustomWifi ? raw : migrateWifiEntry(raw);
     const input = validateEntryInput(e, categories);
     let id = input.id && !ids.has(input.id) ? input.id : randomUUID();
     ids.add(id);
@@ -222,12 +223,6 @@ export function validatePayload(v: unknown): VaultPayload {
   }
 
   const m = p.meta && typeof p.meta === 'object' ? p.meta : {};
-  const bankIcons: Record<string, string> = {};
-  if (p.bankIcons && typeof p.bankIcons === 'object') {
-    for (const [k, v] of Object.entries(p.bankIcons).slice(0, 100)) {
-      if (isValidBankIcon(k, v)) bankIcons[k] = v as string;
-    }
-  }
   return {
     schema: 1,
     entries,
@@ -237,21 +232,8 @@ export function validatePayload(v: unknown): VaultPayload {
       createdAt: isoOr(m.createdAt, now),
       lastBackupAt: m.lastBackupAt ? isoOr(m.lastBackupAt, now) : null,
       lastBackupVerified: m.lastBackupVerified === true
-    },
-    bankIcons
+    }
   };
-}
-
-/** Bank icon = a small base64 PNG/JPEG/WebP data URL under a safe key. */
-export function isValidBankIcon(key: unknown, value: unknown): boolean {
-  return (
-    typeof key === 'string' &&
-    BANK_KEY_RE.test(key) &&
-    !['__proto__', 'constructor', 'prototype'].includes(key) &&
-    typeof value === 'string' &&
-    value.length <= BANK_ICON_MAX_CHARS &&
-    BANK_ICON_RE.test(value)
-  );
 }
 
 export function validateMasterPassword(pw: unknown, field = 'password'): string {
@@ -266,4 +248,21 @@ export function validateNewMasterPassword(pw: unknown, field = 'password'): stri
     throw new ValidationError(field, `Use at least ${LIMITS.masterPasswordMin} characters.`);
   }
   return v;
+}
+
+/**
+ * The built-in "Wi-Fi" category was replaced by "Others". Old Wi-Fi items are
+ * converted on load without losing data: network name → Name, password kept,
+ * security type appended to Notes.
+ */
+export function migrateWifiEntry(e: any): any {
+  if (!e || typeof e !== 'object' || e.categoryId !== 'wifi') return e;
+  const f = e.fields && typeof e.fields === 'object' ? e.fields : {};
+  const notes = [typeof f.notes === 'string' ? f.notes : '', typeof f.securityType === 'string' && f.securityType ? `Wi-Fi security: ${f.securityType}` : '']
+    .filter(Boolean)
+    .join('\n');
+  const fields: Record<string, unknown> = { password: f.password, notes };
+  if (typeof f.networkName === 'string') fields.name = f.networkName;
+  const tags = Array.isArray(e.tags) ? e.tags : [];
+  return { ...e, categoryId: 'others', fields, tags: tags.includes('wifi') ? tags : [...tags, 'wifi'] };
 }

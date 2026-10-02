@@ -27,8 +27,6 @@ export interface VaultApi {
     readClipboardText(): Promise<Result<string>>;
     /** Text shared into the app from another app (Android "Share → VaultLocks"); returned once. */
     takeSharedText(): Promise<string | null>;
-    /** Pause lock-on-background while a system picker (photos, files) is open. */
-    suspendAutoLock(on: boolean): void;
   };
   auth: {
     create(password: string, hint: string | null): Promise<Result<void>>;
@@ -52,8 +50,6 @@ export interface VaultApi {
     saveCategory(input: CategoryInput): Promise<Result<CategoryDef>>;
     deleteCategory(id: string): Promise<Result<void>>;
     updateSettings(patch: Partial<VaultSettings>): Promise<Result<VaultSettings>>;
-    /** Set or remove (null) the custom logo shown for every item of a bank. */
-    setBankIcon(bankKey: string, dataUrl: string | null): Promise<Result<void>>;
     databaseInfo(): Promise<Result<DatabaseInfo>>;
     showVaultFolder(): Promise<void>;
   };

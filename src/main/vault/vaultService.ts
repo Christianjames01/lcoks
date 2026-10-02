@@ -44,7 +44,6 @@ import { cleanupTempFiles, exists, writeFileAtomic } from '../storage/atomicFile
 import {
   ValidationError,
   validateCategoryInput,
-  isValidBankIcon,
   validateEntryInput,
   validateNewMasterPassword,
   validatePayload,
@@ -133,8 +132,7 @@ export class VaultService {
         entries: [],
         customCategories: [],
         settings: { ...DEFAULT_SETTINGS },
-        meta: { createdAt, lastBackupAt: null, lastBackupVerified: false },
-        bankIcons: {}
+        meta: { createdAt, lastBackupAt: null, lastBackupVerified: false }
       };
       this.key = key;
       this.kdf = kdf;
@@ -338,7 +336,6 @@ export class VaultService {
       categories: this.categories(),
       settings: { ...payload.settings },
       meta: { ...payload.meta },
-      bankIcons: { ...payload.bankIcons },
       stats: {
         total: entries.length,
         withPasswords,
@@ -516,22 +513,6 @@ export class VaultService {
     });
   }
 
-  /** Set (or remove with null) the custom logo used for every item of a bank. */
-  async setBankIcon(key: unknown, dataUrl: unknown): Promise<void> {
-    this.requireUnlocked();
-    if (dataUrl !== null && !isValidBankIcon(key, dataUrl)) throw new VaultError('INVALID_ICON', 'That image could not be used as an icon.');
-    if (typeof key !== 'string') throw new VaultError('INVALID_ICON', 'Invalid bank.');
-    await this.mutate((draft) => {
-      const icons = { ...draft.bankIcons };
-      if (dataUrl === null) delete icons[key];
-      else {
-        if (!(key in icons) && Object.keys(icons).length >= 100) throw new VaultError('LIMIT', 'Too many bank icons.');
-        icons[key] = dataUrl as string;
-      }
-      draft.bankIcons = icons;
-    });
-  }
-
   // ------------------------------------------------------------- settings ----
 
   async updateSettings(patch: unknown): Promise<VaultSettings> {
@@ -668,13 +649,11 @@ export class VaultService {
       if (mode === 'replace') {
         draft.entries = structuredClone(backup.entries);
         draft.customCategories = structuredClone(backup.customCategories);
-        draft.bankIcons = { ...backup.bankIcons };
         return;
       }
       const ids = new Set(draft.entries.map((e) => e.id));
       const catIds = new Set(draft.customCategories.map((c) => c.id));
       for (const c of backup.customCategories) if (!catIds.has(c.id)) draft.customCategories.push(structuredClone(c));
-      draft.bankIcons = { ...backup.bankIcons, ...draft.bankIcons };
       for (const e of backup.entries) if (!ids.has(e.id)) draft.entries.push(structuredClone(e));
     });
   }

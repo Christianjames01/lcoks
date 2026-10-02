@@ -65,23 +65,6 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
     ]
   },
   {
-    id: 'wifi',
-    name: 'Wi-Fi',
-    icon: 'wifi',
-    builtin: true,
-    fields: [
-      { key: 'networkName', label: 'Network name', type: 'text' },
-      { key: 'password', label: 'Password', type: 'password' },
-      {
-        key: 'securityType',
-        label: 'Security type',
-        type: 'select',
-        options: ['WPA3', 'WPA2/WPA3', 'WPA2', 'WPA', 'WEP', 'Open', 'Enterprise']
-      },
-      { ...NOTES_FIELD }
-    ]
-  },
-  {
     id: 'software',
     name: 'Software License',
     icon: 'key',
@@ -128,6 +111,20 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
     ]
   },
   {
+    id: 'others',
+    name: 'Others',
+    icon: 'folder',
+    builtin: true,
+    fields: [
+      { key: 'name', label: 'Name / account', type: 'text' },
+      { key: 'username', label: 'Username', type: 'username' },
+      { key: 'password', label: 'Password', type: 'password' },
+      { key: 'pin', label: 'PIN / code', type: 'pin' },
+      { key: 'website', label: 'Website', type: 'url' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
     id: 'notes',
     name: 'Secure Notes',
     icon: 'note',
@@ -141,7 +138,7 @@ export const BUILTIN_IDS: ReadonlySet<string> = new Set(BUILTIN_CATEGORIES.map((
 /** Field key used to pick a "subtitle" for list rows. */
 export function subtitleFor(category: CategoryDef | undefined, fields: Record<string, string>): string {
   if (!category) return '';
-  const order = ['cardholder', 'username', 'email', 'accountName', 'networkName', 'service', 'platform', 'product', 'accountId', 'website'];
+  const order = ['cardholder', 'username', 'email', 'accountName', 'name', 'service', 'platform', 'product', 'accountId', 'website'];
   for (const key of order) {
     const def = category.fields.find((f) => f.key === key);
     if (def && fields[key]) return fields[key];
