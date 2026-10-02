@@ -1,0 +1,117 @@
+import type { CategoryDef } from './types';
+
+export const NOTES_FIELD = { key: 'notes', label: 'Notes', type: 'textarea' } as const;
+
+export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
+  {
+    id: 'banking',
+    name: 'Banking',
+    icon: 'bank',
+    builtin: true,
+    fields: [
+      { key: 'bankName', label: 'Bank name', type: 'text' },
+      { key: 'accountName', label: 'Account name', type: 'text' },
+      { key: 'accountNumber', label: 'Account number', type: 'secret', partialMask: true },
+      { key: 'username', label: 'Username', type: 'username' },
+      { key: 'password', label: 'Password', type: 'password' },
+      { key: 'pin', label: 'PIN', type: 'pin' },
+      { key: 'website', label: 'Website', type: 'url' },
+      { key: 'customerNumber', label: 'Customer number', type: 'text' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'email',
+    name: 'Email',
+    icon: 'mail',
+    builtin: true,
+    fields: [
+      { key: 'service', label: 'Service', type: 'text' },
+      { key: 'email', label: 'Email address', type: 'email' },
+      { key: 'password', label: 'Password', type: 'password' },
+      { key: 'recoveryEmail', label: 'Recovery email', type: 'email' },
+      { key: 'recoveryPhone', label: 'Recovery phone', type: 'phone' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'social',
+    name: 'Social Media',
+    icon: 'globe',
+    builtin: true,
+    fields: [
+      { key: 'platform', label: 'Platform', type: 'text' },
+      { key: 'username', label: 'Username', type: 'username' },
+      { key: 'email', label: 'Email', type: 'email' },
+      { key: 'password', label: 'Password', type: 'password' },
+      { key: 'profileUrl', label: 'Profile URL', type: 'url' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'wifi',
+    name: 'Wi-Fi',
+    icon: 'wifi',
+    builtin: true,
+    fields: [
+      { key: 'networkName', label: 'Network name', type: 'text' },
+      { key: 'password', label: 'Password', type: 'password' },
+      {
+        key: 'securityType',
+        label: 'Security type',
+        type: 'select',
+        options: ['WPA3', 'WPA2/WPA3', 'WPA2', 'WPA', 'WEP', 'Open', 'Enterprise']
+      },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'software',
+    name: 'Software License',
+    icon: 'key',
+    builtin: true,
+    fields: [
+      { key: 'product', label: 'Product', type: 'text' },
+      { key: 'licenseKey', label: 'License key', type: 'secret', partialMask: true },
+      { key: 'username', label: 'Username', type: 'username' },
+      { key: 'purchaseDate', label: 'Purchase date', type: 'date' },
+      { key: 'expirationDate', label: 'Expiration date', type: 'date' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'personal',
+    name: 'Personal',
+    icon: 'user',
+    builtin: true,
+    fields: [
+      { key: 'username', label: 'Username', type: 'username' },
+      { key: 'password', label: 'Password', type: 'password' },
+      { key: 'website', label: 'Website', type: 'url' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'notes',
+    name: 'Secure Notes',
+    icon: 'note',
+    builtin: true,
+    fields: [{ key: 'content', label: 'Secure note', type: 'secretTextarea' }]
+  }
+];
+
+export const BUILTIN_IDS: ReadonlySet<string> = new Set(BUILTIN_CATEGORIES.map((c) => c.id));
+
+/** Field key used to pick a "subtitle" for list rows. */
+export function subtitleFor(category: CategoryDef | undefined, fields: Record<string, string>): string {
+  if (!category) return '';
+  const order = ['username', 'email', 'accountName', 'networkName', 'service', 'platform', 'product', 'website'];
+  for (const key of order) {
+    const def = category.fields.find((f) => f.key === key);
+    if (def && fields[key]) return fields[key];
+  }
+  for (const def of category.fields) {
+    if (['text', 'username', 'email', 'url'].includes(def.type) && fields[def.key]) return fields[def.key];
+  }
+  return category.name;
+}
