@@ -28,6 +28,10 @@ android {
                 keyAlias System.getenv("VAULTLOCKS_KEY_ALIAS")
                 keyPassword System.getenv("VAULTLOCKS_KEYSTORE_PASSWORD")
             }
+            // Sign with every scheme: some OEM installers (e.g. Xiaomi HyperOS) are picky.
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
         }
     }
     buildTypes {
