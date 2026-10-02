@@ -27,10 +27,6 @@ export interface CardSpec {
   kind: 'bank' | 'wallet' | 'id' | 'insurance' | 'subscription';
   /** Small text, top-right (card type, ID type, plan…). */
   topRight: string;
-  /** Header line above the brand (e.g. REPUBLIC OF THE PHILIPPINES). */
-  emblem?: string;
-  chip: boolean;
-  contactless: boolean;
   /** Secret field shown masked on the card with Show/Copy buttons. */
   numberKey?: string;
   /** Non-secret main line when there is no secret number. */
@@ -59,14 +55,12 @@ export function cardSpec(e: EntryView): CardSpec | null {
   switch (e.categoryId) {
     case 'banking':
       if (!e.secrets.accountNumber?.set && !f.bankName) return null;
-      return { theme, kind: 'bank', topRight: '', chip: true, contactless: true, numberKey: 'accountNumber', holderCaption: 'Account name', holder: f.accountName ?? '' };
+      return { theme, kind: 'bank', topRight: '', numberKey: 'accountNumber', holderCaption: 'Account name', holder: f.accountName ?? '' };
     case 'cards':
       return {
         theme,
         kind: 'bank',
         topRight: f.cardType ?? '',
-        chip: true,
-        contactless: true,
         numberKey: 'cardNumber',
         holderCaption: 'Cardholder',
         holder: f.cardholder ?? '',
@@ -79,10 +73,7 @@ export function cardSpec(e: EntryView): CardSpec | null {
         theme,
         kind: 'wallet',
         topRight: 'E-Wallet',
-        chip: false,
-        contactless: true,
         mainText: maskPhone(f.mobileNumber) ?? '•••• ••• ••••',
-        mainCaption: 'Mobile number',
         holderCaption: 'Account name',
         holder: f.accountName ?? ''
       };
@@ -90,10 +81,7 @@ export function cardSpec(e: EntryView): CardSpec | null {
       return {
         theme,
         kind: 'id',
-        emblem: 'Republic of the Philippines',
         topRight: f.idType && f.idType !== theme.label ? f.idType : '',
-        chip: false,
-        contactless: false,
         numberKey: 'idNumber',
         holderCaption: 'Name',
         holder: f.fullName ?? '',
@@ -105,8 +93,6 @@ export function cardSpec(e: EntryView): CardSpec | null {
         theme,
         kind: 'insurance',
         topRight: f.policyType ?? '',
-        chip: false,
-        contactless: false,
         numberKey: 'memberNumber',
         holderCaption: 'Member',
         holder: f.insured ?? '',
@@ -119,10 +105,7 @@ export function cardSpec(e: EntryView): CardSpec | null {
         theme,
         kind: 'subscription',
         topRight: f.billingCycle ?? '',
-        chip: false,
-        contactless: false,
         mainText: f.plan || 'Subscription',
-        mainCaption: 'Plan',
         holderCaption: 'Price',
         holder: f.price ? `${f.price}${f.billingCycle ? ' / ' + f.billingCycle.toLowerCase().replace('monthly', 'month').replace('yearly', 'year') : ''}` : '',
         extraCaption: f.renewalDate ? 'Renews' : undefined,

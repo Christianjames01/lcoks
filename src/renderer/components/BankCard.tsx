@@ -1,4 +1,4 @@
-import { Copy, Eye, EyeOff, Nfc, RotateCw, UserRound } from 'lucide-react';
+import { Copy, Eye, EyeOff, Nfc, RotateCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { EntryView } from '../../shared/types';
 import { api, errorMessage, unwrap } from '../lib/api';
@@ -173,23 +173,16 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
             ))}
             <div className="face front" style={faceStyle}>
               <div className="glare" aria-hidden />
-              {spec.emblem && <div className="card-emblem">{spec.emblem}</div>}
               <div className="card-top">
                 <span className="card-bank">{theme.label}</span>
                 <span className="card-type">{spec.topRight}</span>
               </div>
-              <div className={`card-mid ${spec.kind}`}>
-                {spec.kind === 'id' ? (
-                  <span className="id-photo" aria-hidden>
-                    <UserRound size={30} strokeWidth={1.4} />
-                  </span>
-                ) : spec.chip ? (
-                  <span className="chip" aria-hidden />
-                ) : null}
-                {spec.contactless && <Nfc size={22} strokeWidth={1.6} aria-hidden style={{ opacity: 0.85 }} />}
+              <div className="card-mid">
+                <span className="chip" aria-hidden />
+                <Nfc size={22} strokeWidth={1.6} aria-hidden style={{ opacity: 0.85 }} />
               </div>
               {spec.mainCaption && <span className="card-caption card-main-caption">{spec.mainCaption}</span>}
-              <div className={`card-number ${spec.mainText && !numberKey ? 'text' : ''}`}>{number !== null ? groups(number) : maskedNumber}</div>
+              <div className="card-number">{number !== null ? groups(number) : maskedNumber}</div>
               <div className="card-bottom">
                 <div className="card-holder">
                   <span className="card-caption">{spec.holderCaption}</span>
