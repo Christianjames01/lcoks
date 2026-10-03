@@ -1,4 +1,4 @@
-import { CopyCheck, House, Layers, Lock, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, Star, Tag, Trash2, X } from 'lucide-react';
+import { CopyCheck, House, Layers, Lock, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, Star, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { searchEntries } from '../../shared/search';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
@@ -51,6 +51,7 @@ export function VaultApp({ version }: { version: string }) {
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [sharedText, setSharedText] = useState<string | undefined>(undefined);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
   const mobile = useMediaQuery(MOBILE_QUERY);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -111,17 +112,20 @@ export function VaultApp({ version }: { version: string }) {
   // ---- navigation with history (Android back button walks it backwards)
   const go = (r: Route, opts: { replace?: boolean } = {}) => {
     setQuery('');
+    setDrawerOpen(false);
     if (!opts.replace) setHistory((h) => [...h.slice(-30), route]);
     setRoute(r);
     setSelectedId(r.view === 'items' && r.entry ? r.entry : mobile ? null : selectedId);
   };
   const switchTab = (t: Tab) => {
+    setDrawerOpen(false);
     setHistory([]);
     setQuery('');
     setSelectedId(null);
     setRoute(t === 'favorites' ? { view: 'items', filter: 'favorites' } : t === 'search' ? { view: 'search' } : t === 'settings' ? { view: 'settings' } : { view: 'dashboard' });
   };
   const back = (): boolean => {
+    if (drawerOpen) return setDrawerOpen(false), true;
     if (query) return setQuery(''), true;
     if (mobile && selectedId && route.view === 'items' && !route.entry) return setSelectedId(null), true;
     if (history.length) {
@@ -252,6 +256,16 @@ export function VaultApp({ version }: { version: string }) {
       <TitleBar>
         {mobile ? (
           <>
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setDrawerOpen((o) => !o)}
+              aria-label="Open categories"
+              aria-expanded={drawerOpen}
+              aria-controls="vault-nav"
+            >
+              <Menu size={20} />
+            </button>
             <h1 className="screen-title">{screenTitle}</h1>
             <button type="button" className="icon-btn" onClick={lock} aria-label="Lock vault" title="Lock vault">
               <Lock size={19} />
@@ -316,8 +330,9 @@ export function VaultApp({ version }: { version: string }) {
       </TitleBar>
 
       <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
-        {!mobile && (
-          <nav id="vault-nav" className="sidebar" aria-label="Vault navigation">
+        {mobile && drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden />}
+        {(
+          <nav id="vault-nav" className={`sidebar ${drawerOpen ? 'open' : ''}`} aria-label="Vault navigation">
             {navItem('dashboard', 'Dashboard', <House size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'dashboard', () => go({ view: 'dashboard' }))}
             {filterNav('favorites', 'Favorites', <Star size={16} strokeWidth={1.75} aria-hidden />, snap.stats.favorites)}
             <div className="nav-section label">Vault</div>

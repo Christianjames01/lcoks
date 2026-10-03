@@ -2121,9 +2121,9 @@ input[type='range']::-webkit-slider-thumb {
   .shell.collapsed {
     bottom: var(--bottomnav-h);
   }
-  .sidebar,
-  .drawer-backdrop {
-    display: none;
+  /* The category drawer covers the bottom navigation while open. */
+  .sidebar {
+    z-index: 30;
   }
   .bottom-nav {
     position: fixed;

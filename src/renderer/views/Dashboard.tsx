@@ -35,7 +35,6 @@ type Health = 'ok' | 'warn' | 'bad';
 
 export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, onImport }: Props) {
   const toast = useToast();
-  const [catQuery, setCatQuery] = useState('');
   const [dupCount, setDupCount] = useState<number | null>(null);
   const { settings, meta, stats } = snap;
 
@@ -51,12 +50,6 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
   const recent = useMemo(() => [...snap.entries].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6), [snap.entries]);
   const favorites = useMemo(() => snap.entries.filter((e) => e.favorite).sort((a, b) => a.favoriteOrder - b.favoriteOrder).slice(0, 4), [snap.entries]);
   const upcoming = useMemo(() => upcomingDates(snap.entries).slice(0, 5), [snap.entries]);
-  const counts = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const e of snap.entries) m.set(e.categoryId, (m.get(e.categoryId) ?? 0) + 1);
-    return m;
-  }, [snap.entries]);
-  const categories = snap.categories.filter((c) => !catQuery.trim() || c.name.toLowerCase().includes(catQuery.trim().toLowerCase()));
 
   const backupAge = daysSince(meta.lastBackupAt);
   const backupDue = settings.backupReminderDays > 0 && stats.total > 0 && backupAge > settings.backupReminderDays;
@@ -265,44 +258,6 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
           </>
         )}
 
-        <div className="section-title">
-          <span className="label">Categories</span>
-          <button type="button" className="linkish" onClick={() => onNavigate({ view: 'settings', tab: 'categories' })}>
-            Manage
-          </button>
-        </div>
-        {snap.categories.length > 8 && (
-          <div className="search" style={{ width: '100%', marginBottom: 10 }}>
-            <Search size={15} className="search-icon" style={{ top: 13, left: 12 }} aria-hidden />
-            <input
-              type="search"
-              placeholder="Find a category"
-              aria-label="Find a category"
-              style={{ height: 42, paddingLeft: 36 }}
-              value={catQuery}
-              onChange={(e) => setCatQuery(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-        )}
-        <div className="cat-grid">
-          {categories.map((c) => (
-            <button key={c.id} type="button" className="card cat-tile" onClick={() => onNavigate({ view: 'items', filter: `cat:${c.id}` })}>
-              <span className="row-icon" aria-hidden>
-                <CategoryIcon icon={c.icon} size={19} />
-              </span>
-              <span>
-                <span className="cat-name" style={{ display: 'block' }}>
-                  {c.name}
-                </span>
-                <span className="cat-count">
-                  {counts.get(c.id) ?? 0} item{(counts.get(c.id) ?? 0) === 1 ? '' : 's'}
-                </span>
-              </span>
-            </button>
-          ))}
-          {categories.length === 0 && <div className="muted small">No category matches “{catQuery}”.</div>}
-        </div>
 
         {favorites.length > 0 && (
           <>
