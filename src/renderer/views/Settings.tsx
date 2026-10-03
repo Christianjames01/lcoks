@@ -1,4 +1,5 @@
 import {
+  Bell,
   CircleAlert,
   CircleCheck,
   CopyCheck,
@@ -21,7 +22,8 @@ import {
   X
 } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { PLAINTEXT_CONFIRM_PHRASE } from '../../shared/api';
+import { PLAINTEXT_CONFIRM_PHRASE, type NotificationPermission } from '../../shared/api';
+import { buildReminders, trackedDates } from '../../shared/expiry';
 import { estimateStrength } from '../../shared/strength';
 import { MAX_LENGTH, MIN_LENGTH } from '../../shared/generator';
 import type { BackupSummary, CategoryDef, CategoryIcon as IconName, DatabaseInfo, FieldDef, FieldType, StorageInfo, VaultSettings, VaultSnapshot } from '../../shared/types';
@@ -35,7 +37,7 @@ import { isAndroid } from '../lib/platform';
 import { QuickUnlockSettings } from './QuickUnlockSettings';
 import type { Route } from './VaultApp';
 
-type Tab = 'security' | 'appearance' | 'vault' | 'privacy' | 'categories' | 'about';
+type Tab = 'security' | 'appearance' | 'vault' | 'privacy' | 'reminders' | 'categories' | 'about';
 
 interface Props {
   snap: VaultSnapshot;
@@ -69,6 +71,7 @@ export function SettingsView({ snap, version, initialTab, onChanged, onSnapshot,
     { id: 'appearance', label: 'Appearance', icon: <Paintbrush size={16} strokeWidth={1.75} aria-hidden /> },
     { id: 'vault', label: 'Vault & Backup', icon: <Database size={16} strokeWidth={1.75} aria-hidden /> },
     { id: 'privacy', label: 'Privacy', icon: <EyeOff size={16} strokeWidth={1.75} aria-hidden /> },
+    { id: 'reminders', label: 'Reminders', icon: <Bell size={16} strokeWidth={1.75} aria-hidden /> },
     { id: 'categories', label: 'Categories', icon: <Layers size={16} strokeWidth={1.75} aria-hidden /> },
     { id: 'about', label: 'About', icon: <Info size={16} strokeWidth={1.75} aria-hidden /> }
   ];
@@ -103,6 +106,7 @@ export function SettingsView({ snap, version, initialTab, onChanged, onSnapshot,
             {tab === 'appearance' && <AppearanceTab settings={snap.settings} update={update} />}
             {tab === 'vault' && <VaultTab snap={snap} update={update} onChanged={onChanged} onNavigate={onNavigate} onImport={onImport} />}
             {tab === 'privacy' && <PrivacyTab settings={snap.settings} update={update} />}
+            {tab === 'reminders' && <RemindersTab snap={snap} update={update} />}
             {tab === 'categories' && <CategoriesTab snap={snap} onChanged={onChanged} />}
             {tab === 'about' && <AboutTab version={version} />}
           </div>
@@ -484,6 +488,106 @@ function AppearanceTab({ settings, update }: { settings: VaultSettings; update: 
         />
       </Setting>
     </Group>
+  );
+}
+
+// -------------------------------------------------------------- reminders --
+
+function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Partial<VaultSettings>) => Promise<void> }) {
+  const { settings } = snap;
+  const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  const toast = useToast();
+  useEffect(() => {
+    void api.notifications.status().then(setPermission);
+  }, []);
+  const upcoming = buildReminders(snap.entries, snap.categories, { daysBefore: settings.reminderDaysBefore }).slice(0, 8);
+  const tracked = trackedDates(snap.entries, snap.categories).filter((u) => u.days >= 0).length;
+
+  if (permission === 'unsupported') {
+    return (
+      <Group title="Reminders">
+        <div className="card-pad muted">
+          Reminder notifications are available in the Android app. On this computer, upcoming dates are shown on the Dashboard under Security status.
+        </div>
+      </Group>
+    );
+  }
+
+  return (
+    <>
+      <Group title="Reminders">
+        <Setting
+          title="Expiry, renewal & payment reminders"
+          desc="Subscriptions, cards, IDs, documents, insurance, licenses — and date fields named “due”, “payment”, “renewal” or “expiry” in your own categories."
+          htmlFor="s-rem"
+        >
+          <input id="s-rem" type="checkbox" className="switch" checked={settings.reminders} onChange={(e) => update({ reminders: e.target.checked })} />
+        </Setting>
+        <Setting title="Remind me" desc="A reminder at 9:00 AM this many days before, and another on the day itself.">
+          <Segmented
+            label="Days before"
+            value={settings.reminderDaysBefore}
+            options={[
+              [1, '1 day'],
+              [3, '3 days'],
+              [7, '1 week'],
+              [14, '2 weeks'],
+              [30, '1 month']
+            ]}
+            onChange={(v) => update({ reminderDaysBefore: v })}
+          />
+        </Setting>
+        <Setting
+          title="Notification permission"
+          desc={
+            permission === 'granted'
+              ? 'Allowed. On the lock screen, reminder text stays hidden until you unlock the phone.'
+              : permission === 'denied'
+                ? 'Blocked. Allow notifications for VaultLocks in Android Settings → Apps → VaultLocks → Notifications.'
+                : 'VaultLocks needs your permission to show reminders.'
+          }
+        >
+          {permission === 'granted' ? (
+            <button
+              type="button"
+              className="btn sm"
+              onClick={async () => {
+                try {
+                  await unwrap(api.notifications.test());
+                  toast('A sample reminder will appear in a few seconds.');
+                } catch (e) {
+                  toast(errorMessage(e), 'error');
+                }
+              }}
+            >
+              Send test
+            </button>
+          ) : (
+            <button type="button" className="btn sm primary" onClick={async () => setPermission(await api.notifications.request())}>
+              Allow
+            </button>
+          )}
+        </Setting>
+      </Group>
+      <Group title={`Next reminders (${tracked} tracked date${tracked === 1 ? '' : 's'})`}>
+        {!settings.reminders ? (
+          <div className="card-pad muted">Reminders are off.</div>
+        ) : upcoming.length === 0 ? (
+          <div className="card-pad muted">No upcoming dates. Add an expiry or renewal date to an item to get reminders.</div>
+        ) : (
+          upcoming.map((r) => (
+            <div key={r.id} className="setting">
+              <div className="grow">
+                <div className="title">{r.title}</div>
+                <div className="desc">
+                  {r.at.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {r.body}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </Group>
+    </>
   );
 }
 

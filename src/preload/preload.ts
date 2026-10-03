@@ -72,6 +72,12 @@ const api: VaultApi = {
     exportPlaintext: call('backup.exportPlaintext') as VaultApi['backup']['exportPlaintext']
   },
   // Fingerprint / PIN unlock is Android-only; the desktop always uses the master password.
+  notifications: {
+    status: async () => 'unsupported' as const,
+    request: async () => 'unsupported' as const,
+    schedule: async () => ({ ok: true as const, value: 0 }),
+    test: async () => ({ ok: false as const, code: 'UNSUPPORTED', message: 'Reminders are available in the Android app.' })
+  },
   quick: {
     status: async () => ({ supported: false, biometricAvailable: false, deviceCredentialAvailable: false, biometric: false, deviceCredential: false, pin: false, pinAttemptsLeft: 0 }),
     enableBiometric: async () => unsupported,

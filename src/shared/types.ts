@@ -155,6 +155,8 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 /** Grace period before locking after the app is left: 0 = immediately, -1 = never. */
 export type BackgroundLockMinutes = 0 | 1 | 5 | 15 | 30 | -1;
 
+export type ReminderDays = 1 | 3 | 7 | 14 | 30;
+
 export interface GeneratorDefaults {
   length: number;
   upper: boolean;
@@ -183,6 +185,10 @@ export interface VaultSettings {
   /** Hide even partial previews (last 4 digits, masked phone numbers). */
   hidePreviews: boolean;
   generator: GeneratorDefaults;
+  /** Phone notifications before expiry / renewal / due dates. */
+  reminders: boolean;
+  /** How many days before the date the first reminder comes (one more on the day). */
+  reminderDaysBefore: ReminderDays;
 }
 
 export const DEFAULT_SETTINGS: VaultSettings = {
@@ -201,6 +207,8 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   backgroundLockMinutes: 0,
   screenshotProtection: true,
   hidePreviews: false,
+  reminders: true,
+  reminderDaysBefore: 1,
   generator: { length: 20, upper: true, lower: true, digits: true, symbols: true, avoidAmbiguous: false }
 };
 

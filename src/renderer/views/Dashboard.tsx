@@ -49,7 +49,7 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
 
   const recent = useMemo(() => [...snap.entries].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6), [snap.entries]);
   const favorites = useMemo(() => snap.entries.filter((e) => e.favorite).sort((a, b) => a.favoriteOrder - b.favoriteOrder).slice(0, 4), [snap.entries]);
-  const upcoming = useMemo(() => upcomingDates(snap.entries).slice(0, 5), [snap.entries]);
+  const upcoming = useMemo(() => upcomingDates(snap.entries, undefined, 30, snap.categories).slice(0, 5), [snap.entries, snap.categories]);
 
   const backupAge = daysSince(meta.lastBackupAt);
   const backupDue = settings.backupReminderDays > 0 && stats.total > 0 && backupAge > settings.backupReminderDays;

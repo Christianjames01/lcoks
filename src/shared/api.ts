@@ -87,6 +87,16 @@ export interface VaultApi {
     renderPdf(entryId: string, attachmentId: string): Promise<Result<string[]>>;
     storageInfo(): Promise<Result<StorageInfo>>;
   };
+  /** Phone reminders for expiry / renewal / due dates (Android). */
+  notifications: {
+    status(): Promise<NotificationPermission>;
+    /** Ask Android for permission to show notifications. */
+    request(): Promise<NotificationPermission>;
+    /** Replace all scheduled reminders. */
+    schedule(items: ScheduledReminder[]): Promise<Result<number>>;
+    /** Show a sample reminder in a few seconds. */
+    test(): Promise<Result<void>>;
+  };
   backup: {
     create(): Promise<Result<{ path: string; verified: boolean } | null>>;
     chooseDirectory(): Promise<Result<string | null>>;
@@ -127,6 +137,16 @@ export interface QuickUnlockStatus {
   deviceCredential: boolean;
   pin: boolean;
   pinAttemptsLeft: number;
+}
+
+export type NotificationPermission = 'granted' | 'denied' | 'prompt' | 'unsupported';
+
+export interface ScheduledReminder {
+  id: number;
+  /** Epoch milliseconds. */
+  at: number;
+  title: string;
+  body: string;
 }
 
 export const MAX_PIN_ATTEMPTS = 5;

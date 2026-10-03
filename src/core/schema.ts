@@ -8,6 +8,7 @@ import {
   type AttachmentMeta,
   type AutoLockMinutes,
   type BackgroundLockMinutes,
+  type ReminderDays,
   type TrashedEntry,
   type CategoryDef,
   type CategoryIcon,
@@ -194,6 +195,8 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
     ),
     screenshotProtection: typeof s.screenshotProtection === 'boolean' ? s.screenshotProtection : base.screenshotProtection,
     hidePreviews: typeof s.hidePreviews === 'boolean' ? s.hidePreviews : base.hidePreviews,
+    reminders: typeof s.reminders === 'boolean' ? s.reminders : base.reminders,
+    reminderDaysBefore: [1, 3, 7, 14, 30].includes(s.reminderDaysBefore as number) ? (s.reminderDaysBefore as ReminderDays) : base.reminderDaysBefore,
     generator: validateGeneratorDefaults(s.generator, base.generator)
   };
 }

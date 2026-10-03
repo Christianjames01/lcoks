@@ -6,6 +6,7 @@
 import { App } from '@capacitor/app';
 import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { AppLauncher } from '@capacitor/app-launcher';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
 import { PLAINTEXT_CONFIRM_PHRASE, type QuickUnlockStatus, type VaultApi } from '../shared/api';
 import type { BackupSummary, Result } from '../shared/types';
@@ -30,6 +31,14 @@ async function wrap<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
   } catch (e) {
     return toError(e);
   }
+}
+
+const REMINDER_CHANNEL = 'reminders';
+let channelReady = false;
+async function ensureChannel(): Promise<void> {
+  if (channelReady) return;
+  await LocalNotifications.createChannel({ id: REMINDER_CHANNEL, name: 'Reminders', description: 'Expiry, renewal and payment reminders', importance: 4, visibility: 0 });
+  channelReady = true;
 }
 
 function nativeCode(e: unknown): string {
@@ -322,6 +331,68 @@ export function createMobileApi(native: NativeVault): VaultApi {
               nativeCode(e) === 'PDF_LOCKED' ? 'This PDF is password protected. Use "Open with" to view it.' : 'This PDF could not be displayed. Use "Open with" instead.'
             );
           }
+        })
+    },
+    notifications: {
+      status: async () => {
+        try {
+          const p = (await LocalNotifications.checkPermissions()).display;
+          return p === 'granted' ? 'granted' : p === 'denied' ? 'denied' : 'prompt';
+        } catch {
+          return 'unsupported';
+        }
+      },
+      request: async () => {
+        try {
+          // The system permission dialog briefly backgrounds the app: don't lock for that.
+          const p = (await withExternalUi(() => LocalNotifications.requestPermissions())).display;
+          return p === 'granted' ? 'granted' : p === 'denied' ? 'denied' : 'prompt';
+        } catch {
+          return 'unsupported';
+        }
+      },
+      schedule: (items) =>
+        wrap(async () => {
+          requireUnlocked();
+          if (!Array.isArray(items) || items.length > 100) throw new AppError('INVALID', 'Invalid reminders.');
+          await ensureChannel();
+          const pending = await LocalNotifications.getPending();
+          if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
+          if ((await LocalNotifications.checkPermissions()).display !== 'granted') return 0;
+          const now = Date.now();
+          const list = items
+            .filter((r) => Number.isInteger(r.id) && r.id > 0 && r.id < 2 ** 31 && Number.isFinite(r.at) && r.at > now)
+            .map((r) => ({
+              id: r.id,
+              title: String(r.title).slice(0, 120),
+              body: String(r.body).slice(0, 240),
+              channelId: REMINDER_CHANNEL,
+              smallIcon: 'ic_stat_vault',
+              iconColor: '#0A84FF',
+              schedule: { at: new Date(r.at), allowWhileIdle: true }
+            }));
+          if (list.length) await LocalNotifications.schedule({ notifications: list });
+          return list.length;
+        }),
+      test: () =>
+        wrap(async () => {
+          if ((await LocalNotifications.checkPermissions()).display !== 'granted') {
+            throw new AppError('NO_PERMISSION', 'Allow notifications for VaultLocks first.');
+          }
+          await ensureChannel();
+          await LocalNotifications.schedule({
+            notifications: [
+              {
+                id: 7,
+                title: 'Netflix: renews tomorrow',
+                body: 'This is how VaultLocks reminders look.',
+                channelId: REMINDER_CHANNEL,
+                smallIcon: 'ic_stat_vault',
+                iconColor: '#0A84FF',
+                schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true }
+              }
+            ]
+          });
         })
     },
     backup: {

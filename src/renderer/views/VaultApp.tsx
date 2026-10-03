@@ -1,5 +1,6 @@
 import { CopyCheck, House, Layers, Lock, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, Star, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { buildReminders } from '../../shared/expiry';
 import { searchEntries } from '../../shared/search';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog } from '../components/Dialog';
@@ -100,6 +101,32 @@ export function VaultApp({ version }: { version: string }) {
     setAppearance(settings.theme, settings.glass);
     setGeneratorDefaults(settings.generator);
   }, [settings]);
+
+  // Phone reminders: rebuilt whenever items or reminder settings change (Android).
+  useEffect(() => {
+    if (!snap) return;
+    const t = setTimeout(async () => {
+      const { reminders, reminderDaysBefore } = snap.settings;
+      if (reminders) {
+        let status = await api.notifications.status();
+        if (status === 'unsupported') return;
+        // Ask once; after that the user decides in Settings → Reminders.
+        let asked = false;
+        try {
+          asked = localStorage.getItem('vaultlocks.notifAsked') === '1';
+          localStorage.setItem('vaultlocks.notifAsked', '1');
+        } catch {
+          /* ignore */
+        }
+        if (status === 'prompt' && !asked) status = await api.notifications.request();
+      }
+      const list = reminders
+        ? buildReminders(snap.entries, snap.categories, { daysBefore: reminderDaysBefore }).map((r) => ({ id: r.id, at: r.at.getTime(), title: r.title, body: r.body }))
+        : [];
+      await api.notifications.schedule(list);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [snap]);
 
   const lock = useCallback(() => void api.auth.lock(), []);
   const focusSearch = () => {
