@@ -6,9 +6,11 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { parseFile } from '../src/mobile/crypto';
-import { AppError, MobileVault, VAULT_FILE } from '../src/mobile/mobileVault';
+import { parseFile } from '../src/core/crypto';
+import { VAULT_FILE } from '../src/core/storage';
+import { AppError, VaultCore } from '../src/core/vault';
 import type { NativeVault } from '../src/mobile/native';
+import { NativeStorage } from '../src/mobile/nativeStorage';
 import { QuickUnlock } from '../src/mobile/quickUnlock';
 import { BackupService } from '../src/main/vault/backupService';
 import { VaultService } from '../src/main/vault/vaultService';
@@ -23,6 +25,9 @@ type Fake = NativeVault & {
   /** Next fingerprint prompt result. */
   bio: 'ok' | 'cancel' | 'invalidated';
   hasBiometric: boolean;
+  hasDeviceCredential: boolean;
+  /** Authenticator mode of the last fingerprint prompt. */
+  lastMode: string;
   keys: Map<string, CryptoKey>;
 };
 
@@ -55,13 +60,16 @@ function memoryNative() {
     failNextWrite: false,
     bio: 'ok',
     hasBiometric: true,
+    hasDeviceCredential: true,
+    lastMode: '',
     keys: new Map(),
-    biometricAvailable: async () => self.hasBiometric,
+    biometricStatus: async () => ({ available: self.hasBiometric || self.hasDeviceCredential, biometric: self.hasBiometric, deviceCredential: self.hasDeviceCredential }),
     bioEncrypt: async (d) => {
       bioGate(self);
       return ksEncrypt(self, 'bio', d);
     },
-    bioDecrypt: async (iv, d) => {
+    bioDecrypt: async (iv, d, mode) => {
+      self.lastMode = mode ?? 'any';
       bioGate(self);
       return ksDecrypt(self, 'bio', iv, d);
     },
@@ -81,6 +89,16 @@ function memoryNative() {
     },
     remove: async (n) => void files.delete(n),
     stat: async (n) => (files.has(n) ? { size: files.get(n)!.length, mtime: Date.now() } : null),
+    list: async () => [...files].filter(([n]) => !n.startsWith('exports/')).map(([name, d]) => ({ name, size: d.length })),
+    rename: async (a, b) => {
+      files.set(b, files.get(a)!);
+      files.delete(a);
+    },
+    freeSpace: async () => 10 * 1024 * 1024 * 1024,
+    writeExportBase64: async (n) => `file:///cache/exports/${n}`,
+    openFile: async () => undefined,
+    renderPdf: async () => ({ pages: [], total: 0 }),
+    setSecure: async () => undefined,
     writeExport: async (n, d) => {
       files.set(`exports/${n}`, d);
       return `file:///cache/exports/${n}`;
@@ -92,9 +110,11 @@ function memoryNative() {
   return self;
 }
 
+const phoneVault = (native: NativeVault) => new VaultCore(new NativeStorage(native));
+
 async function phoneWithItem() {
   const native = memoryNative();
-  const v = new MobileVault(native);
+  const v = phoneVault(native);
   await v.create(PW, 'phone hint');
   const e = await v.saveEntry({
     categoryId: 'banking',
@@ -150,7 +170,7 @@ describe('mobile vault', () => {
       const d = JSON.parse(good);
       mutate(d);
       native.files.set(VAULT_FILE, JSON.stringify(d));
-      await expect(new MobileVault(native).unlock(PW)).rejects.toMatchObject({ code: 'UNLOCK_FAILED' });
+      await expect(phoneVault(native).unlock(PW)).rejects.toMatchObject({ code: 'UNLOCK_FAILED' });
     }
   });
 
@@ -184,7 +204,7 @@ describe('mobile vault', () => {
     expect(await v.verifyBackup(backup)).toBe(true);
     v.lock();
     native.files.set(VAULT_FILE, 'corrupted');
-    const fresh = new MobileVault(native);
+    const fresh = phoneVault(native);
     await expect(fresh.unlock(PW)).rejects.toThrow();
     await fresh.restoreWhileLocked(backup, PW);
     expect(fresh.snapshot().entries[0]!.title).toBe('Phone Bank');
@@ -200,7 +220,7 @@ describe('desktop ⇄ Android compatibility', () => {
     await new BackupService(desktop).createBackup(target);
     const raw = await fs.readFile(target, 'utf8');
 
-    const phone = new MobileVault(memoryNative());
+    const phone = phoneVault(memoryNative());
     await phone.restoreWhileLocked(raw, PW);
     const e = phone.snapshot().entries[0]!;
     expect(e.title).toBe('From Desktop');
@@ -285,9 +305,29 @@ describe('fingerprint & PIN quick unlock', () => {
     expect((await q.status()).biometric).toBe(false);
   });
 
-  it('fingerprint: refused when no fingerprint is enrolled on the phone', async () => {
+  it('device passcode: new enrollments allow it; older ones fall back to biometrics only', async () => {
+    const { native, v, q } = await setup();
+    await q.enableBiometric(PW);
+    expect((await q.status()).deviceCredential).toBe(true);
+    v.lock();
+    await q.unlockBiometric('credential');
+    expect(native.lastMode).toBe('credential');
+    expect(v.isUnlocked).toBe(true);
+    // Simulate a v1.0.18 enrollment (biometric-only key).
+    const rec = JSON.parse(native.files.get('quick_bio.json')!);
+    delete rec.dc;
+    native.files.set('quick_bio.json', JSON.stringify(rec));
+    v.lock();
+    expect((await q.status()).deviceCredential).toBe(false);
+    await expect(q.unlockBiometric('credential')).rejects.toMatchObject({ code: 'NOT_ENABLED' });
+    await q.unlockBiometric('biometric');
+    expect(native.lastMode).toBe('biometric');
+  });
+
+  it('fingerprint: refused when no fingerprint or screen lock is set up on the phone', async () => {
     const { native, q } = await setup();
     native.hasBiometric = false;
+    native.hasDeviceCredential = false;
     await expect(q.enableBiometric(PW)).rejects.toMatchObject({ code: 'NO_BIOMETRIC' });
   });
 

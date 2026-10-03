@@ -106,8 +106,30 @@ function lockNow(reason: 'manual' | 'idle' | 'minimize' | 'system' | 'tray' | 'q
 }
 
 function onUnlocked(): void {
-  autoLock.configure(vault.settings.autoLockMinutes);
+  applySettings();
   updateTrayMenu();
+}
+
+/** Apply the security settings that live in the main process. */
+function applySettings(): void {
+  autoLock.configure(vault.settings.autoLockMinutes);
+  win?.setContentProtection(vault.settings.screenshotProtection);
+}
+
+// Background lock: minimized / hidden to tray → lock immediately or after the grace period.
+let backgroundTimer: ReturnType<typeof setTimeout> | null = null;
+function leftApp(): void {
+  if (!vault.isUnlocked) return;
+  const minutes = vault.settings.backgroundLockMinutes;
+  if (minutes === 0) return lockNow('minimize');
+  if (minutes > 0) {
+    if (backgroundTimer) clearTimeout(backgroundTimer);
+    backgroundTimer = setTimeout(() => lockNow('minimize'), minutes * 60_000);
+  }
+}
+function returnedToApp(): void {
+  if (backgroundTimer) clearTimeout(backgroundTimer);
+  backgroundTimer = null;
 }
 
 function isTrustedSender(event: IpcMainInvokeEvent | IpcMainEvent): boolean {
@@ -180,12 +202,16 @@ app.on('web-contents-created', (_e, contents) => {
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
 });
 
+// Development builds only: automated UI tests run the window off-screen, out of the taskbar.
+const TEST_OFFSCREEN = !app.isPackaged && process.env.VAULTLOCKS_TEST_OFFSCREEN === '1';
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 960,
     minHeight: 640,
+    ...(TEST_OFFSCREEN ? { x: -12000, y: -12000, minWidth: 320, minHeight: 480, skipTaskbar: true, focusable: false } : {}),
     show: false,
     backgroundColor: '#000000',
     title: 'VaultLocks',
@@ -209,15 +235,15 @@ function createWindow(): void {
 
   // Hide window contents from screen capture / screen sharing where the OS supports it.
   win.setContentProtection(true);
-  win.once('ready-to-show', () => win?.show());
+  win.once('ready-to-show', () => (TEST_OFFSCREEN ? win?.showInactive() : win?.show()));
 
-  win.on('minimize', () => {
-    if (vault.isUnlocked && vault.settings.lockOnMinimize) lockNow('minimize');
-  });
+  win.on('minimize', leftApp);
+  win.on('restore', returnedToApp);
+  win.on('show', returnedToApp);
   win.on('close', (e) => {
     if (!quitting && vault.isUnlocked && vault.settings.closeToTray && tray) {
       e.preventDefault();
-      if (vault.settings.lockOnMinimize) lockNow('minimize');
+      leftApp();
       win?.hide();
     }
   });
@@ -285,8 +311,14 @@ app.whenReady().then(async () => {
     isTrustedSender,
     onUnlocked,
     lockNow: (reason) => lockNow(reason === 'manual' ? 'manual' : 'tray'),
-    onSettingsChanged: () => {
-      autoLock.configure(vault.settings.autoLockMinutes);
+    onSettingsChanged: applySettings,
+    setAppearance: (dark: boolean) => {
+      try {
+        win?.setTitleBarOverlay({ color: dark ? '#0b0b0f' : '#f2f2f7', symbolColor: dark ? '#ffffff' : '#111111', height: 40 });
+        win?.setBackgroundColor(dark ? '#0b0b0f' : '#f2f2f7');
+      } catch {
+        /* not supported on this platform */
+      }
     }
   });
 

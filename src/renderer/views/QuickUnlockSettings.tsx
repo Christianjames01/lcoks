@@ -22,7 +22,7 @@ export function QuickUnlockSettings() {
   const disable = async (kind: 'biometric' | 'pin') => {
     try {
       await unwrap(api.quick.disable(kind));
-      toast(kind === 'biometric' ? 'Fingerprint unlock turned off.' : 'PIN unlock turned off.');
+      toast(kind === 'biometric' ? 'Face / fingerprint unlock turned off.' : 'PIN unlock turned off.');
       await refresh();
     } catch (e) {
       toast(errorMessage(e), 'error');
@@ -37,12 +37,17 @@ export function QuickUnlockSettings() {
           <Fingerprint size={20} aria-hidden />
           <div className="grow">
             <label htmlFor="q-bio" className="title" style={{ display: 'block' }}>
-              Fingerprint unlock
+              Face / fingerprint & device passcode
             </label>
             <div className="desc">
               {status.biometricAvailable
-                ? 'Your vault key is sealed in the phone’s secure hardware and released only by your fingerprint.'
-                : 'Add a fingerprint in Android Settings → Security to use this.'}
+                ? status.deviceCredentialAvailable
+                  ? 'Your vault key is sealed in the phone’s secure hardware (Android Keystore) and released only by your face, fingerprint or the phone’s screen-lock passcode.'
+                  : 'Your vault key is sealed in the phone’s secure hardware (Android Keystore) and released only by your face or fingerprint.'
+                : 'Set up a screen lock and a fingerprint or face in Android Settings → Security to use this.'}
+              {status.biometric && !status.deviceCredential && status.deviceCredentialAvailable && (
+                <> Turn this off and on again to also allow your device passcode.</>
+              )}
             </div>
           </div>
           <input
@@ -85,7 +90,7 @@ export function QuickUnlockSettings() {
           onClose={() => setEnrolling(null)}
           onDone={async () => {
             setEnrolling(null);
-            toast(enrolling === 'biometric' ? 'Fingerprint unlock is on.' : 'PIN unlock is on.');
+            toast(enrolling === 'biometric' ? 'Quick unlock is on.' : 'PIN unlock is on.');
             await refresh();
           }}
         />
@@ -153,7 +158,7 @@ function EnrollDialog({ kind, onClose, onDone }: { kind: 'biometric' | 'pin'; on
 
   return (
     <Dialog
-      title={kind === 'biometric' ? 'Turn on fingerprint unlock' : 'Set a 4-digit PIN'}
+      title={kind === 'biometric' ? 'Turn on face / fingerprint unlock' : 'Set a 4-digit PIN'}
       onClose={onClose}
       busy={busy}
       size="narrow"
@@ -180,7 +185,7 @@ function EnrollDialog({ kind, onClose, onDone }: { kind: 'biometric' | 'pin'; on
             {pinInput('q-pin2', pin2, setPin2, 'Repeat PIN')}
           </>
         )}
-        {kind === 'biometric' && <p className="help-text">After this, Android will ask for your fingerprint to finish setup.</p>}
+        {kind === 'biometric' && <p className="help-text">After this, Android asks for your face, fingerprint or screen-lock passcode to finish setup.</p>}
         {err('form')}
         <button type="submit" hidden aria-hidden tabIndex={-1} />
       </form>

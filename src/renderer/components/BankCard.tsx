@@ -51,7 +51,7 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
   const [cvv, setCvv] = useState<string | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [photos, setPhotos] = useState<{ front?: string; back?: string } | null>(null);
-  const hasPhotos = Boolean(entry.secrets.frontImage?.set || entry.secrets.backImage?.set);
+  const hasPhotos = Boolean(entry.cardPhotos?.front || entry.cardPhotos?.back);
   const toast = useToast();
   const stageRef = useRef<HTMLDivElement>(null);
   const down = useRef<{ x: number; y: number } | null>(null);
@@ -136,8 +136,13 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
   const togglePhotos = async () => {
     if (photos) return setPhotos(null);
     try {
-      const get = async (k: string) => (entry.secrets[k]?.set ? await unwrap(api.vault.reveal(entry.id, k)) : undefined);
-      const [front, back] = await Promise.all([get('frontImage'), get('backImage')]);
+      // Card photos are encrypted attachments marked as the card's front / back.
+      const list = await unwrap(api.attachments.list(entry.id));
+      const get = async (role: 'front' | 'back') => {
+        const a = list.find((x) => x.role === role);
+        return a ? `data:${a.mime};base64,${await unwrap(api.attachments.read(entry.id, a.id))}` : undefined;
+      };
+      const [front, back] = await Promise.all([get('front'), get('back')]);
       setPhotos({ front, back });
       setFlipped(!front && Boolean(back));
     } catch (e) {

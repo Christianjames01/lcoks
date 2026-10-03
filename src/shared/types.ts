@@ -70,7 +70,26 @@ export interface CategoryDef {
   builtin: boolean;
 }
 
-/** Full entry as stored inside the encrypted payload. Only ever lives in the main process. */
+/**
+ * Metadata of an encrypted attachment (image/PDF/document). The file content is
+ * stored separately, encrypted with the vault key; this metadata lives inside
+ * the encrypted vault payload.
+ */
+export interface AttachmentMeta {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  /** SHA-256 of the original content (hex) — used for duplicate detection. */
+  sha256: string;
+  createdAt: string;
+  /** Marks a photo as the front/back of the item's card ("Show real card"). */
+  role?: 'front' | 'back';
+  /** Small JPEG preview (data: URL) for images. Sensitive: only sent on request. */
+  thumb?: string;
+}
+
+/** Full entry as stored inside the encrypted payload. Never sent to the UI as-is. */
 export interface VaultEntry {
   id: string;
   categoryId: string;
@@ -81,7 +100,17 @@ export interface VaultEntry {
   favoriteOrder: number;
   createdAt: string;
   updatedAt: string;
+  attachments?: AttachmentMeta[];
+  /** Legacy card photos (old front/back photo fields) waiting to become attachments. */
+  legacyImages?: { front?: string; back?: string };
 }
+
+/** An entry in "Recently Deleted" (restorable for TRASH_DAYS). */
+export interface TrashedEntry extends VaultEntry {
+  deletedAt: string;
+}
+
+export const TRASH_DAYS = 30;
 
 export interface SecretMeta {
   /** Whether the secret has a value at all. */
@@ -109,16 +138,34 @@ export interface EntryView {
   favoriteOrder: number;
   createdAt: string;
   updatedAt: string;
+  attachmentCount: number;
+  /** Which card photos exist (attachments with role front/back). */
+  cardPhotos: { front: boolean; back: boolean };
+}
+
+export interface TrashView extends EntryView {
+  deletedAt: string;
 }
 
 export type AutoLockMinutes = 1 | 5 | 10 | 15 | 30 | 0; // 0 = never
 export type Density = 'comfortable' | 'compact';
 export type SidebarMode = 'auto' | 'expanded' | 'collapsed';
 export type FavoriteSort = 'manual' | 'name' | 'updated';
+export type ThemeMode = 'system' | 'light' | 'dark';
+/** Grace period before locking after the app is left: 0 = immediately, -1 = never. */
+export type BackgroundLockMinutes = 0 | 1 | 5 | 15 | 30 | -1;
+
+export interface GeneratorDefaults {
+  length: number;
+  upper: boolean;
+  lower: boolean;
+  digits: boolean;
+  symbols: boolean;
+  avoidAmbiguous: boolean;
+}
 
 export interface VaultSettings {
   autoLockMinutes: AutoLockMinutes;
-  lockOnMinimize: boolean;
   lockOnSystemLock: boolean;
   clipboardClearSeconds: number; // 15..60
   /** Auto-hide revealed secrets after N seconds (0 = keep visible until hidden). */
@@ -129,11 +176,17 @@ export interface VaultSettings {
   backupReminderDays: number; // 0 = off
   backupDirectory: string | null;
   closeToTray: boolean;
+  theme: ThemeMode;
+  glass: boolean;
+  backgroundLockMinutes: BackgroundLockMinutes;
+  screenshotProtection: boolean;
+  /** Hide even partial previews (last 4 digits, masked phone numbers). */
+  hidePreviews: boolean;
+  generator: GeneratorDefaults;
 }
 
 export const DEFAULT_SETTINGS: VaultSettings = {
   autoLockMinutes: 5,
-  lockOnMinimize: true,
   lockOnSystemLock: true,
   clipboardClearSeconds: 30,
   revealTimeoutSeconds: 30,
@@ -142,13 +195,21 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   favoriteSort: 'manual',
   backupReminderDays: 30,
   backupDirectory: null,
-  closeToTray: false
+  closeToTray: false,
+  theme: 'system',
+  glass: true,
+  backgroundLockMinutes: 0,
+  screenshotProtection: true,
+  hidePreviews: false,
+  generator: { length: 20, upper: true, lower: true, digits: true, symbols: true, avoidAmbiguous: false }
 };
 
 export interface VaultMeta {
   createdAt: string;
   lastBackupAt: string | null;
   lastBackupVerified: boolean;
+  /** Duplicate groups the user marked as "not duplicates". */
+  dismissedDuplicates: string[];
 }
 
 /** The decrypted payload. Exists in plaintext only in main-process memory while unlocked. */
@@ -158,6 +219,7 @@ export interface VaultPayload {
   customCategories: CategoryDef[];
   settings: VaultSettings;
   meta: VaultMeta;
+  trash: TrashedEntry[];
 }
 
 export interface VaultStats {
@@ -166,6 +228,7 @@ export interface VaultStats {
   notes: number;
   favorites: number;
   weak: number;
+  attachments: number;
 }
 
 export interface VaultSnapshot {
@@ -174,6 +237,44 @@ export interface VaultSnapshot {
   settings: VaultSettings;
   stats: VaultStats;
   meta: VaultMeta;
+  trash: TrashView[];
+}
+
+/** Field-by-field comparison inside a duplicate group (no secret values). */
+export interface FieldComparison {
+  key: string;
+  label: string;
+  secret: boolean;
+  status: 'same' | 'different' | 'partial';
+}
+
+export interface DuplicateGroup {
+  /** Stable key, used to dismiss a group ("not duplicates"). */
+  key: string;
+  reasons: string[];
+  items: EntryView[];
+  fields: FieldComparison[];
+}
+
+export interface AttachmentInput {
+  name: string;
+  mime: string;
+  /** File content, base64. */
+  data: string;
+  thumb?: string;
+  role?: 'front' | 'back';
+  /** Add even if the same file is already attached. */
+  allowDuplicate?: boolean;
+}
+
+export type AddAttachmentResult = { status: 'added'; attachment: AttachmentMeta } | { status: 'duplicate'; existing: AttachmentMeta };
+
+export interface StorageInfo {
+  vaultBytes: number;
+  attachmentBytes: number;
+  attachmentCount: number;
+  /** Free space on the device, when the platform can tell. */
+  freeBytes: number | null;
 }
 
 export type AppStatus = 'no-vault' | 'locked' | 'unlocked';
@@ -220,6 +321,8 @@ export interface DatabaseInfo {
   createdAt: string;
   modifiedAt: string;
   itemCount: number;
+  attachmentCount: number;
+  attachmentBytes: number;
 }
 
 /**

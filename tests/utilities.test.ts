@@ -162,6 +162,8 @@ describe('logger', () => {
 
 describe('search', () => {
   const mk = (over: Partial<EntryView>): EntryView => ({
+    attachmentCount: 0,
+    cardPhotos: { front: false, back: false },
     id: Math.random().toString(36),
     categoryId: 'personal',
     title: '',

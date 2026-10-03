@@ -144,7 +144,7 @@ describe('classifyNote', () => {
   it('handles notes without a title line', () => {
     const n = classifyNote('Password: abc123\nUsername: someone', cats, 4);
     expect(n.categoryId).toBe('personal');
-    expect(n.title).toBe('Imported Personal 5');
+    expect(n.title).toBe('Imported Passwords 5');
   });
 
   it('keeps unknown labels as notes and tags items as imported', () => {

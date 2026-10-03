@@ -15,7 +15,7 @@ import { ClipboardManager } from './services/clipboard';
 import { log } from './services/logger';
 import { writeFileAtomic } from './storage/atomicFile';
 import { BackupService, backupFileName } from './vault/backupService';
-import { ValidationError, validateMasterPassword } from './vault/schema';
+import { ValidationError, validateMasterPassword } from '../core/schema';
 import { VaultError, VaultService } from './vault/vaultService';
 
 export interface IpcDeps {
@@ -28,6 +28,7 @@ export interface IpcDeps {
   onUnlocked(): void;
   lockNow(reason: string): void;
   onSettingsChanged(): void;
+  setAppearance(dark: boolean): void;
 }
 
 function toError(e: unknown): Result<never> {
@@ -73,6 +74,9 @@ export function registerIpc(d: IpcDeps): void {
     };
   });
   handle('app.getHint', () => d.vault.getHint());
+  ipcMain.on('app.appearance', (event, dark: unknown) => {
+    if (d.isTrustedSender(event)) d.setAppearance(dark === true);
+  });
   ipcMain.on('app.activity', (event) => {
     if (d.isTrustedSender(event) && d.vault.isUnlocked) d.autoLock.reset();
   });
@@ -131,6 +135,44 @@ export function registerIpc(d: IpcDeps): void {
     return { count };
   });
   handle('vault.deleteEntry', (id: unknown) => d.vault.deleteEntry(id));
+  handle('vault.restoreEntry', (id: unknown) => d.vault.restoreEntry(id));
+  handle('vault.purgeEntry', (id: unknown) => d.vault.purgeEntry(id));
+  handle('vault.emptyTrash', () => d.vault.emptyTrash());
+  handle('vault.findDuplicates', () => d.vault.findDuplicates());
+  handle('vault.mergeEntries', (keepId: unknown, otherIds: unknown) => d.vault.mergeEntries(keepId, otherIds));
+  handle('vault.dismissDuplicate', (key: unknown) => d.vault.dismissDuplicate(key));
+
+  // ---------------------------------------------------------- attachments ----
+  handle('attachments.list', (entryId: unknown) => d.vault.listAttachments(entryId));
+  handle('attachments.add', (entryId: unknown, input: unknown) => d.vault.addAttachment(entryId, input));
+  handle('attachments.read', (entryId: unknown, id: unknown) => d.vault.readAttachment(entryId, id));
+  handle('attachments.update', (entryId: unknown, id: unknown, patch: unknown) => d.vault.updateAttachment(entryId, id, patch));
+  handle('attachments.remove', (entryId: unknown, id: unknown) => d.vault.deleteAttachment(entryId, id));
+  handle('attachments.storageInfo', () => d.vault.storageInfo());
+  /** SECURITY: explicit export only — the user picks the destination in a native dialog. */
+  handle('attachments.exportFile', async (entryId: unknown, id: unknown) => {
+    const meta = d.vault.listAttachments(entryId).find((a) => a.id === id);
+    if (!meta) throw new VaultError('NOT_FOUND', 'Attachment not found.');
+    const res = await dialog.showSaveDialog(d.getWindow()!, {
+      title: 'Export attachment (unencrypted copy)',
+      defaultPath: path.join(app.getPath('documents'), meta.name)
+    });
+    if (res.canceled || !res.filePath) return null;
+    const data = Buffer.from(await d.vault.readAttachment(entryId, id), 'base64');
+    try {
+      await writeFileAtomic(res.filePath, data);
+    } finally {
+      data.fill(0);
+    }
+    log('attachment.exported');
+    return res.filePath;
+  });
+  handle('attachments.openWith', () => {
+    throw new VaultError('UNSUPPORTED', 'Use Export to open this file on the computer.');
+  });
+  handle('attachments.renderPdf', () => {
+    throw new VaultError('UNSUPPORTED', 'PDF preview is available in the Android app. Use Export on the computer.');
+  });
   handle('vault.duplicateEntry', (id: unknown) => d.vault.duplicateEntry(id));
   handle('vault.setFavorite', (id: unknown, fav: unknown) => d.vault.setFavorite(id, fav === true));
   handle('vault.reorderFavorites', (ids: unknown) => d.vault.reorderFavorites(ids));

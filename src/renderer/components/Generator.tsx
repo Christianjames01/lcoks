@@ -12,6 +12,7 @@ import {
   type PassphraseOptions,
   type PasswordOptions
 } from '../../shared/generator';
+import { getGeneratorDefaults } from '../lib/appearance';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { Dialog } from './Dialog';
 import { StrengthMeter } from './StrengthMeter';
@@ -20,19 +21,21 @@ import { useToast } from './Toast';
 // Generator *options* (never generated values) are remembered per device for convenience.
 const OPTS_KEY = 'vaultlocks.generator.options';
 function loadOpts(): { mode: 'password' | 'passphrase'; pw: PasswordOptions; pp: PassphraseOptions } {
+  // Password options start from the defaults chosen in Settings → Security.
+  const defaults = getGeneratorDefaults();
   try {
     const raw = JSON.parse(localStorage.getItem(OPTS_KEY) ?? 'null');
     if (raw && typeof raw === 'object') {
       return {
         mode: raw.mode === 'passphrase' ? 'passphrase' : 'password',
-        pw: { ...DEFAULT_PASSWORD_OPTIONS, ...(raw.pw ?? {}) },
+        pw: { ...DEFAULT_PASSWORD_OPTIONS, ...(defaults ?? raw.pw ?? {}) },
         pp: { ...DEFAULT_PASSPHRASE_OPTIONS, ...(raw.pp ?? {}) }
       };
     }
   } catch {
     /* ignore */
   }
-  return { mode: 'password', pw: DEFAULT_PASSWORD_OPTIONS, pp: DEFAULT_PASSPHRASE_OPTIONS };
+  return { mode: 'password', pw: { ...DEFAULT_PASSWORD_OPTIONS, ...(defaults ?? {}) }, pp: DEFAULT_PASSPHRASE_OPTIONS };
 }
 
 interface Props {

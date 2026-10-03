@@ -8,16 +8,16 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
-import type { BackupSummary, VaultPayload } from '../../shared/types';
-import { wipe } from '../security/memory';
-import { MAX_FILE_BYTES } from '../security/vaultFile';
+import { MAX_FILE_CHARS } from '../../core/crypto';
+import type { OpenedBackup } from '../../core/vault';
+import type { BackupSummary } from '../../shared/types';
 import { writeFileAtomic } from '../storage/atomicFile';
 import { VaultError, VaultService } from './vaultService';
 
 interface PendingFile {
   path: string;
   createdAt: number;
-  decrypted?: VaultPayload;
+  decrypted?: OpenedBackup;
 }
 
 const TOKEN_TTL_MS = 10 * 60_000;
@@ -37,10 +37,10 @@ export class BackupService {
     if (path.resolve(target) === path.resolve(this.vault.vaultPath)) {
       throw new VaultError('INVALID_TARGET', 'Choose a different location than the live vault file.');
     }
-    const data = this.vault.buildBackup();
-    await writeFileAtomic(target, data);
-    const readBack = await fs.readFile(target);
-    const verified = this.vault.verifyBackupBytes(readBack);
+    const data = await this.vault.buildBackup();
+    await writeFileAtomic(target, Buffer.from(data, 'utf8'));
+    const readBack = await fs.readFile(target, 'utf8');
+    const verified = await this.vault.verifyBackup(readBack);
     await this.vault.markBackup(verified);
     if (!verified) throw new VaultError('BACKUP_VERIFY_FAILED', 'The backup was written but could not be verified. Try another location.');
     return { path: target, verified };
@@ -60,11 +60,11 @@ export class BackupService {
     return p;
   }
 
-  private async readFile(p: PendingFile): Promise<Buffer> {
+  private async readFile(p: PendingFile): Promise<string> {
     try {
       const stat = await fs.stat(p.path);
-      if (!stat.isFile() || stat.size > MAX_FILE_BYTES) throw new Error();
-      return await fs.readFile(p.path);
+      if (!stat.isFile() || stat.size > MAX_FILE_CHARS) throw new Error();
+      return await fs.readFile(p.path, 'utf8');
     } catch {
       throw new VaultError('INVALID_BACKUP', 'This file could not be read.');
     }
@@ -74,9 +74,9 @@ export class BackupService {
   async open(token: unknown, password: string): Promise<BackupSummary> {
     const p = this.get(token);
     const raw = await this.readFile(p);
-    const { payload, key, file } = await VaultService.decryptFile(raw, password);
-    wipe(key);
-    p.decrypted = payload;
+    const opened = await VaultService.decryptFile(raw, password);
+    const { payload, file } = opened;
+    p.decrypted = opened;
     return {
       token: token as string,
       fileName: path.basename(p.path),

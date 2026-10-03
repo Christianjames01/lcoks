@@ -5,6 +5,8 @@ import type { EntryView } from '../src/shared/types';
 const mk = (categoryId: string, fields: Record<string, string>): EntryView => ({
   id: Math.random().toString(36).slice(2),
   categoryId,
+  attachmentCount: 0,
+  cardPhotos: { front: false, back: false },
   title: categoryId,
   fields,
   secrets: {},

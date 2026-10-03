@@ -18,9 +18,9 @@
 // ============================================================================
 
 import { MAX_PIN_ATTEMPTS, type QuickUnlockStatus } from '../shared/api';
-import { ValidationError } from '../main/vault/schema';
-import { MobileCryptoError, deriveKey, fromB64, newKdfParams, openBytes, sealBytes, toB64, wipe, type KdfParams } from './crypto';
-import { AppError, type MobileVault } from './mobileVault';
+import { ValidationError } from '../core/schema';
+import { CryptoError, deriveKey, fromB64, newKdfParams, openBytes, sealBytes, toB64, wipe, type KdfParams } from '../core/crypto';
+import { AppError, type VaultCore } from '../core/vault';
 import type { NativeVault } from './native';
 
 const BIO_FILE = 'quick_bio.json';
@@ -41,7 +41,7 @@ function nativeCode(e: unknown): string {
 export class QuickUnlock {
   constructor(
     private readonly native: NativeVault,
-    private readonly vault: MobileVault
+    private readonly vault: VaultCore
   ) {}
 
   private async readJson<T>(name: string): Promise<T | null> {
@@ -54,17 +54,21 @@ export class QuickUnlock {
   }
 
   async status(): Promise<QuickUnlockStatus> {
-    let biometricAvailable = false;
+    let hw = { available: false, biometric: false, deviceCredential: false };
     try {
-      biometricAvailable = await this.native.biometricAvailable();
+      hw = await this.native.biometricStatus();
     } catch {
       /* ignore */
     }
     const pin = await this.readJson<PinRecord>(PIN_FILE);
+    const bio = await this.readJson<{ dc?: boolean }>(BIO_FILE);
     return {
       supported: true,
-      biometricAvailable,
-      biometric: (await this.native.stat(BIO_FILE)) !== null,
+      biometricAvailable: hw.available,
+      deviceCredentialAvailable: hw.deviceCredential,
+      biometric: bio !== null,
+      // Keys enrolled before v1.0.19 accept biometrics only.
+      deviceCredential: bio !== null && bio.dc === true && hw.deviceCredential,
       pin: pin !== null,
       pinAttemptsLeft: pin ? Math.max(0, MAX_PIN_ATTEMPTS - (pin.attempts ?? 0)) : 0
     };
@@ -73,36 +77,40 @@ export class QuickUnlock {
   // ------------------------------------------------------------ fingerprint --
 
   async enableBiometric(masterPassword: string): Promise<void> {
-    if (!(await this.native.biometricAvailable())) {
-      throw new AppError('NO_BIOMETRIC', 'No fingerprint is set up on this phone. Add one in Android Settings first.');
+    const hw = await this.native.biometricStatus().catch(() => ({ available: false, deviceCredential: false }));
+    if (!hw.available) {
+      throw new AppError('NO_BIOMETRIC', 'No fingerprint, face or screen lock is set up on this phone. Add one in Android Settings first.');
     }
     const raw = await this.vault.rawKeyForEnrollment(masterPassword);
     try {
       const sealed = await this.native.bioEncrypt(toB64(raw));
-      await this.native.writeAtomic(BIO_FILE, JSON.stringify({ v: 1, iv: sealed.iv, data: sealed.data }));
+      await this.native.writeAtomic(BIO_FILE, JSON.stringify({ v: 1, iv: sealed.iv, data: sealed.data, dc: hw.deviceCredential }));
     } catch (e) {
-      if (nativeCode(e) === 'CANCELED') throw new AppError('CANCELED', 'Fingerprint setup was canceled.');
-      throw new AppError('BIOMETRIC_FAILED', 'Could not enable fingerprint unlock.');
+      if (nativeCode(e) === 'CANCELED') throw new AppError('CANCELED', 'Quick unlock setup was canceled.');
+      throw new AppError('BIOMETRIC_FAILED', 'Could not turn on face / fingerprint unlock.');
     } finally {
       wipe(raw);
     }
   }
 
-  async unlockBiometric(): Promise<void> {
-    const rec = await this.readJson<{ iv: string; data: string }>(BIO_FILE);
-    if (!rec) throw new AppError('NOT_ENABLED', 'Fingerprint unlock is not enabled.');
+  async unlockBiometric(mode: 'biometric' | 'credential' = 'biometric'): Promise<void> {
+    const rec = await this.readJson<{ iv: string; data: string; dc?: boolean }>(BIO_FILE);
+    if (!rec) throw new AppError('NOT_ENABLED', 'Face / fingerprint unlock is not enabled.');
+    if (mode === 'credential' && rec.dc !== true) {
+      throw new AppError('NOT_ENABLED', 'Turn quick unlock off and on again in Settings to use the device passcode.');
+    }
     let rawB64: string;
     try {
-      rawB64 = await this.native.bioDecrypt(rec.iv, rec.data);
+      rawB64 = await this.native.bioDecrypt(rec.iv, rec.data, rec.dc === true ? mode : 'biometric');
     } catch (e) {
       const code = nativeCode(e);
-      if (code === 'CANCELED') throw new AppError('CANCELED', 'Fingerprint unlock canceled.');
-      if (code === 'NOT_VISIBLE') throw new AppError('NOT_VISIBLE', 'Open the app to use your fingerprint.');
+      if (code === 'CANCELED') throw new AppError('CANCELED', 'Unlock canceled.');
+      if (code === 'NOT_VISIBLE') throw new AppError('NOT_VISIBLE', 'Open the app to unlock.');
       if (code === 'INVALIDATED') {
         await this.disableBiometric();
-        throw new AppError('INVALIDATED', 'Fingerprints on this phone changed, so fingerprint unlock was turned off. Use your master password.');
+        throw new AppError('INVALIDATED', 'Fingerprints or the screen lock on this phone changed, so quick unlock was turned off. Use your master password.');
       }
-      throw new AppError('BIOMETRIC_FAILED', 'Fingerprint not recognized. Try again or use your master password.');
+      throw new AppError('BIOMETRIC_FAILED', 'Not recognized. Try again or use your master password.');
     }
     try {
       await this.vault.unlockWithRawKey(fromB64(rawB64));
@@ -176,7 +184,7 @@ export class QuickUnlock {
         await this.disablePin();
         throw new AppError('INVALIDATED', 'PIN unlock is no longer valid on this phone. Use your master password.');
       }
-      if (!(e instanceof MobileCryptoError)) throw new AppError('PIN_FAILED', 'PIN unlock failed. Use your master password.');
+      if (!(e instanceof CryptoError)) throw new AppError('PIN_FAILED', 'PIN unlock failed. Use your master password.');
       const left = MAX_PIN_ATTEMPTS - rec.attempts;
       if (left <= 0) {
         await this.disablePin();

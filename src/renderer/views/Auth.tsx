@@ -206,7 +206,7 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
     return () => clearTimeout(t);
   }, [wait]);
 
-  // Fingerprint / PIN (Android) — shown instead of the password field when enabled.
+  // Face / fingerprint / device passcode / PIN (Android) — shown instead of the password field when enabled.
   const [quick, setQuick] = useState<QuickUnlockStatus | null>(null);
   const [usePassword, setUsePassword] = useState(false);
   const loadQuick = useCallback(async () => {
@@ -214,7 +214,7 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
       const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
       setQuick(await Promise.race([api.quick.status(), timeout]));
     } catch {
-      setQuick({ supported: false, biometricAvailable: false, biometric: false, pin: false, pinAttemptsLeft: 0 });
+      setQuick({ supported: false, biometricAvailable: false, deviceCredentialAvailable: false, biometric: false, deviceCredential: false, pin: false, pinAttemptsLeft: 0 });
     }
   }, []);
   useEffect(() => {

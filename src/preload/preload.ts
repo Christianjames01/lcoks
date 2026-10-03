@@ -17,7 +17,8 @@ const api: VaultApi = {
     openExternal: call('app.openExternal') as VaultApi['app']['openExternal'],
     readClipboardText: call('app.readClipboard') as VaultApi['app']['readClipboardText'],
     takeSharedText: async () => null,
-    suspendAutoLock: () => undefined
+    suspendAutoLock: () => undefined,
+    setAppearance: (dark: boolean) => ipcRenderer.send('app.appearance', dark === true)
   },
   auth: {
     create: call('auth.create') as VaultApi['auth']['create'],
@@ -30,6 +31,12 @@ const api: VaultApi = {
     saveEntry: call('vault.saveEntry') as VaultApi['vault']['saveEntry'],
     importEntries: call('vault.importEntries') as VaultApi['vault']['importEntries'],
     deleteEntry: call('vault.deleteEntry') as VaultApi['vault']['deleteEntry'],
+    restoreEntry: call('vault.restoreEntry') as VaultApi['vault']['restoreEntry'],
+    purgeEntry: call('vault.purgeEntry') as VaultApi['vault']['purgeEntry'],
+    emptyTrash: call('vault.emptyTrash') as VaultApi['vault']['emptyTrash'],
+    findDuplicates: call('vault.findDuplicates') as VaultApi['vault']['findDuplicates'],
+    mergeEntries: call('vault.mergeEntries') as VaultApi['vault']['mergeEntries'],
+    dismissDuplicate: call('vault.dismissDuplicate') as VaultApi['vault']['dismissDuplicate'],
     duplicateEntry: call('vault.duplicateEntry') as VaultApi['vault']['duplicateEntry'],
     setFavorite: call('vault.setFavorite') as VaultApi['vault']['setFavorite'],
     reorderFavorites: call('vault.reorderFavorites') as VaultApi['vault']['reorderFavorites'],
@@ -43,6 +50,17 @@ const api: VaultApi = {
     databaseInfo: call('vault.databaseInfo') as VaultApi['vault']['databaseInfo'],
     showVaultFolder: call('vault.showVaultFolder') as VaultApi['vault']['showVaultFolder']
   },
+  attachments: {
+    list: call('attachments.list') as VaultApi['attachments']['list'],
+    add: call('attachments.add') as VaultApi['attachments']['add'],
+    read: call('attachments.read') as VaultApi['attachments']['read'],
+    update: call('attachments.update') as VaultApi['attachments']['update'],
+    remove: call('attachments.remove') as VaultApi['attachments']['remove'],
+    exportFile: call('attachments.exportFile') as VaultApi['attachments']['exportFile'],
+    openWith: call('attachments.openWith') as VaultApi['attachments']['openWith'],
+    renderPdf: call('attachments.renderPdf') as VaultApi['attachments']['renderPdf'],
+    storageInfo: call('attachments.storageInfo') as VaultApi['attachments']['storageInfo']
+  },
   backup: {
     create: call('backup.create') as VaultApi['backup']['create'],
     chooseDirectory: call('backup.chooseDirectory') as VaultApi['backup']['chooseDirectory'],
@@ -55,7 +73,7 @@ const api: VaultApi = {
   },
   // Fingerprint / PIN unlock is Android-only; the desktop always uses the master password.
   quick: {
-    status: async () => ({ supported: false, biometricAvailable: false, biometric: false, pin: false, pinAttemptsLeft: 0 }),
+    status: async () => ({ supported: false, biometricAvailable: false, deviceCredentialAvailable: false, biometric: false, deviceCredential: false, pin: false, pinAttemptsLeft: 0 }),
     enableBiometric: async () => unsupported,
     enablePin: async () => unsupported,
     disable: async () => unsupported,

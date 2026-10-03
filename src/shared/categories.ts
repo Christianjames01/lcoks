@@ -11,6 +11,7 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
     fields: [
       { key: 'bankName', label: 'Bank name', type: 'text' },
       { key: 'accountName', label: 'Account name', type: 'text' },
+      { key: 'accountType', label: 'Account type', type: 'select', options: ['Savings', 'Checking / Current', 'Payroll', 'Time deposit', 'Joint', 'Other'] },
       { key: 'accountNumber', label: 'Account number', type: 'secret', partialMask: true },
       { key: 'username', label: 'Username', type: 'username' },
       { key: 'password', label: 'Password', type: 'password' },
@@ -18,8 +19,6 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
       { key: 'website', label: 'Website', type: 'url' },
       { key: 'customerNumber', label: 'Customer number', type: 'text' },
       { key: 'securityQA', label: 'Security questions & answers', type: 'secretTextarea' },
-      { key: 'frontImage', label: 'Card photo · front', type: 'secretImage' },
-      { key: 'backImage', label: 'Card photo · back', type: 'secretImage' },
       { ...NOTES_FIELD }
     ]
   },
@@ -36,8 +35,6 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
       { key: 'expiry', label: 'Expiry (MM/YY)', type: 'text', placeholder: 'MM/YY' },
       { key: 'cvv', label: 'CVV / CVC', type: 'pin' },
       { key: 'pin', label: 'PIN', type: 'pin' },
-      { key: 'frontImage', label: 'Card photo · front', type: 'secretImage' },
-      { key: 'backImage', label: 'Card photo · back', type: 'secretImage' },
       { ...NOTES_FIELD }
     ]
   },
@@ -149,8 +146,6 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
       { key: 'issueDate', label: 'Issued', type: 'date' },
       { key: 'expiryDate', label: 'Expires', type: 'date' },
       { key: 'issuedBy', label: 'Issued by / place', type: 'text' },
-      { key: 'frontImage', label: 'Card photo · front', type: 'secretImage' },
-      { key: 'backImage', label: 'Card photo · back', type: 'secretImage' },
       { ...NOTES_FIELD }
     ]
   },
@@ -169,8 +164,6 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
       { key: 'bloodType', label: 'Blood type', type: 'select', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
       { key: 'allergies', label: 'Allergies & medical conditions', type: 'textarea' },
       { key: 'emergencyContacts', label: 'Emergency contacts', type: 'textarea' },
-      { key: 'frontImage', label: 'Card photo · front', type: 'secretImage' },
-      { key: 'backImage', label: 'Card photo · back', type: 'secretImage' },
       { ...NOTES_FIELD }
     ]
   },
@@ -193,13 +186,47 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
   },
   {
     id: 'personal',
-    name: 'Personal',
+    name: 'Passwords',
     icon: 'user',
     builtin: true,
     fields: [
       { key: 'username', label: 'Username', type: 'username' },
       { key: 'password', label: 'Password', type: 'password' },
       { key: 'website', label: 'Website', type: 'url' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'personalInfo',
+    name: 'Personal Information',
+    icon: 'user',
+    builtin: true,
+    fields: [
+      { key: 'fullName', label: 'Full name', type: 'text' },
+      { key: 'birthDate', label: 'Date of birth', type: 'date' },
+      { key: 'phone', label: 'Phone', type: 'phone' },
+      { key: 'email', label: 'Email', type: 'email' },
+      { key: 'address', label: 'Address', type: 'textarea' },
+      { key: 'nationality', label: 'Nationality', type: 'text' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'documents',
+    name: 'Documents',
+    icon: 'folder',
+    builtin: true,
+    fields: [
+      {
+        key: 'documentType',
+        label: 'Document type',
+        type: 'select',
+        options: ['Passport', 'Birth certificate', 'Marriage certificate', 'Diploma / Transcript', 'Contract', 'Certificate', 'Medical record', 'Land title / Deed', 'Receipt / Warranty', 'Other']
+      },
+      { key: 'documentNumber', label: 'Document number', type: 'secret', partialMask: true },
+      { key: 'issuedBy', label: 'Issued by', type: 'text' },
+      { key: 'issueDate', label: 'Issued', type: 'date' },
+      { key: 'expiryDate', label: 'Expires', type: 'date' },
       { ...NOTES_FIELD }
     ]
   },

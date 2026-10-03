@@ -1,9 +1,7 @@
 // ============================================================================
-// SECURITY-CRITICAL MODULE — cryptography for the Android app.
-//
-// Implements EXACTLY the same vault file format as the desktop app
-// (src/main/security/vaultFile.ts), so encrypted backups move freely between
-// desktop and phone:
+// SECURITY-CRITICAL MODULE — the one cryptography implementation used by BOTH
+// the desktop app (Electron main process / Node) and the Android app (WebView).
+// Both platforms therefore read and write byte-identical vault and backup files:
 //
 //   * Argon2id (RFC 9106) via hash-wasm, same parameters and bounds as desktop.
 //   * AES-256-GCM via WebCrypto (crypto.subtle), 96-bit random nonce, 128-bit tag.
@@ -24,7 +22,8 @@ export const SALT_LENGTH = 32;
 export const FILE_FORMAT = 'VAULTLOCKS';
 export const FILE_VERSION = 1;
 export const MAX_HINT_LENGTH = 200;
-export const MAX_FILE_CHARS = 64 * 1024 * 1024;
+/** Backups include attachments; ~500 MB is close to the largest string JS engines handle. */
+export const MAX_FILE_CHARS = 500 * 1024 * 1024;
 
 export const DEFAULT_KDF = { memoryKiB: 64 * 1024, iterations: 3, parallelism: 4 } as const;
 const LIMITS = {
@@ -58,10 +57,10 @@ export interface ParsedFile extends Header {
 }
 
 /** Generic errors only — never reveal which check failed. */
-export class MobileCryptoError extends Error {
+export class CryptoError extends Error {
   constructor(readonly code: 'AUTH_FAILED' | 'BAD_PARAMS' | 'INVALID_FORMAT' | 'KDF_FAILED') {
     super(code);
-    this.name = 'MobileCryptoError';
+    this.name = 'CryptoError';
   }
 }
 
@@ -91,7 +90,7 @@ export function toB64(bytes: Uint8Array): string {
 
 export function fromB64(value: unknown, maxLen = Number.MAX_SAFE_INTEGER): Uint8Array {
   if (typeof value !== 'string' || value.length > maxLen || value.length % 4 !== 0 || !B64.test(value)) {
-    throw new MobileCryptoError('INVALID_FORMAT');
+    throw new CryptoError('INVALID_FORMAT');
   }
   const bin = atob(value);
   const out = new Uint8Array(bin.length);
@@ -119,7 +118,7 @@ export function validateKdfParams(p: KdfParams): void {
     !within(p.salt.length, LIMITS.salt) ||
     p.memoryKiB < 8 * p.parallelism
   ) {
-    throw new MobileCryptoError('BAD_PARAMS');
+    throw new CryptoError('BAD_PARAMS');
   }
 }
 
@@ -141,11 +140,11 @@ export async function deriveRawKey(password: string, params: KdfParams): Promise
       hashLength: KEY_LENGTH,
       outputType: 'binary'
     });
-    if (raw.length !== KEY_LENGTH) throw new MobileCryptoError('KDF_FAILED');
+    if (raw.length !== KEY_LENGTH) throw new CryptoError('KDF_FAILED');
     return raw;
   } catch (e) {
-    if (e instanceof MobileCryptoError) throw e;
-    throw new MobileCryptoError('KDF_FAILED');
+    if (e instanceof CryptoError) throw e;
+    throw new CryptoError('KDF_FAILED');
   } finally {
     wipe(pw);
   }
@@ -165,25 +164,38 @@ export async function deriveKey(password: string, params: KdfParams): Promise<Cr
   return importAesKey(await deriveRawKey(password, params));
 }
 
-/** AES-GCM seal of small blobs (used for the PIN-protected key wrap). Output: nonce‖ciphertext‖tag. */
-export async function sealBytes(key: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
+/**
+ * AES-GCM seal of a blob (attachments, PIN key wrap). Output: nonce‖ciphertext‖tag.
+ * `aad` binds context (e.g. the attachment id) so blobs cannot be swapped.
+ */
+export async function sealBytes(key: CryptoKey, data: Uint8Array, aad?: string): Promise<Uint8Array> {
   const nonce = randomBytes(NONCE_LENGTH);
-  const ct = new Uint8Array(await subtle().encrypt({ name: 'AES-GCM', iv: nonce as BufferSource }, key, data as BufferSource));
+  const params: AesGcmParams = { name: 'AES-GCM', iv: nonce as BufferSource };
+  if (aad !== undefined) params.additionalData = enc.encode(aad) as BufferSource;
+  const ct = new Uint8Array(await subtle().encrypt(params, key, data as BufferSource));
   const out = new Uint8Array(NONCE_LENGTH + ct.length);
   out.set(nonce);
   out.set(ct, NONCE_LENGTH);
   return out;
 }
 
-export async function openBytes(key: CryptoKey, blob: Uint8Array): Promise<Uint8Array> {
-  if (blob.length < NONCE_LENGTH + TAG_LENGTH) throw new MobileCryptoError('AUTH_FAILED');
+export async function openBytes(key: CryptoKey, blob: Uint8Array, aad?: string): Promise<Uint8Array> {
+  if (blob.length < NONCE_LENGTH + TAG_LENGTH) throw new CryptoError('AUTH_FAILED');
   try {
-    return new Uint8Array(
-      await subtle().decrypt({ name: 'AES-GCM', iv: blob.subarray(0, NONCE_LENGTH) as BufferSource }, key, blob.subarray(NONCE_LENGTH) as BufferSource)
-    );
+    const params: AesGcmParams = { name: 'AES-GCM', iv: blob.subarray(0, NONCE_LENGTH) as BufferSource };
+    if (aad !== undefined) params.additionalData = enc.encode(aad) as BufferSource;
+    return new Uint8Array(await subtle().decrypt(params, key, blob.subarray(NONCE_LENGTH) as BufferSource));
   } catch {
-    throw new MobileCryptoError('AUTH_FAILED');
+    throw new CryptoError('AUTH_FAILED');
   }
+}
+
+/** AAD binding an attachment blob to its id (prevents swapping files between items). */
+export const attachmentAad = (id: string) => `VAULTLOCKS-ATTACHMENT|1|${id}`;
+
+export async function sha256Hex(data: Uint8Array): Promise<string> {
+  const d = new Uint8Array(await subtle().digest('SHA-256', data as BufferSource));
+  return Array.from(d, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 // ---------------------------------------------------------------- format ----
@@ -248,14 +260,14 @@ export async function buildFile(header: Header, key: CryptoKey, payloadJson: str
 }
 
 export function parseFile(raw: string): ParsedFile {
-  if (typeof raw !== 'string' || raw.length === 0 || raw.length > MAX_FILE_CHARS) throw new MobileCryptoError('INVALID_FORMAT');
+  if (typeof raw !== 'string' || raw.length === 0 || raw.length > MAX_FILE_CHARS) throw new CryptoError('INVALID_FORMAT');
   let doc: any;
   try {
     doc = JSON.parse(raw);
   } catch {
-    throw new MobileCryptoError('INVALID_FORMAT');
+    throw new CryptoError('INVALID_FORMAT');
   }
-  const bad = () => new MobileCryptoError('INVALID_FORMAT');
+  const bad = () => new CryptoError('INVALID_FORMAT');
   if (!doc || typeof doc !== 'object' || doc.format !== FILE_FORMAT || doc.version !== FILE_VERSION) throw bad();
   if (doc.kind !== 'vault' && doc.kind !== 'backup') throw bad();
   if (typeof doc.createdAt !== 'string' || doc.createdAt.length > 64) throw bad();
@@ -280,7 +292,7 @@ export function parseFile(raw: string): ParsedFile {
  * header was wrong/modified.
  */
 export async function openFile(file: ParsedFile, key: CryptoKey): Promise<string> {
-  if (file.nonce.length !== NONCE_LENGTH || file.tag.length !== TAG_LENGTH) throw new MobileCryptoError('AUTH_FAILED');
+  if (file.nonce.length !== NONCE_LENGTH || file.tag.length !== TAG_LENGTH) throw new CryptoError('AUTH_FAILED');
   const joined = new Uint8Array(file.ciphertext.length + TAG_LENGTH);
   joined.set(file.ciphertext);
   joined.set(file.tag, file.ciphertext.length);
@@ -295,7 +307,7 @@ export async function openFile(file: ParsedFile, key: CryptoKey): Promise<string
     );
     return dec.decode(plain);
   } catch {
-    throw new MobileCryptoError('AUTH_FAILED');
+    throw new CryptoError('AUTH_FAILED');
   } finally {
     wipe(plain);
   }

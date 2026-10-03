@@ -1,7 +1,9 @@
 import {
   CircleAlert,
   CircleCheck,
+  CopyCheck,
   Database,
+  EyeOff,
   Download,
   FolderOpen,
   Info,
@@ -11,7 +13,9 @@ import {
   Pencil,
   Plus,
   Shield,
+  Sparkles,
   Trash,
+  Trash2,
   TriangleAlert,
   Upload,
   X
@@ -19,7 +23,8 @@ import {
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { PLAINTEXT_CONFIRM_PHRASE } from '../../shared/api';
 import { estimateStrength } from '../../shared/strength';
-import type { BackupSummary, CategoryDef, CategoryIcon as IconName, DatabaseInfo, FieldDef, FieldType, VaultSettings, VaultSnapshot } from '../../shared/types';
+import { MAX_LENGTH, MIN_LENGTH } from '../../shared/generator';
+import type { BackupSummary, CategoryDef, CategoryIcon as IconName, DatabaseInfo, FieldDef, FieldType, StorageInfo, VaultSettings, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { CATEGORY_ICONS, CategoryIcon } from '../components/Icon';
 import { PasswordInput } from '../components/PasswordInput';
@@ -27,10 +32,10 @@ import { useToast } from '../components/Toast';
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
 import { daysSince, formatBytes, formatDateTime } from '../lib/format';
 import { isAndroid } from '../lib/platform';
-import { ImportNotesDialog } from './ImportNotes';
 import { QuickUnlockSettings } from './QuickUnlockSettings';
+import type { Route } from './VaultApp';
 
-type Tab = 'security' | 'appearance' | 'vault' | 'categories' | 'about';
+type Tab = 'security' | 'appearance' | 'vault' | 'privacy' | 'categories' | 'about';
 
 interface Props {
   snap: VaultSnapshot;
@@ -38,18 +43,24 @@ interface Props {
   initialTab?: string;
   onChanged: () => Promise<void>;
   onSnapshot: (fn: (s: VaultSnapshot | null) => VaultSnapshot | null) => void;
+  onNavigate: (r: Route) => void;
+  onImport: () => void;
+  onGenerator: () => void;
 }
 
-export function SettingsView({ snap, version, initialTab, onChanged, onSnapshot }: Props) {
+export function SettingsView({ snap, version, initialTab, onChanged, onSnapshot, onNavigate, onImport, onGenerator }: Props) {
   const [tab, setTab] = useState<Tab>((initialTab as Tab) ?? 'security');
   const toast = useToast();
 
   const update = async (patch: Partial<VaultSettings>) => {
+    // Show the change at once; the saved settings replace it when the write completes.
+    onSnapshot((s) => (s ? { ...s, settings: { ...s.settings, ...patch } } : s));
     try {
       const settings = await unwrap(api.vault.updateSettings(patch));
       onSnapshot((s) => (s ? { ...s, settings } : s));
     } catch (e) {
       toast(errorMessage(e), 'error');
+      await onChanged();
     }
   };
 
@@ -57,6 +68,7 @@ export function SettingsView({ snap, version, initialTab, onChanged, onSnapshot 
     { id: 'security', label: 'Security', icon: <Shield size={16} strokeWidth={1.75} aria-hidden /> },
     { id: 'appearance', label: 'Appearance', icon: <Paintbrush size={16} strokeWidth={1.75} aria-hidden /> },
     { id: 'vault', label: 'Vault & Backup', icon: <Database size={16} strokeWidth={1.75} aria-hidden /> },
+    { id: 'privacy', label: 'Privacy', icon: <EyeOff size={16} strokeWidth={1.75} aria-hidden /> },
     { id: 'categories', label: 'Categories', icon: <Layers size={16} strokeWidth={1.75} aria-hidden /> },
     { id: 'about', label: 'About', icon: <Info size={16} strokeWidth={1.75} aria-hidden /> }
   ];
@@ -64,7 +76,7 @@ export function SettingsView({ snap, version, initialTab, onChanged, onSnapshot 
   return (
     <div className="page">
       <div className="page-narrow">
-        <h1 className="h1" style={{ marginBottom: 24 }}>
+        <h1 className="h1 desktop-only" style={{ marginBottom: 24 }}>
           Settings
         </h1>
         <div className="settings-layout">
@@ -87,9 +99,10 @@ export function SettingsView({ snap, version, initialTab, onChanged, onSnapshot 
             ))}
           </div>
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-            {tab === 'security' && <SecurityTab settings={snap.settings} update={update} />}
+            {tab === 'security' && <SecurityTab settings={snap.settings} update={update} onGenerator={onGenerator} />}
             {tab === 'appearance' && <AppearanceTab settings={snap.settings} update={update} />}
-            {tab === 'vault' && <VaultTab snap={snap} update={update} onChanged={onChanged} />}
+            {tab === 'vault' && <VaultTab snap={snap} update={update} onChanged={onChanged} onNavigate={onNavigate} onImport={onImport} />}
+            {tab === 'privacy' && <PrivacyTab settings={snap.settings} update={update} />}
             {tab === 'categories' && <CategoriesTab snap={snap} onChanged={onChanged} />}
             {tab === 'about' && <AboutTab version={version} />}
           </div>
@@ -142,8 +155,15 @@ function Segmented<T extends string | number>({ label, value, options, onChange 
 
 // --------------------------------------------------------------- security --
 
-function SecurityTab({ settings, update }: { settings: VaultSettings; update: (p: Partial<VaultSettings>) => Promise<void> }) {
+function SecurityTab({ settings, update, onGenerator }: { settings: VaultSettings; update: (p: Partial<VaultSettings>) => Promise<void>; onGenerator: () => void }) {
   const [changing, setChanging] = useState(false);
+  const gen = settings.generator;
+  const setGen = (patch: Partial<VaultSettings['generator']>) => {
+    const next = { ...gen, ...patch };
+    // Keep at least one character set.
+    if (!next.upper && !next.lower && !next.digits && !next.symbols) return;
+    void update({ generator: next });
+  };
   return (
     <>
       <Group title="Master password">
@@ -173,11 +193,26 @@ function SecurityTab({ settings, update }: { settings: VaultSettings; update: (p
           />
         </Setting>
         <Setting
-          title={isAndroid() ? 'Lock when app goes to background' : 'Lock when minimized'}
-          desc={isAndroid() ? 'Also locks when the screen turns off or you switch apps.' : 'Also applies when hidden to the system tray.'}
-          htmlFor="s-min"
+          title={isAndroid() ? 'Lock when you leave the app' : 'Lock when minimized'}
+          desc={
+            isAndroid()
+              ? 'Switching apps, going home or turning the screen off. Choose a grace period, or lock immediately.'
+              : 'Also applies when hidden to the system tray.'
+          }
         >
-          <input id="s-min" type="checkbox" className="switch" checked={settings.lockOnMinimize} onChange={(e) => update({ lockOnMinimize: e.target.checked })} />
+          <Segmented
+            label="Lock after leaving the app"
+            value={settings.backgroundLockMinutes}
+            options={[
+              [0, 'Immediately'],
+              [1, '1m'],
+              [5, '5m'],
+              [15, '15m'],
+              [30, '30m'],
+              [-1, 'Never']
+            ]}
+            onChange={(v) => update({ backgroundLockMinutes: v })}
+          />
         </Setting>
         {!isAndroid() && (
           <>
@@ -191,7 +226,49 @@ function SecurityTab({ settings, update }: { settings: VaultSettings; update: (p
         )}
       </Group>
 
-      <Group title="Clipboard & visibility">
+      <Group title="Password generator">
+        <Setting title={`Default length: ${gen.length}`} htmlFor="s-gen-len">
+          <input
+            id="s-gen-len"
+            type="range"
+            min={MIN_LENGTH}
+            max={Math.min(MAX_LENGTH, 64)}
+            value={gen.length}
+            onChange={(e) => setGen({ length: Number(e.target.value) })}
+            style={{ width: 180 }}
+            aria-valuetext={`${gen.length} characters`}
+          />
+        </Setting>
+        {(
+          [
+            ['upper', 'Uppercase letters (A–Z)'],
+            ['lower', 'Lowercase letters (a–z)'],
+            ['digits', 'Numbers (0–9)'],
+            ['symbols', 'Symbols (!@#…)'],
+            ['avoidAmbiguous', 'Avoid look-alike characters (O/0, l/1)']
+          ] as const
+        ).map(([k, label]) => (
+          <Setting key={k} title={label} htmlFor={`s-gen-${k}`}>
+            <input id={`s-gen-${k}`} type="checkbox" className="switch" checked={gen[k]} onChange={(e) => setGen({ [k]: e.target.checked })} />
+          </Setting>
+        ))}
+        <Setting title="Open the generator" desc="Generate a password or passphrase and copy it.">
+          <button type="button" className="btn sm" onClick={onGenerator}>
+            <Sparkles size={14} aria-hidden /> Generator…
+          </button>
+        </Setting>
+      </Group>
+      {changing && <ChangePasswordDialog onClose={() => setChanging(false)} />}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- privacy --
+
+function PrivacyTab({ settings, update }: { settings: VaultSettings; update: (p: Partial<VaultSettings>) => Promise<void> }) {
+  return (
+    <>
+      <Group title="Clipboard">
         <Setting title="Clear clipboard after" desc="Copied values are removed from the clipboard automatically." htmlFor="s-clip">
           <select
             id="s-clip"
@@ -207,6 +284,8 @@ function SecurityTab({ settings, update }: { settings: VaultSettings; update: (p
             ))}
           </select>
         </Setting>
+      </Group>
+      <Group title="Visibility">
         <Setting title="Hide revealed values after" desc="Sensitive fields are always hidden by default." htmlFor="s-reveal">
           <select
             id="s-reveal"
@@ -227,8 +306,25 @@ function SecurityTab({ settings, update }: { settings: VaultSettings; update: (p
             ))}
           </select>
         </Setting>
+        <Setting
+          title="Hide sensitive previews"
+          desc="Also hide partial values (last 4 digits, masked numbers) and blur attachment thumbnails until tapped."
+          htmlFor="s-hide"
+        >
+          <input id="s-hide" type="checkbox" className="switch" checked={settings.hidePreviews} onChange={(e) => update({ hidePreviews: e.target.checked })} />
+        </Setting>
+        <Setting
+          title="Screenshot protection"
+          desc={
+            isAndroid()
+              ? 'Blocks screenshots, screen recording and the recent-apps preview while the vault is open. The lock screen is always protected.'
+              : 'Hides the window from screenshots and screen sharing (Windows / macOS).'
+          }
+          htmlFor="s-shot"
+        >
+          <input id="s-shot" type="checkbox" className="switch" checked={settings.screenshotProtection} onChange={(e) => update({ screenshotProtection: e.target.checked })} />
+        </Setting>
       </Group>
-      {changing && <ChangePasswordDialog onClose={() => setChanging(false)} />}
     </>
   );
 }
@@ -335,8 +431,20 @@ function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
 function AppearanceTab({ settings, update }: { settings: VaultSettings; update: (p: Partial<VaultSettings>) => Promise<void> }) {
   return (
     <Group title="Appearance">
-      <Setting title="Theme" desc="A strict monochrome theme designed for focus and privacy.">
-        <Segmented label="Theme" value="bw" options={[['bw', 'Black & White']]} onChange={() => undefined} />
+      <Setting title="Theme" desc="System follows your device's light or dark mode.">
+        <Segmented
+          label="Theme"
+          value={settings.theme}
+          options={[
+            ['system', 'System'],
+            ['light', 'Light'],
+            ['dark', 'Dark']
+          ]}
+          onChange={(v) => update({ theme: v })}
+        />
+      </Setting>
+      <Setting title="Glass effect" desc="Translucent, blurred surfaces. Turn off for solid surfaces (also faster on older phones)." htmlFor="s-glass">
+        <input id="s-glass" type="checkbox" className="switch" checked={settings.glass} onChange={(e) => update({ glass: e.target.checked })} />
       </Setting>
       <Setting title="Spacing">
         <Segmented
@@ -349,6 +457,7 @@ function AppearanceTab({ settings, update }: { settings: VaultSettings; update: 
           onChange={(v) => update({ density: v })}
         />
       </Setting>
+      {!isAndroid() && (
       <Setting title="Sidebar" desc="Auto collapses the sidebar on smaller windows.">
         <Segmented
           label="Sidebar"
@@ -361,6 +470,7 @@ function AppearanceTab({ settings, update }: { settings: VaultSettings; update: 
           onChange={(v) => update({ sidebar: v })}
         />
       </Setting>
+      )}
       <Setting title="Sort favorites">
         <Segmented
           label="Sort favorites"
@@ -379,18 +489,32 @@ function AppearanceTab({ settings, update }: { settings: VaultSettings; update: 
 
 // ------------------------------------------------------------ vault/backup --
 
-function VaultTab({ snap, update, onChanged }: { snap: VaultSnapshot; update: (p: Partial<VaultSettings>) => Promise<void>; onChanged: () => Promise<void> }) {
+function VaultTab({
+  snap,
+  update,
+  onChanged,
+  onNavigate,
+  onImport
+}: {
+  snap: VaultSnapshot;
+  update: (p: Partial<VaultSettings>) => Promise<void>;
+  onChanged: () => Promise<void>;
+  onNavigate: (r: Route) => void;
+  onImport: () => void;
+}) {
   const [info, setInfo] = useState<DatabaseInfo | null>(null);
+  const [storage, setStorage] = useState<StorageInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [restoring, setRestoring] = useState<null | 'restore' | 'verify'>(null);
   const [plaintext, setPlaintext] = useState(false);
-  const [importing, setImporting] = useState(false);
   const toast = useToast();
   const { settings, meta } = snap;
 
   const loadInfo = async () => {
     const r = await api.vault.databaseInfo();
     if (r.ok) setInfo(r.value);
+    const st = await api.attachments.storageInfo();
+    if (st.ok) setStorage(st.value);
   };
   useEffect(() => {
     void loadInfo();
@@ -487,12 +611,61 @@ function VaultTab({ snap, update, onChanged }: { snap: VaultSnapshot; update: (p
         </Setting>
       </Group>
 
-      <Group title="Import notes">
+      <Group title="Clean up">
+        <Setting title="Duplicate detection" desc="Find items that look like copies, compare them side by side, and merge or keep them. Nothing changes without your OK.">
+          <button type="button" className="btn sm" onClick={() => onNavigate({ view: 'duplicates' })}>
+            <CopyCheck size={14} aria-hidden /> Review…
+          </button>
+        </Setting>
+        <Setting title="Recently Deleted" desc={`${snap.trash.length} item(s) · restorable for 30 days`}>
+          <button type="button" className="btn sm" onClick={() => onNavigate({ view: 'trash' })}>
+            <Trash2 size={14} aria-hidden /> Open
+          </button>
+        </Setting>
+      </Group>
+
+      <Group title="Import">
         <Setting title="Import notes from another app" desc="Paste many notes at once — each becomes its own encrypted item in the right category.">
-          <button type="button" className="btn sm" onClick={() => setImporting(true)}>
+          <button type="button" className="btn sm" onClick={onImport}>
             <Upload size={14} aria-hidden /> Import notes…
           </button>
         </Setting>
+      </Group>
+
+      <Group title="Storage">
+        {storage ? (
+          <div className="card-pad">
+            <dl className="kv" style={{ padding: 0 }}>
+              <dt>Vault data</dt>
+              <dd>{formatBytes(storage.vaultBytes)}</dd>
+              <dt>Attachments</dt>
+              <dd>
+                {storage.attachmentCount} file(s) · {formatBytes(storage.attachmentBytes)}
+              </dd>
+              <dt>Free on this device</dt>
+              <dd>{storage.freeBytes === null ? 'Unknown' : formatBytes(storage.freeBytes)}</dd>
+            </dl>
+            {storage.freeBytes !== null && (
+              <div
+                className="storage-bar"
+                role="img"
+                aria-label={`VaultLocks uses ${formatBytes(storage.vaultBytes + storage.attachmentBytes)} of ${formatBytes(storage.freeBytes + storage.vaultBytes + storage.attachmentBytes)} available`}
+              >
+                <span style={{ width: `${Math.max(1, Math.min(100, ((storage.vaultBytes + storage.attachmentBytes) / Math.max(1, storage.freeBytes + storage.vaultBytes + storage.attachmentBytes)) * 100))}%` }} />
+              </div>
+            )}
+            {storage.freeBytes !== null && storage.freeBytes < 200 * 1024 * 1024 && (
+              <div className="notice strong" style={{ marginTop: 12 }}>
+                <TriangleAlert size={16} aria-hidden /> Your device is low on storage. Free up space before adding large attachments.
+              </div>
+            )}
+            <p className="help-text" style={{ margin: '10px 0 0' }}>
+              Each attachment can be up to 25 MB; an item can have up to 50.
+            </p>
+          </div>
+        ) : (
+          <div className="card-pad muted">Loading…</div>
+        )}
       </Group>
 
       <Group title="Restore & import">
@@ -517,6 +690,10 @@ function VaultTab({ snap, update, onChanged }: { snap: VaultSnapshot; update: (p
             <dd>{formatBytes(info.sizeBytes)}</dd>
             <dt>Items</dt>
             <dd>{info.itemCount}</dd>
+            <dt>Attachments</dt>
+            <dd>
+              {info.attachmentCount} · {formatBytes(info.attachmentBytes)} (encrypted, separate files)
+            </dd>
             <dt>Encryption</dt>
             <dd>{info.cipher}</dd>
             <dt>Key derivation</dt>
@@ -552,16 +729,6 @@ function VaultTab({ snap, update, onChanged }: { snap: VaultSnapshot; update: (p
         />
       )}
       {plaintext && <PlaintextExportDialog onClose={() => setPlaintext(false)} />}
-      {importing && (
-        <ImportNotesDialog
-          snap={snap}
-          onClose={() => setImporting(false)}
-          onImported={async () => {
-            setImporting(false);
-            await onChanged();
-          }}
-        />
-      )}
     </>
   );
 }
@@ -690,7 +857,7 @@ function RestoreDialog({ verifyOnly, onClose, onRestored }: { verifyOnly: boolea
                   {(
                     [
                       ['merge', 'Import (merge)', 'Add items from the backup that are not already in this vault.'],
-                      ['replace', 'Replace', "Delete all current items and use the backup's items instead."]
+                      ['replace', 'Replace', "Use the backup's items instead. Current items move to Recently Deleted for 30 days."]
                     ] as const
                   ).map(([m, t, d]) => (
                     <button
@@ -728,7 +895,10 @@ function RestoreDialog({ verifyOnly, onClose, onRestored }: { verifyOnly: boolea
           confirmLabel={mode === 'replace' ? 'Replace vault' : 'Import'}
           message={
             mode === 'replace' ? (
-              <>All items currently in your vault will be replaced by the {summary.itemCount} item(s) from the backup. This cannot be undone.</>
+              <>
+                Your vault will contain the {summary.itemCount} item(s) from the backup. Items currently in your vault are moved to Recently Deleted, where you can
+                restore them for 30 days.
+              </>
             ) : (
               <>Items from the backup that are not already in your vault will be added.</>
             )
@@ -920,8 +1090,7 @@ const FIELD_TYPE_LABELS: [FieldType, string][] = [
   ['phone', 'Phone'],
   ['date', 'Date'],
   ['textarea', 'Notes'],
-  ['secretTextarea', 'Secure note (secret)'],
-  ['secretImage', 'Photo (secret)']
+  ['secretTextarea', 'Secure note (secret)']
 ];
 
 function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef | null; onClose: () => void; onSaved: () => Promise<void> }) {
@@ -1012,7 +1181,8 @@ function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef 
                 value={f.type}
                 onChange={(e) => setFields((fs) => fs.map((x, j) => (j === i ? { ...x, type: e.target.value as FieldType } : x)))}
               >
-                {FIELD_TYPE_LABELS.map(([v, l]) => (
+                {/* Old photo fields keep their type; new photos are added as attachments. */}
+                {(f.type === 'secretImage' ? [...FIELD_TYPE_LABELS, ['secretImage', 'Photo (old — use attachments)'] as [FieldType, string]] : FIELD_TYPE_LABELS).map(([v, l]) => (
                   <option key={v} value={v}>
                     {l}
                   </option>
@@ -1069,7 +1239,7 @@ function AboutTab({ version }: { version: string }) {
       <Group title="Security">
         <dl className="kv">
           <dt>Encryption</dt>
-          <dd>AES-256-GCM authenticated encryption with a fresh random 96-bit nonce on every save.</dd>
+          <dd>AES-256-GCM authenticated encryption with a fresh random 96-bit nonce on every save. Every attachment is encrypted separately with your vault key.</dd>
           <dt>Key derivation</dt>
           <dd>Argon2id (RFC 9106) — 64 MiB memory, 3 passes, 4 lanes, 256-bit random salt.</dd>
           <dt>Integrity</dt>
@@ -1085,7 +1255,10 @@ function AboutTab({ version }: { version: string }) {
           {isAndroid() && (
             <>
               <dt>Android protections</dt>
-              <dd>Screenshots and the recent-apps preview are blocked. Copied secrets are marked sensitive and cleared automatically. App data is excluded from Android cloud backup.</dd>
+              <dd>
+                Vault and attachments live in app-private storage, excluded from Android cloud backup. Quick unlock keys are kept in the hardware-backed Android
+                Keystore. Screenshots are blocked (configurable). Copied secrets are marked sensitive and cleared automatically.
+              </dd>
             </>
           )}
         </dl>

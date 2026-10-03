@@ -14,6 +14,11 @@ public class MainActivity extends BridgeActivity {
         // SECURITY: block screenshots, screen recording and the recent-apps thumbnail.
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
         handleShare(getIntent());
+        // Accessibility: follow the system font size setting.
+        float scale = getResources().getConfiguration().fontScale;
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().getSettings().setTextZoom(Math.round(scale * 100));
+        }
     }
 
     @Override

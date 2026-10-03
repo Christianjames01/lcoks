@@ -1,18 +1,22 @@
 // Android implementation of the VaultApi that the React UI talks to (on desktop
-// the same API is provided by the Electron preload). Errors are mapped to safe,
-// user-facing messages exactly like the desktop IPC layer.
+// the same API is provided by the Electron preload). Both platforms run the same
+// vault core (src/core/vault.ts). Errors are mapped to safe, user-facing
+// messages exactly like the desktop IPC layer.
 
 import { App } from '@capacitor/app';
+import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { AppLauncher } from '@capacitor/app-launcher';
 import { Share } from '@capacitor/share';
 import { PLAINTEXT_CONFIRM_PHRASE, type QuickUnlockStatus, type VaultApi } from '../shared/api';
-import type { BackupSummary, Result, VaultPayload } from '../shared/types';
-import { ValidationError, validateMasterPassword } from '../main/vault/schema';
-import { AppError, MobileVault } from './mobileVault';
+import type { BackupSummary, Result } from '../shared/types';
+import { ValidationError, validateMasterPassword } from '../core/schema';
+import { AppError, VaultCore, type OpenedBackup } from '../core/vault';
 import type { NativeVault } from './native';
+import { NativeStorage } from './nativeStorage';
 import { QuickUnlock } from './quickUnlock';
 
-const MAX_IMPORT_BYTES = 64 * 1024 * 1024;
+/** Backups carry attachments; the cap keeps a huge file from exhausting memory. */
+const MAX_IMPORT_BYTES = 300 * 1024 * 1024;
 
 function toError(e: unknown): Result<never> {
   if (e instanceof AppError) return { ok: false, code: e.code, message: e.userMessage };
@@ -28,14 +32,28 @@ async function wrap<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
   }
 }
 
+function nativeCode(e: unknown): string {
+  return typeof e === 'object' && e && 'code' in e ? String((e as { code: unknown }).code) : '';
+}
+
+/** File names the native export cache accepts. */
+function exportName(name: string): string {
+  const clean = name.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^[._]+/, '').slice(-100);
+  return clean || 'attachment';
+}
+
 export function createMobileApi(native: NativeVault): VaultApi {
-  const vault = new MobileVault(native);
+  const vault = new VaultCore(new NativeStorage(native));
   const quick = new QuickUnlock(native, vault);
-  const pending = new Map<string, { name: string; raw: string; decrypted?: VaultPayload }>();
+  const pending = new Map<string, { name: string; raw: string; decrypted?: OpenedBackup }>();
   let lastActivity = Date.now();
+  let backgroundSince: number | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   // The share sheet / file picker put the app in the background; don't lock for that.
   let externalUiOpen = false;
+
+  // The lock screen is always protected from screenshots; once unlocked, the user's setting applies.
+  const applySecure = () => void native.setSecure(!vault.isUnlocked || vault.settings.screenshotProtection).catch(() => undefined);
 
   const lock = () => {
     const was = vault.isUnlocked;
@@ -43,6 +61,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
     pending.clear();
     if (idleTimer) clearTimeout(idleTimer);
     void native.clearClipboard().catch(() => undefined);
+    void native.clearExports().catch(() => undefined);
     // Reloading discards the whole JS heap, including any revealed secrets.
     if (was) window.location.reload();
   };
@@ -53,17 +72,31 @@ export function createMobileApi(native: NativeVault): VaultApi {
     if (vault.isUnlocked && minutes > 0) idleTimer = setTimeout(lock, minutes * 60_000);
   };
 
+  const unlocked = () => {
+    lastActivity = Date.now();
+    armIdle();
+    applySecure();
+  };
+
   // ---- Android lifecycle -----------------------------------------------------
+  // Lock when the app goes to the background: immediately or after the chosen delay.
   void App.addListener('pause', () => {
-    if (vault.isUnlocked && vault.settings.lockOnMinimize && !externalUiOpen) lock();
+    if (!vault.isUnlocked || externalUiOpen) return;
+    if (vault.settings.backgroundLockMinutes === 0) lock();
+    else backgroundSince = Date.now();
   });
   void App.addListener('resume', () => {
+    const since = backgroundSince;
+    backgroundSince = null;
+    if (!vault.isUnlocked || externalUiOpen) return;
+    const bg = vault.settings.backgroundLockMinutes;
+    if (since !== null && bg > 0 && Date.now() - since >= bg * 60_000) return lock();
     // JS timers may not run in the background — enforce auto-lock on return.
     const minutes = vault.settings.autoLockMinutes;
-    if (vault.isUnlocked && minutes > 0 && Date.now() - lastActivity > minutes * 60_000 && !externalUiOpen) lock();
+    if (minutes > 0 && Date.now() - lastActivity > minutes * 60_000) lock();
   });
   void App.addListener('backButton', () => {
-    const dialogs = document.querySelectorAll<HTMLElement>('.dialog');
+    const dialogs = document.querySelectorAll<HTMLElement>('.dialog, .viewer');
     if (dialogs.length) {
       dialogs[dialogs.length - 1]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       return;
@@ -110,8 +143,14 @@ export function createMobileApi(native: NativeVault): VaultApi {
     if (!p) throw new AppError('EXPIRED', 'This file selection has expired. Please choose the file again.');
     return p;
   };
+  const attachmentMeta = (entryId: string, id: string) => {
+    const meta = vault.listAttachments(entryId).find((a) => a.id === id);
+    if (!meta) throw new AppError('NOT_FOUND', 'Attachment not found.');
+    return meta;
+  };
 
   // Remove leftover share files (e.g. a plaintext export) and camera photos from previous sessions.
+  applySecure();
   void native.clearExports().catch(() => undefined);
   void native.purgeCaptures().catch(() => undefined);
 
@@ -155,6 +194,9 @@ export function createMobileApi(native: NativeVault): VaultApi {
         // The camera wrote an unencrypted photo to app storage: delete it now.
         void native.purgeCaptures().catch(() => undefined);
       },
+      setAppearance(dark: boolean) {
+        void SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => undefined);
+      },
       reportActivity() {
         lastActivity = Date.now();
         armIdle();
@@ -176,13 +218,12 @@ export function createMobileApi(native: NativeVault): VaultApi {
         wrap(async () => {
           await vault.create(validateMasterPassword(pw), hint);
           await quick.disableAll();
-          armIdle();
+          unlocked();
         }),
       unlock: (pw) =>
         wrap(async () => {
           await vault.unlock(validateMasterPassword(pw));
-          lastActivity = Date.now();
-          armIdle();
+          unlocked();
         }),
       lock: async () => lock(),
       changePassword: (cur, next, hint) =>
@@ -197,6 +238,12 @@ export function createMobileApi(native: NativeVault): VaultApi {
       saveEntry: (i) => wrap(() => vault.saveEntry(i)),
       importEntries: (inputs) => wrap(async () => ({ count: await vault.importEntries(inputs) })),
       deleteEntry: (id) => wrap(() => vault.deleteEntry(id)),
+      restoreEntry: (id) => wrap(() => vault.restoreEntry(id)),
+      purgeEntry: (id) => wrap(() => vault.purgeEntry(id)),
+      emptyTrash: () => wrap(() => vault.emptyTrash()),
+      findDuplicates: () => wrap(() => vault.findDuplicates()),
+      mergeEntries: (keepId, otherIds) => wrap(() => vault.mergeEntries(keepId, otherIds)),
+      dismissDuplicate: (key) => wrap(() => vault.dismissDuplicate(key)),
       duplicateEntry: (id) => wrap(() => vault.duplicateEntry(id)),
       setFavorite: (id, f) => wrap(() => vault.setFavorite(id, f === true)),
       reorderFavorites: (ids) => wrap(() => vault.reorderFavorites(ids)),
@@ -224,10 +271,58 @@ export function createMobileApi(native: NativeVault): VaultApi {
         wrap(async () => {
           const s = await vault.updateSettings(patch);
           armIdle();
+          applySecure();
           return s;
         }),
       databaseInfo: () => wrap(() => vault.databaseInfo()),
       showVaultFolder: async () => undefined
+    },
+    attachments: {
+      list: (entryId) => wrap(() => vault.listAttachments(entryId)),
+      add: (entryId, input) => wrap(() => vault.addAttachment(entryId, input)),
+      read: (entryId, id) => wrap(() => vault.readAttachment(entryId, id)),
+      update: (entryId, id, patch) => wrap(() => vault.updateAttachment(entryId, id, patch)),
+      remove: (entryId, id) => wrap(() => vault.deleteAttachment(entryId, id)),
+      storageInfo: () => wrap(() => vault.storageInfo()),
+      /** SECURITY: explicit export only, through the Android share sheet. */
+      exportFile: (entryId, id) =>
+        wrap(async () => {
+          const meta = attachmentMeta(entryId, id);
+          const data = await vault.readAttachment(entryId, id);
+          await native.clearExports();
+          const name = exportName(meta.name);
+          const uri = await native.writeExportBase64(name, data);
+          await withExternalUi(() => Share.share({ title: meta.name, dialogTitle: 'Export attachment', files: [uri] }).then(() => undefined));
+          // The decrypted copy is removed from the private cache shortly after sharing.
+          setTimeout(() => void native.clearExports().catch(() => undefined), 60_000);
+          return name;
+        }),
+      openWith: (entryId, id) =>
+        wrap(async () => {
+          const meta = attachmentMeta(entryId, id);
+          const data = await vault.readAttachment(entryId, id);
+          await native.clearExports();
+          try {
+            await withExternalUi(() => native.openFile(exportName(meta.name), data, meta.mime || 'application/octet-stream'));
+          } catch (e) {
+            throw new AppError('OPEN_FAILED', nativeCode(e) === 'NO_APP' ? 'No app on this phone can open this file type.' : 'Could not open the file.');
+          }
+          // The temporary decrypted copy is deleted on lock, next export, or after 5 minutes.
+          setTimeout(() => void native.clearExports().catch(() => undefined), 5 * 60_000);
+        }),
+      renderPdf: (entryId, id) =>
+        wrap(async () => {
+          attachmentMeta(entryId, id);
+          const data = await vault.readAttachment(entryId, id);
+          try {
+            return (await native.renderPdf(data)).pages;
+          } catch (e) {
+            throw new AppError(
+              'PDF_FAILED',
+              nativeCode(e) === 'PDF_LOCKED' ? 'This PDF is password protected. Use "Open with" to view it.' : 'This PDF could not be displayed. Use "Open with" instead.'
+            );
+          }
+        })
     },
     backup: {
       create: () =>
@@ -255,8 +350,9 @@ export function createMobileApi(native: NativeVault): VaultApi {
         wrap(async (): Promise<BackupSummary> => {
           requireUnlocked();
           const p = getPending(token);
-          const { payload, file } = await MobileVault.decryptFile(p.raw, validateMasterPassword(password));
-          p.decrypted = payload;
+          const opened = await VaultCore.decryptFile(p.raw, validateMasterPassword(password));
+          p.decrypted = opened;
+          const { payload, file } = opened;
           return { token, fileName: p.name, itemCount: payload.entries.length, categoryCount: payload.customCategories.length, createdAt: file.createdAt, kind: file.kind };
         }),
       apply: (token, mode) =>
@@ -274,8 +370,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
           await vault.restoreWhileLocked(p.raw, validateMasterPassword(password));
           await quick.disableAll();
           pending.delete(token);
-          lastActivity = Date.now();
-          armIdle();
+          unlocked();
         }),
       exportPlaintext: (password, phrase) =>
         wrap(async () => {
@@ -294,17 +389,15 @@ export function createMobileApi(native: NativeVault): VaultApi {
         wrap(() => withExternalUi(() => quick.enableBiometric(validateMasterPassword(master, 'master')))),
       enablePin: (master, pin) => wrap(() => quick.enablePin(validateMasterPassword(master, 'master'), pin)),
       disable: (kind) => wrap(() => (kind === 'biometric' ? quick.disableBiometric() : quick.disablePin())),
-      unlockBiometric: () =>
+      unlockBiometric: (mode) =>
         wrap(async () => {
-          await withExternalUi(() => quick.unlockBiometric());
-          lastActivity = Date.now();
-          armIdle();
+          await withExternalUi(() => quick.unlockBiometric(mode === 'credential' ? 'credential' : 'biometric'));
+          unlocked();
         }),
       unlockPin: (pin) =>
         wrap(async () => {
           await quick.unlockPin(pin);
-          lastActivity = Date.now();
-          armIdle();
+          unlocked();
         })
     },
     events: {

@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildFile, deriveKey, newKdfParams } from '../src/core/crypto';
 import { BackupService } from '../src/main/vault/backupService';
 import { UNLOCK_FAILED_MESSAGE, VaultError, VaultService } from '../src/main/vault/vaultService';
 import * as atomic from '../src/main/storage/atomicFile';
@@ -286,6 +287,9 @@ describe('custom categories', () => {
     expect(v.toView(v.getEntryForEdit(e.id)).secrets[pwField!.key]).toMatchObject({ set: true });
     await expect(v.deleteCategory(cat.id)).rejects.toMatchObject({ code: 'IN_USE' });
     await v.deleteEntry(e.id);
+    // Items in Recently Deleted still need the category (so they can be restored).
+    await expect(v.deleteCategory(cat.id)).rejects.toMatchObject({ code: 'IN_USE' });
+    await v.purgeEntry(e.id);
     await v.deleteCategory(cat.id);
     expect(v.categories().some((c) => c.id === cat.id)).toBe(false);
   });
@@ -423,10 +427,8 @@ describe('backup and restore', () => {
 
 describe('Wi-Fi → Others migration', () => {
   it('converts old Wi-Fi items on unlock without losing data', async () => {
-    const { buildVaultFile } = await import('../src/main/security/vaultFile');
-    const { deriveKey, newKdfParams, passwordToBytes } = await import('../src/main/security/crypto');
     const kdf = newKdfParams();
-    const key = await deriveKey(passwordToBytes(PW), kdf);
+    const key = await deriveKey(PW, kdf);
     const payload = {
       schema: 1,
       entries: [
@@ -448,7 +450,7 @@ describe('Wi-Fi → Others migration', () => {
     };
     const header = { kind: 'vault' as const, createdAt: new Date().toISOString(), kdf, hint: null };
     await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, buildVaultFile(header, key, Buffer.from(JSON.stringify(payload))));
+    await fs.writeFile(file, await buildFile(header, key, JSON.stringify(payload)));
     const v = new VaultService(file);
     await v.unlock(PW);
     const e = v.getEntryForEdit('w1');
@@ -458,24 +460,40 @@ describe('Wi-Fi → Others migration', () => {
   });
 });
 
-describe('card photos', () => {
-  const JPEG = 'data:image/jpeg;base64,' + 'A'.repeat(5000);
-  it('stores front/back photos encrypted and keeps them out of snapshots', async () => {
+describe('card photos (v1.0.18) → attachments', () => {
+  const JPEG = 'data:image/jpeg;base64,' + Buffer.from('fake-jpeg-front').toString('base64');
+  const JPEG2 = 'data:image/jpeg;base64,' + Buffer.from('fake-jpeg-back').toString('base64');
+
+  it('moves old front/back photos into encrypted attachments on unlock, losing nothing', async () => {
+    const kdf = newKdfParams();
+    const key = await deriveKey(PW, kdf);
+    const now = new Date().toISOString();
+    const payload = {
+      schema: 1,
+      entries: [{ id: 'c1', categoryId: 'cards', title: 'BDO', fields: { bankName: 'BDO', frontImage: JPEG, backImage: JPEG2 }, tags: [], favorite: false, favoriteOrder: 0, createdAt: now, updatedAt: now }],
+      customCategories: [],
+      settings: { lockOnMinimize: false },
+      meta: {}
+    };
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, await buildFile({ kind: 'vault', createdAt: now, kdf, hint: null }, key, JSON.stringify(payload)));
+
     const v = new VaultService(file);
-    await v.create(PW, null);
-    const e = await v.saveEntry({ categoryId: 'cards', title: 'BDO', fields: { bankName: 'BDO', frontImage: JPEG, backImage: JPEG }, tags: [], favorite: false });
-    expect(e.secrets.frontImage).toMatchObject({ set: true });
-    expect(JSON.stringify(v.snapshot())).not.toContain('AAAAAAAAAA');
-    expect((await fs.readFile(file, 'utf8')).includes('AAAAAAAAAA')).toBe(false);
+    await v.unlock(PW);
+    // Old "lock on minimize: off" becomes "never lock in the background".
+    expect(v.settings.backgroundLockMinutes).toBe(-1);
+    const atts = v.listAttachments('c1');
+    expect(atts.map((a) => a.role).sort()).toEqual(['back', 'front']);
+    const front = atts.find((a) => a.role === 'front')!;
+    expect(Buffer.from(await v.readAttachment('c1', front.id), 'base64').toString()).toBe('fake-jpeg-front');
+    expect(v.getEntryForEdit('c1').fields.frontImage).toBeUndefined();
+    expect(v.snapshot().entries[0]!.cardPhotos).toEqual({ front: true, back: true });
+    // Attachment files are encrypted on disk.
+    const raw = await fs.readFile(path.join(path.dirname(file), `att-${front.id}.att`), 'utf8');
+    expect(Buffer.from(raw, 'base64').toString('latin1')).not.toContain('fake-jpeg');
+    // And it survives a lock/unlock cycle.
     v.lock();
     await v.unlock(PW);
-    expect(v.getSecret(e.id, 'backImage')).toBe(JPEG);
-  });
-  it('rejects anything that is not an image data URL, or too large', async () => {
-    const v = new VaultService(file);
-    await v.create(PW, null);
-    for (const bad of ['javascript:alert(1)', 'data:text/html;base64,PGI+', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/jpeg;base64,' + 'A'.repeat(400_001)]) {
-      await expect(v.saveEntry({ categoryId: 'ids', title: 'X', fields: { frontImage: bad }, tags: [], favorite: false })).rejects.toThrow();
-    }
+    expect(v.listAttachments('c1')).toHaveLength(2);
   });
 });

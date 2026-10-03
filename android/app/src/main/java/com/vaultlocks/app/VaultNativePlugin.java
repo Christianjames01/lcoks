@@ -4,6 +4,16 @@ import android.content.ClipData;
 import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.pdf.PdfRenderer;
+import android.os.ParcelFileDescriptor;
+import android.os.StatFs;
+import android.view.WindowManager;
+import androidx.core.content.FileProvider;
+import com.getcapacitor.JSArray;
+import java.io.ByteArrayOutputStream;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -319,7 +329,8 @@ public class VaultNativePlugin extends Plugin {
             b.setUserAuthenticationRequired(true);
             b.setInvalidatedByBiometricEnrollment(true);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                b.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
+                // Strong biometrics OR the device screen-lock PIN/pattern/password.
+                b.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG | KeyProperties.AUTH_DEVICE_CREDENTIAL);
             }
         }
         KeyGenerator kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
@@ -341,16 +352,35 @@ public class VaultNativePlugin extends Plugin {
         return Base64.decode(s, Base64.NO_WRAP);
     }
 
+    /** Biometrics + device credential on Android 11+; biometrics only before that. */
+    private static int authenticators() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+            ? BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            : BiometricManager.Authenticators.BIOMETRIC_STRONG;
+    }
+
     @PluginMethod
     public void biometricStatus(PluginCall call) {
-        int r = BiometricManager.from(getContext()).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG);
+        BiometricManager bm = BiometricManager.from(getContext());
+        boolean bio = bm.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS;
+        boolean any = bm.canAuthenticate(authenticators()) == BiometricManager.BIOMETRIC_SUCCESS;
         JSObject ret = new JSObject();
-        ret.put("available", r == BiometricManager.BIOMETRIC_SUCCESS);
+        ret.put("available", any);
+        ret.put("biometric", bio);
+        ret.put("deviceCredential", Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && any);
         call.resolve(ret);
     }
 
     /** Show the system fingerprint prompt bound to the cipher; run the action with the unlocked cipher. */
     private void authenticate(PluginCall call, Cipher cipher, String title, CipherAction action) {
+        authenticate(call, cipher, title, "any", action);
+    }
+
+    /**
+     * mode: "any" = biometrics or device passcode (Android 11+), "biometric" = face/fingerprint
+     * only, "credential" = device PIN/pattern/password only (Android 11+).
+     */
+    private void authenticate(PluginCall call, Cipher cipher, String title, String mode, CipherAction action) {
         getActivity().runOnUiThread(() -> {
           try {
             FragmentActivity activity = (FragmentActivity) getActivity();
@@ -359,12 +389,18 @@ public class VaultNativePlugin extends Plugin {
                 call.reject("App is not in the foreground", "NOT_VISIBLE");
                 return;
             }
-            BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
+            boolean r = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R;
+            int allowed;
+            if ("credential".equals(mode) && r) allowed = BiometricManager.Authenticators.DEVICE_CREDENTIAL;
+            else if ("biometric".equals(mode) || !r) allowed = BiometricManager.Authenticators.BIOMETRIC_STRONG;
+            else allowed = authenticators();
+            BiometricPrompt.PromptInfo.Builder builder = new BiometricPrompt.PromptInfo.Builder()
                 .setTitle(title)
                 .setSubtitle("VaultLocks")
-                .setNegativeButtonText("Cancel")
-                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-                .build();
+                .setAllowedAuthenticators(allowed);
+            // A negative button is not allowed when the device passcode is an option.
+            if ((allowed & BiometricManager.Authenticators.DEVICE_CREDENTIAL) == 0) builder.setNegativeButtonText("Cancel");
+            BiometricPrompt.PromptInfo info = builder.build();
             BiometricPrompt prompt = new BiometricPrompt(
                 activity,
                 ContextCompat.getMainExecutor(getContext()),
@@ -404,14 +440,10 @@ public class VaultNativePlugin extends Plugin {
             return;
         }
         try {
+            deleteKey(BIO_ALIAS);
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
-            try {
-                c.init(Cipher.ENCRYPT_MODE, getOrCreateKey(BIO_ALIAS, true));
-            } catch (KeyPermanentlyInvalidatedException e) {
-                deleteKey(BIO_ALIAS);
-                c.init(Cipher.ENCRYPT_MODE, getOrCreateKey(BIO_ALIAS, true));
-            }
-            authenticate(call, c, "Enable fingerprint unlock", (cipher) -> {
+            c.init(Cipher.ENCRYPT_MODE, getOrCreateKey(BIO_ALIAS, true));
+            authenticate(call, c, "Turn on quick unlock", (cipher) -> {
                 byte[] ct = cipher.doFinal(unb64(data));
                 JSObject ret = new JSObject();
                 ret.put("iv", b64(cipher.getIV()));
@@ -445,7 +477,8 @@ public class VaultNativePlugin extends Plugin {
                 call.reject("Fingerprints changed", "INVALIDATED");
                 return;
             }
-            authenticate(call, c, "Unlock VaultLocks", (cipher) -> {
+            String mode = call.getString("mode", "any");
+            authenticate(call, c, "Unlock VaultLocks", mode, (cipher) -> {
                 JSObject ret = new JSObject();
                 ret.put("data", b64(cipher.doFinal(unb64(data))));
                 call.resolve(ret);
@@ -504,5 +537,175 @@ public class VaultNativePlugin extends Plugin {
         if ("biometric".equals(kind)) deleteKey(BIO_ALIAS);
         else if ("device".equals(kind)) deleteKey(DEVICE_ALIAS);
         call.resolve();
+    }
+
+    // ------------------------------------------------------ vault files ----
+
+    @PluginMethod
+    public void list(PluginCall call) {
+        JSArray files = new JSArray();
+        File[] all = vaultDir().listFiles();
+        if (all != null) {
+            for (File f : all) {
+                if (!f.isFile() || !SAFE_NAME.matcher(f.getName()).matches() || f.getName().startsWith(".")) continue;
+                JSObject o = new JSObject();
+                o.put("name", f.getName());
+                o.put("size", f.length());
+                files.put(o);
+            }
+        }
+        JSObject ret = new JSObject();
+        ret.put("files", files);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void rename(PluginCall call) {
+        String from = call.getString("from", "");
+        String to = call.getString("to", "");
+        if (!SAFE_NAME.matcher(from).matches() || !SAFE_NAME.matcher(to).matches() || from.startsWith(".") || to.startsWith(".")) {
+            call.reject("Invalid file name");
+            return;
+        }
+        File src = new File(vaultDir(), from);
+        if (!src.renameTo(new File(vaultDir(), to))) {
+            call.reject("Rename failed");
+            return;
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void freeSpace(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            ret.put("bytes", new StatFs(getContext().getFilesDir().getPath()).getAvailableBytes());
+        } catch (Exception e) {
+            ret.put("bytes", -1);
+        }
+        call.resolve(ret);
+    }
+
+    // ---------------------------------------- attachments: export / view ----
+
+    private File writeExportBytes(String name, byte[] bytes) throws IOException {
+        File f = new File(exportDir(), name);
+        try (FileOutputStream out = new FileOutputStream(f)) {
+            out.write(bytes);
+            out.getFD().sync();
+        }
+        return f;
+    }
+
+    /** Decoded (binary) file in the private export cache, for the share sheet. */
+    @PluginMethod
+    public void writeExportBase64(PluginCall call) {
+        String n = name(call);
+        if (n == null) return;
+        String data = call.getString("data");
+        if (data == null) {
+            call.reject("No data");
+            return;
+        }
+        try {
+            File f = writeExportBytes(n, unb64(data));
+            JSObject ret = new JSObject();
+            ret.put("uri", Uri.fromFile(f).toString());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Write failed");
+        }
+    }
+
+    /**
+     * Open an attachment in another app (explicit user action). The decrypted copy
+     * lives only in the private export cache and is deleted on the next export /
+     * app start; access is granted to the chosen app via a temporary content URI.
+     */
+    @PluginMethod
+    public void openFile(PluginCall call) {
+        String n = name(call);
+        if (n == null) return;
+        String data = call.getString("data");
+        String mime = call.getString("mime", "application/octet-stream");
+        if (data == null) {
+            call.reject("No data");
+            return;
+        }
+        try {
+            File f = writeExportBytes(n, unb64(data));
+            Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", f);
+            Intent view = new Intent(Intent.ACTION_VIEW);
+            view.setDataAndType(uri, mime);
+            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            Intent chooser = Intent.createChooser(view, "Open with");
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            getActivity().startActivity(chooser);
+            call.resolve();
+        } catch (android.content.ActivityNotFoundException e) {
+            call.reject("No app can open this file", "NO_APP");
+        } catch (Exception e) {
+            call.reject("Could not open the file", "ERROR");
+        }
+    }
+
+    /**
+     * Render PDF pages to PNG images INSIDE the app (no copy is handed to other
+     * apps). The temporary decrypted PDF is in private cache and deleted at once.
+     */
+    @PluginMethod
+    public void renderPdf(PluginCall call) {
+        String data = call.getString("data");
+        int maxPages = Math.max(1, Math.min(60, call.getInt("maxPages", 30)));
+        int width = Math.max(320, Math.min(2000, call.getInt("width", 1200)));
+        if (data == null) {
+            call.reject("No data");
+            return;
+        }
+        File tmp = new File(getContext().getCacheDir(), "pdf-render.tmp");
+        try {
+            try (FileOutputStream out = new FileOutputStream(tmp)) {
+                out.write(unb64(data));
+            }
+            JSArray pages = new JSArray();
+            int total;
+            try (ParcelFileDescriptor fd = ParcelFileDescriptor.open(tmp, ParcelFileDescriptor.MODE_READ_ONLY);
+                 PdfRenderer renderer = new PdfRenderer(fd)) {
+                total = renderer.getPageCount();
+                for (int i = 0; i < Math.min(total, maxPages); i++) {
+                    try (PdfRenderer.Page page = renderer.openPage(i)) {
+                        int h = Math.max(1, Math.round((float) width * page.getHeight() / Math.max(1, page.getWidth())));
+                        Bitmap bmp = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888);
+                        bmp.eraseColor(Color.WHITE);
+                        page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                        ByteArrayOutputStream png = new ByteArrayOutputStream();
+                        bmp.compress(Bitmap.CompressFormat.JPEG, 85, png);
+                        bmp.recycle();
+                        pages.put("data:image/jpeg;base64," + b64(png.toByteArray()));
+                    }
+                }
+            }
+            JSObject ret = new JSObject();
+            ret.put("pages", pages);
+            ret.put("total", total);
+            call.resolve(ret);
+        } catch (SecurityException e) {
+            call.reject("This PDF is password-protected", "PDF_LOCKED");
+        } catch (Exception e) {
+            call.reject("This PDF could not be displayed", "PDF_ERROR");
+        } finally {
+            tmp.delete();
+        }
+    }
+
+    /** Screenshot / screen-recording protection (FLAG_SECURE), per the user's setting. */
+    @PluginMethod
+    public void setSecure(PluginCall call) {
+        boolean secure = Boolean.TRUE.equals(call.getBoolean("secure", true));
+        getActivity().runOnUiThread(() -> {
+            if (secure) getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            else getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            call.resolve();
+        });
     }
 }

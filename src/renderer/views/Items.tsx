@@ -1,7 +1,8 @@
-import { ArrowDown, ArrowLeft, ArrowUp, Copy, CopyPlus, ExternalLink, Eye, EyeOff, Pencil, Plus, Search, Star, Trash } from 'lucide-react';
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, Copy, CopyPlus, ExternalLink, Eye, EyeOff, Paperclip, Pencil, Plus, Search, Star, Trash } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { subtitleFor } from '../../shared/categories';
 import { isSecretType, type EntryView, type FavoriteSort, type FieldDef, type VaultSnapshot } from '../../shared/types';
+import { AttachmentsSection } from '../components/Attachments';
 import { BankCard } from '../components/BankCard';
 import { BankIcon } from '../components/BankIcon';
 import { brandOf, cardSpec, isCardCategory } from '../lib/cardSpec';
@@ -11,6 +12,17 @@ import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { formatDate, formatDateTime } from '../lib/format';
 import { useTimeout } from '../lib/hooks';
+import type { Route, SortMode } from './VaultApp';
+
+const SORT_KEY = 'vaultlocks.sort';
+function loadSort(): SortMode {
+  try {
+    const v = localStorage.getItem(SORT_KEY);
+    return v === 'updated' || v === 'created' ? v : 'name';
+  } catch {
+    return 'name';
+  }
+}
 
 interface Props {
   snap: VaultSnapshot;
@@ -21,10 +33,13 @@ interface Props {
   mobile?: boolean;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  /** Phone: leave the detail screen (Android Back behaves the same). */
+  onBack: () => void;
   onNew: () => void;
   onEdit: (id: string) => void;
   onDelete: (e: EntryView) => void;
   onChanged: () => Promise<void>;
+  onNavigate: (r: Route) => void;
 }
 
 function filterTitle(snap: VaultSnapshot, filter: string, query: string): string {
@@ -36,10 +51,18 @@ function filterTitle(snap: VaultSnapshot, filter: string, query: string): string
   return snap.categories.find((c) => c.id === filter.slice(4))?.name ?? 'Items';
 }
 
-export function ItemsView({ snap, filter, query, entries, mobile, selectedId, onSelect, onNew, onEdit, onDelete, onChanged }: Props) {
+export function ItemsView({ snap, filter, query, entries: input, mobile, selectedId, onSelect, onBack, onNew, onEdit, onDelete, onChanged }: Props) {
   const listRef = useRef<HTMLUListElement>(null);
   const toast = useToast();
-  const selected = entries.find((e) => e.id === selectedId) ?? null;
+  const [sort, setSortMode] = useState<SortMode>(loadSort);
+  const sortable = filter !== 'favorites' && !query.trim();
+  const entries = useMemo(() => {
+    if (!sortable || sort === 'name') return input;
+    const key = sort === 'updated' ? 'updatedAt' : 'createdAt';
+    return [...input].sort((a, b) => b[key].localeCompare(a[key]));
+  }, [input, sort, sortable]);
+  // An item opened from elsewhere (dashboard, search) may not be in this list.
+  const selected = entries.find((e) => e.id === selectedId) ?? (mobile && selectedId ? (snap.entries.find((e) => e.id === selectedId) ?? null) : null);
   const manualFavorites = filter === 'favorites' && snap.settings.favoriteSort === 'manual' && !query.trim();
 
   // Keep a valid selection when the list changes.
@@ -90,6 +113,31 @@ export function ItemsView({ snap, filter, query, entries, mobile, selectedId, on
             </h2>
             <span className="dim small">{entries.length}</span>
           </div>
+          {sortable && entries.length > 1 && (
+            <div className="list-tools">
+              <label htmlFor="sort" className="sr-only">
+                Sort items
+              </label>
+              <select
+                id="sort"
+                className="select"
+                value={sort}
+                onChange={(e) => {
+                  const v = e.target.value as SortMode;
+                  setSortMode(v);
+                  try {
+                    localStorage.setItem(SORT_KEY, v);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              >
+                <option value="name">Sort: Name (A–Z)</option>
+                <option value="updated">Sort: Recently updated</option>
+                <option value="created">Sort: Recently added</option>
+              </select>
+            </div>
+          )}
           {filter === 'favorites' && !query.trim() && (
             <div className="segmented" role="group" aria-label="Sort favorites">
               {(['manual', 'name', 'updated'] as const).map((m) => (
@@ -145,9 +193,10 @@ export function ItemsView({ snap, filter, query, entries, mobile, selectedId, on
                         {e.secrets.cardNumber?.preview ? ` · ${e.secrets.cardNumber.preview}` : ''}
                       </span>
                     </span>
-                    {e.favorite && (
+                    {(e.favorite || e.attachmentCount > 0) && (
                       <span className="row-end">
-                        <Star size={13} className="star" fill="currentColor" aria-label="Favorite" />
+                        {e.attachmentCount > 0 && <Paperclip size={13} aria-label={`${e.attachmentCount} attachment(s)`} />}
+                        {e.favorite && <Star size={13} className="star" fill="currentColor" aria-label="Favorite" />}
                       </span>
                     )}
                   </button>
@@ -188,7 +237,7 @@ export function ItemsView({ snap, filter, query, entries, mobile, selectedId, on
         {selected ? (
           <EntryDetail
             key={selected.id}
-            onBack={mobile ? () => onSelect(null) : undefined}
+            onBack={mobile ? onBack : undefined}
             entry={selected}
             snap={snap}
             onEdit={() => onEdit(selected.id)}
@@ -299,6 +348,13 @@ function EntryDetail({
         <DetailField key={def.key} entry={entry} def={def} snap={snap} />
       ))}
 
+      <AttachmentsSection
+        entryId={entry.id}
+        cardRoles={isCardCategory(entry.categoryId)}
+        hidePreviews={snap.settings.hidePreviews}
+        onChanged={onChanged}
+      />
+
       {entry.tags.length > 0 && (
         <div className="dfield">
           <span className="label">Tags</span>
@@ -329,7 +385,7 @@ function EntryDetail({
 }
 
 function DetailField({ entry, def, snap }: { entry: EntryView; def: FieldDef; snap: VaultSnapshot }) {
-  if (def.type === 'secretImage') return null; // shown on the card via "Show real card"
+  if (def.type === 'secretImage') return null; // legacy card photos now live in attachments
   if (isSecretType(def.type)) return <SecretField entry={entry} def={def} revealSeconds={snap.settings.revealTimeoutSeconds} />;
   const value = entry.fields[def.key];
   if (!value) return null;

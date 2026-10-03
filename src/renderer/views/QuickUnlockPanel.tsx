@@ -1,4 +1,4 @@
-import { CircleAlert, Fingerprint } from 'lucide-react';
+import { CircleAlert, Fingerprint, KeyRound } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { QuickUnlockStatus } from '../../shared/api';
 import { api } from '../lib/api';
@@ -29,12 +29,12 @@ export function QuickUnlockPanel({
   const bioPending = useRef(false);
   const pinRef = useRef<HTMLInputElement>(null);
 
-  const fingerprint = useCallback(async () => {
+  const fingerprint = useCallback(async (mode: 'biometric' | 'credential' = 'biometric') => {
     if (bioPending.current) return;
     bioPending.current = true;
     setBioBusy(true);
     setError(null);
-    const r = await api.quick.unlockBiometric();
+    const r = await api.quick.unlockBiometric(mode);
     bioPending.current = false;
     setBioBusy(false);
     if (r.ok) return onUnlocked();
@@ -78,9 +78,16 @@ export function QuickUnlockPanel({
   return (
     <div className="stack" style={{ gap: 16, alignItems: 'stretch' }}>
       {status.biometric && (
-        <button type="button" className="btn primary wide block" onClick={() => void fingerprint()} disabled={bioBusy} style={{ height: 52 }}>
-          <Fingerprint size={20} aria-hidden /> {bioBusy ? 'Waiting for fingerprint…' : 'Unlock with fingerprint'}
-        </button>
+        <div className="quick-buttons">
+          <button type="button" className="btn primary block" onClick={() => void fingerprint('biometric')} disabled={bioBusy}>
+            <Fingerprint size={20} aria-hidden /> {bioBusy ? 'Waiting…' : 'Use Face / Fingerprint'}
+          </button>
+          {status.deviceCredential && (
+            <button type="button" className="btn block" onClick={() => void fingerprint('credential')} disabled={bioBusy}>
+              <KeyRound size={18} aria-hidden /> Use Device Passcode
+            </button>
+          )}
+        </div>
       )}
       {status.pin && (
         <div className="field" style={{ marginBottom: 0, alignItems: 'center' }}>

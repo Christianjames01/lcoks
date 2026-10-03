@@ -1,31 +1,49 @@
-import { House, Layers, Lock, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, Star, Tag, X } from 'lucide-react';
+import { CopyCheck, House, Layers, Lock, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, Star, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { searchEntries } from '../../shared/search';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog } from '../components/Dialog';
 import { GeneratorDialog } from '../components/Generator';
 import { CategoryIcon } from '../components/Icon';
 import { useToast } from '../components/Toast';
+import { setAppearance, setGeneratorDefaults } from '../lib/appearance';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { useActivityReporter, useHotkeys } from '../lib/hooks';
 import { MOBILE_QUERY, useMediaQuery } from '../lib/platform';
-import { searchEntries } from '../../shared/search';
 import { Dashboard } from './Dashboard';
+import { DuplicatesView } from './Duplicates';
 import { EntryForm } from './EntryForm';
 import { ImportNotesDialog } from './ImportNotes';
 import { ItemsView } from './Items';
+import { SearchView } from './SearchView';
 import { SettingsView } from './Settings';
 import { TitleBar } from './TitleBar';
+import { TrashView } from './Trash';
 
 export type Route =
   | { view: 'dashboard' }
-  | { view: 'items'; filter: string } // 'all' | 'favorites' | 'weak' | 'cat:<id>' | 'tag:<tag>'
-  | { view: 'settings'; tab?: string };
+  /** filter: 'all' | 'favorites' | 'weak' | 'cat:<id>' | 'tag:<tag>'; entry: opened directly (phone: detail screen only). */
+  | { view: 'items'; filter: string; entry?: string }
+  | { view: 'search' }
+  | { view: 'settings'; tab?: string }
+  | { view: 'duplicates' }
+  | { view: 'trash' };
 
 export type EditorState = { mode: 'new'; categoryId?: string } | { mode: 'edit'; id: string } | null;
+
+type Tab = 'vault' | 'favorites' | 'search' | 'settings';
+
+function tabOf(r: Route): Tab {
+  if (r.view === 'items' && r.filter === 'favorites') return 'favorites';
+  if (r.view === 'search') return 'search';
+  if (r.view === 'settings' || r.view === 'duplicates' || r.view === 'trash') return 'settings';
+  return 'vault';
+}
 
 export function VaultApp({ version }: { version: string }) {
   const [snap, setSnap] = useState<VaultSnapshot | null>(null);
   const [route, setRoute] = useState<Route>({ view: 'dashboard' });
+  const [history, setHistory] = useState<Route[]>([]);
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(null);
@@ -35,7 +53,6 @@ export function VaultApp({ version }: { version: string }) {
   const [sharedText, setSharedText] = useState<string | undefined>(undefined);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
   const mobile = useMediaQuery(MOBILE_QUERY);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
@@ -74,23 +91,62 @@ export function VaultApp({ version }: { version: string }) {
     return () => document.removeEventListener('visibilitychange', check);
   }, []);
 
-  // Apply appearance settings.
+  // Appearance & generator settings.
+  const settings = snap?.settings;
   useEffect(() => {
-    if (snap) document.documentElement.dataset.density = snap.settings.density;
-  }, [snap?.settings.density]);
+    if (!settings) return;
+    document.documentElement.dataset.density = settings.density;
+    setAppearance(settings.theme, settings.glass);
+    setGeneratorDefaults(settings.generator);
+  }, [settings]);
 
   const lock = useCallback(() => void api.auth.lock(), []);
   const focusSearch = () => {
+    if (mobile) return go({ view: 'search' });
     searchRef.current?.focus();
     searchRef.current?.select();
   };
   const newItem = (categoryId?: string) => setEditor({ mode: 'new', categoryId });
 
+  // ---- navigation with history (Android back button walks it backwards)
+  const go = (r: Route, opts: { replace?: boolean } = {}) => {
+    setQuery('');
+    if (!opts.replace) setHistory((h) => [...h.slice(-30), route]);
+    setRoute(r);
+    setSelectedId(r.view === 'items' && r.entry ? r.entry : mobile ? null : selectedId);
+  };
+  const switchTab = (t: Tab) => {
+    setHistory([]);
+    setQuery('');
+    setSelectedId(null);
+    setRoute(t === 'favorites' ? { view: 'items', filter: 'favorites' } : t === 'search' ? { view: 'search' } : t === 'settings' ? { view: 'settings' } : { view: 'dashboard' });
+  };
+  const back = (): boolean => {
+    if (query) return setQuery(''), true;
+    if (mobile && selectedId && route.view === 'items' && !route.entry) return setSelectedId(null), true;
+    if (history.length) {
+      const prev = history[history.length - 1]!;
+      setHistory((h) => h.slice(0, -1));
+      setRoute(prev);
+      setSelectedId(prev.view === 'items' && prev.entry ? prev.entry : null);
+      return true;
+    }
+    if (route.view !== 'dashboard') return switchTab('vault'), true;
+    return false;
+  };
+  const backRef = useRef(back);
+  backRef.current = back;
+  useEffect(() => {
+    const onBack = (e: Event) => backRef.current() && e.preventDefault();
+    window.addEventListener('vault:back', onBack);
+    return () => window.removeEventListener('vault:back', onBack);
+  }, []);
+
   useHotkeys({
     'mod+k': focusSearch,
     'mod+n': () => !editor && newItem(currentCategory(route)),
     'mod+l': lock,
-    'mod+,': () => setRoute({ view: 'settings' }),
+    'mod+,': () => go({ view: 'settings' }),
     'mod+g': () => setGeneratorOpen(true)
   });
 
@@ -99,8 +155,9 @@ export function VaultApp({ version }: { version: string }) {
       api.events.onCommand((cmd) => {
         if (cmd === 'new-item') newItem();
         if (cmd === 'search') focusSearch();
-        if (cmd === 'settings') setRoute({ view: 'settings' });
+        if (cmd === 'settings') go({ view: 'settings' });
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -125,39 +182,19 @@ export function VaultApp({ version }: { version: string }) {
     return [...set].sort();
   }, [snap]);
 
-  const searching = query.trim().length > 0;
+  // Desktop: typing in the title-bar search shows results in the item list.
+  const searching = !mobile && query.trim().length > 0;
   const shownRoute: Route = searching ? { view: 'items', filter: 'all' } : route;
 
   const visibleEntries = useMemo(() => {
     if (!snap || shownRoute.view !== 'items') return [];
-    return filterEntries(snap, shownRoute.filter, query);
-  }, [snap, shownRoute, query]);
-
-  const go = (r: Route) => {
-    setQuery('');
-    setRoute(r);
-    setDrawerOpen(false);
-    if (mobile) setSelectedId(null);
-  };
-
-  // Android hardware back button: close drawer → close item → go to dashboard → (else app minimizes).
-  const backRef = useRef<() => boolean>(() => false);
-  backRef.current = () => {
-    if (drawerOpen) return setDrawerOpen(false), true;
-    if (query) return setQuery(''), true;
-    if (mobile && selectedId && shownRoute.view === 'items') return setSelectedId(null), true;
-    if (route.view !== 'dashboard') return go({ view: 'dashboard' }), true;
-    return false;
-  };
-  useEffect(() => {
-    const onBack = (e: Event) => backRef.current() && e.preventDefault();
-    window.addEventListener('vault:back', onBack);
-    return () => window.removeEventListener('vault:back', onBack);
-  }, []);
+    return filterEntries(snap, shownRoute.filter, searching ? query : '');
+  }, [snap, shownRoute, query, searching]);
 
   const openEntry = (id: string) => {
+    if (mobile) return go({ view: 'items', filter: route.view === 'items' ? route.filter : 'all', entry: id });
     setSelectedId(id);
-    if (shownRoute.view !== 'items') setRoute({ view: 'items', filter: 'all' });
+    if (shownRoute.view !== 'items') go({ view: 'items', filter: 'all' });
   };
 
   const isActive = (filter: string) => !searching && route.view === 'items' && route.filter === filter;
@@ -173,18 +210,16 @@ export function VaultApp({ version }: { version: string }) {
     );
   }
 
-  const builtinNav = snap.categories.filter((c) => c.builtin && c.id !== 'notes');
-  const notesCat = snap.categories.find((c) => c.id === 'notes')!;
-  const customNav = snap.categories.filter((c) => !c.builtin);
+  const categoryNav = snap.categories;
 
   // Plain render helper (not a component) so buttons keep focus across re-renders.
-  const navItem = (filter: string, label: string, icon: React.ReactNode, count?: number) => (
+  const navItem = (key: string, label: string, icon: React.ReactNode, active: boolean, onClick: () => void, count?: number) => (
     <button
-      key={filter}
+      key={key}
       type="button"
       className="nav-item"
-      aria-current={isActive(filter) ? 'page' : undefined}
-      onClick={() => go({ view: 'items', filter })}
+      aria-current={active ? 'page' : undefined}
+      onClick={onClick}
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
     >
@@ -193,175 +228,214 @@ export function VaultApp({ version }: { version: string }) {
       {count !== undefined && <span className="count">{count}</span>}
     </button>
   );
+  const filterNav = (filter: string, label: string, icon: React.ReactNode, count?: number) =>
+    navItem(filter, label, icon, isActive(filter), () => go({ view: 'items', filter }), count);
+
+  const screenTitle = (() => {
+    const r = shownRoute;
+    if (r.view === 'dashboard') return 'Vault';
+    if (r.view === 'search') return 'Search';
+    if (r.view === 'settings') return 'Settings';
+    if (r.view === 'duplicates') return 'Duplicates';
+    if (r.view === 'trash') return 'Recently Deleted';
+    if (r.filter === 'favorites') return 'Favorites';
+    if (r.filter === 'all') return 'All items';
+    if (r.filter === 'weak') return 'Weak passwords';
+    if (r.filter.startsWith('tag:')) return `#${r.filter.slice(4)}`;
+    return snap.categories.find((c) => c.id === r.filter.slice(4))?.name ?? 'Items';
+  })();
+
+  const tab = tabOf(route);
 
   return (
     <>
       <TitleBar>
         {mobile ? (
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setDrawerOpen((o) => !o)}
-            aria-label="Open navigation"
-            aria-expanded={drawerOpen}
-            aria-controls="vault-nav"
-          >
-            <Menu size={18} />
-          </button>
+          <>
+            <h1 className="screen-title">{screenTitle}</h1>
+            <button type="button" className="icon-btn" onClick={lock} aria-label="Lock vault" title="Lock vault">
+              <Lock size={19} />
+            </button>
+          </>
         ) : (
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={toggleSidebar}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-          </button>
-        )}
-        <div className="drag" />
-        <div className="search" role="search">
-          <Search size={15} className="search-icon" aria-hidden />
-          <input
-            ref={searchRef}
-            type="search"
-            placeholder="Search vault…"
-            aria-label="Search vault (Ctrl+K)"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setQuery('');
-                (e.target as HTMLInputElement).blur();
-              } else if (e.key === 'Enter' && visibleEntries[0]) {
-                setSelectedId(visibleEntries[0].id);
-              }
-            }}
-            autoComplete="off"
-          />
-          {query ? (
+          <>
             <button
               type="button"
               className="icon-btn"
-              style={{ position: 'absolute', right: 2, top: -1, width: 30, height: 30 }}
-              aria-label="Clear search"
-              onClick={() => setQuery('')}
+              onClick={toggleSidebar}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              <X size={14} />
+              {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
             </button>
-          ) : (
-            <span className="kbd" aria-hidden>
-              Ctrl K
-            </span>
-          )}
-        </div>
-        <div className="drag" />
-        <button type="button" className="btn sm primary" onClick={() => newItem(currentCategory(route))} title="New item (Ctrl+N)" aria-label="New item">
-          <Plus size={14} aria-hidden /> <span className="btn-text">New item</span>
-        </button>
-        <button type="button" className="btn sm" onClick={lock} title="Lock vault (Ctrl+L)" aria-label="Lock vault">
-          <Lock size={14} aria-hidden /> <span className="btn-text">Lock</span>
-        </button>
+            <div className="drag" />
+            <div className="search" role="search">
+              <Search size={15} className="search-icon" aria-hidden />
+              <input
+                ref={searchRef}
+                type="search"
+                placeholder="Search vault…"
+                aria-label="Search vault (Ctrl+K)"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setQuery('');
+                    (e.target as HTMLInputElement).blur();
+                  } else if (e.key === 'Enter' && visibleEntries[0]) {
+                    setSelectedId(visibleEntries[0].id);
+                  }
+                }}
+                autoComplete="off"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  className="icon-btn"
+                  style={{ position: 'absolute', right: 2, top: 0, width: 32, height: 32 }}
+                  aria-label="Clear search"
+                  onClick={() => setQuery('')}
+                >
+                  <X size={14} />
+                </button>
+              ) : (
+                <span className="kbd" aria-hidden>
+                  Ctrl K
+                </span>
+              )}
+            </div>
+            <div className="drag" />
+            <button type="button" className="btn sm primary" onClick={() => newItem(currentCategory(route))} title="New item (Ctrl+N)" aria-label="New item">
+              <Plus size={14} aria-hidden /> <span className="btn-text">New item</span>
+            </button>
+            <button type="button" className="btn sm" onClick={lock} title="Lock vault (Ctrl+L)" aria-label="Lock vault">
+              <Lock size={14} aria-hidden /> <span className="btn-text">Lock</span>
+            </button>
+          </>
+        )}
       </TitleBar>
 
       <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
-        {mobile && drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden />}
-        <nav id="vault-nav" className={`sidebar ${drawerOpen ? 'open' : ''}`} aria-label="Vault navigation">
-          <button
-            type="button"
-            className="nav-item"
-            aria-current={!searching && route.view === 'dashboard' ? 'page' : undefined}
-            onClick={() => go({ view: 'dashboard' })}
-            title={collapsed ? 'Dashboard' : undefined}
-            aria-label={collapsed ? 'Dashboard' : undefined}
-          >
-            <House size={16} strokeWidth={1.75} aria-hidden />
-            <span className="nav-text">Dashboard</span>
-          </button>
-          <div className="nav-section label">Vault</div>
-          {navItem('all', 'All Items', <Layers size={16} strokeWidth={1.75} aria-hidden />, snap.entries.length)}
-          {builtinNav.map((c) => (
-            navItem(`cat:${c.id}`, c.id === 'social' ? 'Social' : c.id === 'software' ? 'Software' : c.name, <CategoryIcon icon={c.icon} />, counts.get(c.id) ?? 0)
-          ))}
-          {navItem('cat:notes', 'Secure Notes', <CategoryIcon icon={notesCat.icon} />, counts.get('notes') ?? 0)}
-          {customNav.length > 0 && <div className="nav-section label">Custom</div>}
-          {customNav.map((c) => (
-            navItem(`cat:${c.id}`, c.name, <CategoryIcon icon={c.icon} />, counts.get(c.id) ?? 0)
-          ))}
-          <hr />
-          {navItem('favorites', 'Favorites', <Star size={16} strokeWidth={1.75} aria-hidden />, snap.stats.favorites)}
-          {allTags.length > 0 && <div className="nav-section label">Tags</div>}
-          {!collapsed &&
-            allTags.slice(0, 12).map((t) => navItem(`tag:${t}`, `#${t}`, <Tag size={14} strokeWidth={1.75} aria-hidden />))}
-          <div className="spacer" />
-          <hr />
-          <button
-            type="button"
-            className="nav-item"
-            aria-current={!searching && route.view === 'settings' ? 'page' : undefined}
-            onClick={() => go({ view: 'settings' })}
-            title={collapsed ? 'Settings' : undefined}
-            aria-label={collapsed ? 'Settings' : undefined}
-          >
-            <SettingsIcon size={16} strokeWidth={1.75} aria-hidden />
-            <span className="nav-text">Settings</span>
-          </button>
-          <button type="button" className="nav-item lock" onClick={lock} title="Lock vault (Ctrl+L)" aria-label="Lock vault">
-            <Lock size={16} strokeWidth={1.9} aria-hidden />
-            <span className="nav-text">Lock Vault</span>
-          </button>
-        </nav>
+        {!mobile && (
+          <nav id="vault-nav" className="sidebar" aria-label="Vault navigation">
+            {navItem('dashboard', 'Dashboard', <House size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'dashboard', () => go({ view: 'dashboard' }))}
+            {filterNav('favorites', 'Favorites', <Star size={16} strokeWidth={1.75} aria-hidden />, snap.stats.favorites)}
+            <div className="nav-section label">Vault</div>
+            {filterNav('all', 'All Items', <Layers size={16} strokeWidth={1.75} aria-hidden />, snap.entries.length)}
+            {categoryNav.map((c) => filterNav(`cat:${c.id}`, c.name, <CategoryIcon icon={c.icon} />, counts.get(c.id) ?? 0))}
+            {allTags.length > 0 && !collapsed && <div className="nav-section label">Tags</div>}
+            {!collapsed && allTags.slice(0, 12).map((t) => filterNav(`tag:${t}`, `#${t}`, <Tag size={14} strokeWidth={1.75} aria-hidden />))}
+            <div className="nav-section label">Tools</div>
+            {navItem('duplicates', 'Duplicates', <CopyCheck size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'duplicates', () => go({ view: 'duplicates' }))}
+            {navItem(
+              'trash',
+              'Recently Deleted',
+              <Trash2 size={16} strokeWidth={1.75} aria-hidden />,
+              !searching && route.view === 'trash',
+              () => go({ view: 'trash' }),
+              snap.trash.length || undefined
+            )}
+            <div className="spacer" />
+            <hr />
+            {navItem('settings', 'Settings', <SettingsIcon size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'settings', () => go({ view: 'settings' }))}
+            <button type="button" className="nav-item lock" onClick={lock} title="Lock vault (Ctrl+L)" aria-label="Lock vault">
+              <Lock size={16} strokeWidth={1.9} aria-hidden />
+              <span className="nav-text">Lock Vault</span>
+            </button>
+          </nav>
+        )}
 
-        <div className="main">
+        <main className="main">
           {shownRoute.view === 'dashboard' && (
             <Dashboard
               snap={snap}
+              mobile={mobile}
               onOpen={openEntry}
               onNavigate={go}
-              onNew={() => newItem()}
+              onNew={newItem}
               onImport={() => setImportOpen(true)}
-              onSearch={(q) => {
-                setQuery(q);
-                searchRef.current?.focus();
-              }}
+              onSearch={() => focusSearch()}
             />
           )}
           {shownRoute.view === 'items' && (
             <ItemsView
               snap={snap}
               filter={shownRoute.filter}
-              query={query}
+              query={searching ? query : ''}
               entries={visibleEntries}
               mobile={mobile}
               selectedId={selectedId}
               onSelect={setSelectedId}
+              onBack={() => back()}
               onNew={() => newItem(currentCategory(shownRoute))}
               onEdit={(id) => setEditor({ mode: 'edit', id })}
               onDelete={setDeleting}
               onChanged={refresh}
+              onNavigate={go}
             />
           )}
-          {shownRoute.view === 'settings' && <SettingsView key={shownRoute.tab ?? 'settings'} snap={snap} version={version} initialTab={shownRoute.tab} onChanged={refresh} onSnapshot={setSnap} />}
-        </div>
+          {shownRoute.view === 'search' && <SearchView snap={snap} onOpen={openEntry} />}
+          {shownRoute.view === 'duplicates' && <DuplicatesView snap={snap} onChanged={refresh} onOpen={openEntry} />}
+          {shownRoute.view === 'trash' && <TrashView snap={snap} onChanged={refresh} />}
+          {shownRoute.view === 'settings' && (
+            <SettingsView
+              key={shownRoute.tab ?? 'settings'}
+              snap={snap}
+              version={version}
+              initialTab={shownRoute.tab}
+              onChanged={refresh}
+              onSnapshot={setSnap}
+              onNavigate={go}
+              onImport={() => setImportOpen(true)}
+              onGenerator={() => setGeneratorOpen(true)}
+            />
+          )}
+        </main>
       </div>
+
+      {mobile && (
+        <nav className="bottom-nav" aria-label="Main">
+          <button type="button" className="tab-btn" aria-current={tab === 'vault' ? 'page' : undefined} onClick={() => switchTab('vault')}>
+            <House size={22} strokeWidth={1.9} aria-hidden />
+            Vault
+          </button>
+          <button type="button" className="tab-btn" aria-current={tab === 'favorites' ? 'page' : undefined} onClick={() => switchTab('favorites')}>
+            <Star size={22} strokeWidth={1.9} aria-hidden />
+            Favorites
+          </button>
+          <button type="button" className="fab" onClick={() => newItem(currentCategory(route))} aria-label="Add item">
+            <Plus size={28} strokeWidth={2.2} aria-hidden />
+          </button>
+          <button type="button" className="tab-btn" aria-current={tab === 'search' ? 'page' : undefined} onClick={() => switchTab('search')}>
+            <Search size={22} strokeWidth={1.9} aria-hidden />
+            Search
+          </button>
+          <button type="button" className="tab-btn" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => switchTab('settings')}>
+            <SettingsIcon size={22} strokeWidth={1.9} aria-hidden />
+            Settings
+          </button>
+        </nav>
+      )}
 
       {editor && (
         <EntryForm
           state={editor}
           snap={snap}
           onClose={() => setEditor(null)}
-          onSaved={async (view) => {
+          onSaved={async (view, attachmentsAdded) => {
+            const wasNew = editor.mode === 'new';
             setEditor(null);
             await refresh();
-            setSelectedId(view.id);
-            // Make sure the saved item is visible in the current list; otherwise jump to its category.
-            const visible =
-              !query.trim() && route.view === 'items' && (route.filter === 'all' || route.filter === `cat:${view.categoryId}`);
-            if (!visible) {
-              setQuery('');
-              setRoute({ view: 'items', filter: `cat:${view.categoryId}` });
+            if (mobile) {
+              go({ view: 'items', filter: `cat:${view.categoryId}`, entry: view.id }, { replace: route.view === 'items' && route.entry === view.id });
+            } else {
+              setSelectedId(view.id);
+              // Make sure the saved item is visible in the current list; otherwise jump to its category.
+              const visible = !query.trim() && route.view === 'items' && (route.filter === 'all' || route.filter === `cat:${view.categoryId}`);
+              if (!visible) go({ view: 'items', filter: `cat:${view.categoryId}` });
+              setSelectedId(view.id);
             }
-            toast(editor.mode === 'new' ? 'Item saved securely.' : 'Changes saved.');
+            toast(wasNew ? (attachmentsAdded ? `Item saved securely with ${attachmentsAdded} attachment(s).` : 'Item saved securely.') : 'Changes saved.');
           }}
         />
       )}
@@ -370,22 +444,25 @@ export function VaultApp({ version }: { version: string }) {
         <ConfirmDialog
           title="Delete item?"
           danger
-          confirmLabel="Delete permanently"
+          confirmLabel="Move to Recently Deleted"
           message={
             <>
-              This will permanently remove:
-              <div style={{ margin: '12px 0', color: 'var(--fg)', fontWeight: 600, wordBreak: 'break-word' }}>{deleting.title}</div>
-              This cannot be undone.
+              <div style={{ margin: '0 0 12px', color: 'var(--fg)', fontWeight: 600, wordBreak: 'break-word' }}>{deleting.title}</div>
+              The item and its attachments move to Recently Deleted. You can restore them for 30 days; after that they are deleted permanently.
             </>
           }
           onCancel={() => setDeleting(null)}
           onConfirm={async () => {
             try {
               await unwrap(api.vault.deleteEntry(deleting.id));
+              const wasOpen = selectedId === deleting.id;
               setDeleting(null);
-              if (selectedId === deleting.id) setSelectedId(null);
               await refresh();
-              toast('Item deleted.');
+              if (wasOpen) {
+                if (mobile) back();
+                else setSelectedId(null);
+              }
+              toast('Moved to Recently Deleted.');
             } catch (e) {
               toast(errorMessage(e), 'error');
             }
@@ -407,8 +484,7 @@ export function VaultApp({ version }: { version: string }) {
             setImportOpen(false);
             setSharedText(undefined);
             await refresh();
-            setSelectedId(null);
-            setRoute({ view: 'items', filter: 'tag:imported' });
+            go({ view: 'items', filter: 'tag:imported' });
           }}
         />
       )}
@@ -420,7 +496,9 @@ function currentCategory(route: Route): string | undefined {
   return route.view === 'items' && route.filter.startsWith('cat:') ? route.filter.slice(4) : undefined;
 }
 
-export function filterEntries(snap: VaultSnapshot, filter: string, query: string): EntryView[] {
+export type SortMode = 'name' | 'updated' | 'created';
+
+export function filterEntries(snap: VaultSnapshot, filter: string, query: string, sort?: SortMode): EntryView[] {
   let list = snap.entries;
   if (filter === 'favorites') list = list.filter((e) => e.favorite);
   else if (filter === 'weak') list = list.filter((e) => e.secrets.password?.set && (e.secrets.password.strength ?? 4) <= 1);
@@ -429,13 +507,11 @@ export function filterEntries(snap: VaultSnapshot, filter: string, query: string
   if (query.trim()) return searchEntries(list, snap.categories, query);
 
   const sorted = [...list];
-  if (filter === 'favorites') {
-    const mode = snap.settings.favoriteSort;
-    if (mode === 'manual') sorted.sort((a, b) => a.favoriteOrder - b.favoriteOrder);
-    else if (mode === 'updated') sorted.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    else sorted.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
-  } else {
-    sorted.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
-  }
+  const byName = (a: EntryView, b: EntryView) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+  const mode = sort ?? (filter === 'favorites' ? snap.settings.favoriteSort : 'name');
+  if (mode === 'manual') sorted.sort((a, b) => a.favoriteOrder - b.favoriteOrder);
+  else if (mode === 'updated') sorted.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  else if (mode === 'created') sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  else sorted.sort(byName);
   return sorted;
 }

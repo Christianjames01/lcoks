@@ -3,14 +3,19 @@
 // the main process. Every call is validated again in the main process.
 
 import type {
+  AddAttachmentResult,
   AppState,
+  AttachmentInput,
+  AttachmentMeta,
   BackupSummary,
   CategoryDef,
   CategoryInput,
   DatabaseInfo,
+  DuplicateGroup,
   EntryInput,
   EntryView,
   Result,
+  StorageInfo,
   VaultEntry,
   VaultSettings,
   VaultSnapshot
@@ -29,6 +34,8 @@ export interface VaultApi {
     takeSharedText(): Promise<string | null>;
     /** Pause lock-on-background while the camera / photo picker is open; resuming also deletes temporary camera files. */
     suspendAutoLock(on: boolean): void;
+    /** Match the system bars / window title bar to the light or dark theme. */
+    setAppearance(dark: boolean): void;
   };
   auth: {
     create(password: string, hint: string | null): Promise<Result<void>>;
@@ -41,7 +48,16 @@ export interface VaultApi {
     saveEntry(input: EntryInput): Promise<Result<EntryView>>;
     /** Add many items in ONE encrypted write (used by note import). */
     importEntries(inputs: EntryInput[]): Promise<Result<{ count: number }>>;
+    /** Moves the item to Recently Deleted (restorable for 30 days). */
     deleteEntry(id: string): Promise<Result<void>>;
+    restoreEntry(id: string): Promise<Result<EntryView>>;
+    /** Permanently delete an item from Recently Deleted. */
+    purgeEntry(id: string): Promise<Result<void>>;
+    emptyTrash(): Promise<Result<number>>;
+    findDuplicates(): Promise<Result<DuplicateGroup[]>>;
+    /** Merge others into keepId; the others go to Recently Deleted. */
+    mergeEntries(keepId: string, otherIds: string[]): Promise<Result<EntryView>>;
+    dismissDuplicate(groupKey: string): Promise<Result<void>>;
     duplicateEntry(id: string): Promise<Result<EntryView>>;
     setFavorite(id: string, favorite: boolean): Promise<Result<void>>;
     reorderFavorites(ids: string[]): Promise<Result<void>>;
@@ -54,6 +70,22 @@ export interface VaultApi {
     updateSettings(patch: Partial<VaultSettings>): Promise<Result<VaultSettings>>;
     databaseInfo(): Promise<Result<DatabaseInfo>>;
     showVaultFolder(): Promise<void>;
+  };
+  /** Encrypted attachments (images, PDFs, documents) of an item. */
+  attachments: {
+    list(entryId: string): Promise<Result<AttachmentMeta[]>>;
+    add(entryId: string, input: AttachmentInput): Promise<Result<AddAttachmentResult>>;
+    /** Decrypted content, base64 — only when the user views it. */
+    read(entryId: string, attachmentId: string): Promise<Result<string>>;
+    update(entryId: string, attachmentId: string, patch: { name?: string; role?: 'front' | 'back' | null }): Promise<Result<AttachmentMeta>>;
+    remove(entryId: string, attachmentId: string): Promise<Result<void>>;
+    /** Explicit export: save dialog (desktop) or share sheet (Android). */
+    exportFile(entryId: string, attachmentId: string): Promise<Result<string | null>>;
+    /** Android: open in another app via a temporary, auto-deleted copy. */
+    openWith(entryId: string, attachmentId: string): Promise<Result<void>>;
+    /** Android: render PDF pages to images inside the app (no copy leaves the app). */
+    renderPdf(entryId: string, attachmentId: string): Promise<Result<string[]>>;
+    storageInfo(): Promise<Result<StorageInfo>>;
   };
   backup: {
     create(): Promise<Result<{ path: string; verified: boolean } | null>>;
@@ -75,7 +107,8 @@ export interface VaultApi {
     enableBiometric(masterPassword: string): Promise<Result<void>>;
     enablePin(masterPassword: string, pin: string): Promise<Result<void>>;
     disable(kind: 'biometric' | 'pin'): Promise<Result<void>>;
-    unlockBiometric(): Promise<Result<void>>;
+    /** 'biometric' = face/fingerprint, 'credential' = the phone's screen-lock passcode (Android 11+). */
+    unlockBiometric(mode?: 'biometric' | 'credential'): Promise<Result<void>>;
     unlockPin(pin: string): Promise<Result<void>>;
   };
   events: {
@@ -87,7 +120,11 @@ export interface VaultApi {
 export interface QuickUnlockStatus {
   supported: boolean;
   biometricAvailable: boolean;
+  /** The phone's screen-lock PIN/pattern/password can unlock (Android 11+). */
+  deviceCredentialAvailable: boolean;
   biometric: boolean;
+  /** Quick unlock is enrolled with device-passcode support. */
+  deviceCredential: boolean;
   pin: boolean;
   pinAttemptsLeft: number;
 }

@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Props {
   title: ReactNode;
@@ -51,18 +52,30 @@ export function Dialog({ title, subtitle, onClose, children, footer, size = 'nor
       }
     };
     el.addEventListener('keydown', onKey);
+    // Escape also works when focus fell out of the dialog (e.g. the focused button
+    // disappeared) — handled only by the top-most dialog.
+    const onWindowKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || el.contains(document.activeElement)) return;
+      const open = document.querySelectorAll('.dialog, .viewer');
+      if (open[open.length - 1] !== el) return;
+      e.stopPropagation();
+      if (!busyRef.current) closeRef.current();
+    };
+    window.addEventListener('keydown', onWindowKey);
     return () => {
       el.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onWindowKey);
       previous?.focus?.();
     };
   }, []);
 
-  return (
+  // Portal: above the title bar and bottom navigation wherever the dialog is opened.
+  return createPortal(
     <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div ref={ref} className={`dialog ${size === 'normal' ? '' : size}`} role={role} aria-modal="true" aria-labelledby={titleId}>
         <div className="dialog-head">
           <div className="grow">
-            <h2 id={titleId} className="label" style={{ margin: 0, color: 'var(--fg)' }}>
+            <h2 id={titleId} className="dialog-title">
               {title}
             </h2>
             {subtitle && (
@@ -78,7 +91,8 @@ export function Dialog({ title, subtitle, onClose, children, footer, size = 'nor
         <div className="dialog-body">{children}</div>
         {footer && <div className="dialog-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

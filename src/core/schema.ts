@@ -2,10 +2,13 @@
 // decrypted payload read from disk. Objects are rebuilt field-by-field so that
 // unexpected properties (e.g. prototype-pollution keys) are dropped.
 
-import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../../shared/categories';
+import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../shared/categories';
 import {
   DEFAULT_SETTINGS,
+  type AttachmentMeta,
   type AutoLockMinutes,
+  type BackgroundLockMinutes,
+  type TrashedEntry,
   type CategoryDef,
   type CategoryIcon,
   type CategoryInput,
@@ -15,7 +18,7 @@ import {
   type VaultEntry,
   type VaultPayload,
   type VaultSettings
-} from '../../shared/types';
+} from '../shared/types';
 
 
 // Isomorphic: Web Crypto randomUUID works in Node 19+, Electron and Android WebView.
@@ -167,7 +170,6 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
     Number.isInteger(value) && (value as number) >= min && (value as number) <= max ? (value as number) : fallback;
   return {
     autoLockMinutes: pick<AutoLockMinutes>(s.autoLockMinutes, [1, 5, 10, 15, 30, 0], base.autoLockMinutes),
-    lockOnMinimize: typeof s.lockOnMinimize === 'boolean' ? s.lockOnMinimize : base.lockOnMinimize,
     lockOnSystemLock: typeof s.lockOnSystemLock === 'boolean' ? s.lockOnSystemLock : base.lockOnSystemLock,
     clipboardClearSeconds: clampInt(s.clipboardClearSeconds, 10, 120, base.clipboardClearSeconds),
     revealTimeoutSeconds: clampInt(s.revealTimeoutSeconds, 0, 600, base.revealTimeoutSeconds),
@@ -181,8 +183,35 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
         : typeof s.backupDirectory === 'string' && s.backupDirectory.length <= 1024
           ? s.backupDirectory
           : base.backupDirectory,
-    closeToTray: typeof s.closeToTray === 'boolean' ? s.closeToTray : base.closeToTray
+    closeToTray: typeof s.closeToTray === 'boolean' ? s.closeToTray : base.closeToTray,
+    theme: pick(s.theme, ['system', 'light', 'dark'] as const, base.theme),
+    glass: typeof s.glass === 'boolean' ? s.glass : base.glass,
+    // Older vaults only had "lock when minimized": map it to immediately / never.
+    backgroundLockMinutes: pick<BackgroundLockMinutes>(
+      s.backgroundLockMinutes,
+      [0, 1, 5, 15, 30, -1],
+      s.backgroundLockMinutes === undefined && typeof s.lockOnMinimize === 'boolean' ? (s.lockOnMinimize ? 0 : -1) : base.backgroundLockMinutes
+    ),
+    screenshotProtection: typeof s.screenshotProtection === 'boolean' ? s.screenshotProtection : base.screenshotProtection,
+    hidePreviews: typeof s.hidePreviews === 'boolean' ? s.hidePreviews : base.hidePreviews,
+    generator: validateGeneratorDefaults(s.generator, base.generator)
   };
+}
+
+function validateGeneratorDefaults(v: unknown, base: VaultSettings['generator']): VaultSettings['generator'] {
+  const g = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+  const b = (x: unknown, d: boolean) => (typeof x === 'boolean' ? x : d);
+  const length = Number.isInteger(g.length) && (g.length as number) >= 8 && (g.length as number) <= 128 ? (g.length as number) : base.length;
+  const out = {
+    length,
+    upper: b(g.upper, base.upper),
+    lower: b(g.lower, base.lower),
+    digits: b(g.digits, base.digits),
+    symbols: b(g.symbols, base.symbols),
+    avoidAmbiguous: b(g.avoidAmbiguous, base.avoidAmbiguous)
+  };
+  if (!out.upper && !out.lower && !out.digits && !out.symbols) out.lower = true;
+  return out;
 }
 
 function isoOr(v: unknown, fallback: string): string {
@@ -212,12 +241,13 @@ export function validatePayload(v: unknown): VaultPayload {
   const hasCustomWifi = customCategories.some((c) => c.id === 'wifi');
   const entries: VaultEntry[] = [];
   const ids = new Set<string>();
-  for (const raw of p.entries) {
+  const toEntry = (raw: any): VaultEntry => {
     const e = hasCustomWifi ? raw : migrateWifiEntry(raw);
+    const legacyImages = extractLegacyImages(e, categories);
     const input = validateEntryInput(e, categories);
-    let id = input.id && !ids.has(input.id) ? input.id : randomUUID();
+    const id = input.id && !ids.has(input.id) ? input.id : randomUUID();
     ids.add(id);
-    entries.push({
+    const entry: VaultEntry = {
       id,
       categoryId: input.categoryId,
       title: input.title,
@@ -227,7 +257,23 @@ export function validatePayload(v: unknown): VaultPayload {
       favoriteOrder: Number.isFinite(e.favoriteOrder) ? Number(e.favoriteOrder) : 0,
       createdAt: isoOr(e.createdAt, now),
       updatedAt: isoOr(e.updatedAt, now)
-    });
+    };
+    const attachments = validateAttachments(e.attachments);
+    if (attachments.length) entry.attachments = attachments;
+    if (legacyImages) entry.legacyImages = legacyImages;
+    return entry;
+  };
+  for (const raw of p.entries) entries.push(toEntry(raw));
+
+  // "Recently Deleted": a damaged trashed item is skipped rather than making the
+  // whole vault unreadable.
+  const trash: TrashedEntry[] = [];
+  for (const raw of Array.isArray(p.trash) ? p.trash.slice(0, LIMITS.entries) : []) {
+    try {
+      trash.push({ ...toEntry(raw), deletedAt: isoOr(raw?.deletedAt, now) });
+    } catch {
+      /* skip */
+    }
   }
 
   const m = p.meta && typeof p.meta === 'object' ? p.meta : {};
@@ -239,9 +285,75 @@ export function validatePayload(v: unknown): VaultPayload {
     meta: {
       createdAt: isoOr(m.createdAt, now),
       lastBackupAt: m.lastBackupAt ? isoOr(m.lastBackupAt, now) : null,
-      lastBackupVerified: m.lastBackupVerified === true
-    }
+      lastBackupVerified: m.lastBackupVerified === true,
+      dismissedDuplicates: Array.isArray(m.dismissedDuplicates)
+        ? m.dismissedDuplicates.filter((x: unknown) => typeof x === 'string' && x.length <= 300).slice(0, 2000)
+        : []
+    },
+    trash
   };
+}
+
+const ATT_ID = /^[A-Za-z0-9-]{8,64}$/;
+const MIME = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i;
+const SHA256 = /^[a-f0-9]{64}$/;
+const THUMB = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+export const MAX_ATTACHMENTS_PER_ITEM = 50;
+
+/** Validate attachment metadata; anything malformed is dropped. */
+export function validateAttachments(v: unknown): AttachmentMeta[] {
+  if (!Array.isArray(v)) return [];
+  const out: AttachmentMeta[] = [];
+  const seen = new Set<string>();
+  for (const a of v.slice(0, MAX_ATTACHMENTS_PER_ITEM)) {
+    if (!a || typeof a !== 'object') continue;
+    const x = a as Record<string, unknown>;
+    if (typeof x.id !== 'string' || !ATT_ID.test(x.id) || seen.has(x.id)) continue;
+    if (typeof x.sha256 !== 'string' || !SHA256.test(x.sha256)) continue;
+    if (!Number.isInteger(x.size) || (x.size as number) < 0 || (x.size as number) > MAX_ATTACHMENT_BYTES) continue;
+    seen.add(x.id);
+    const meta: AttachmentMeta = {
+      id: x.id,
+      name: cleanFileName(x.name),
+      mime: typeof x.mime === 'string' && MIME.test(x.mime) && x.mime.length <= 100 ? x.mime.toLowerCase() : 'application/octet-stream',
+      size: x.size as number,
+      sha256: x.sha256,
+      createdAt: isoOr(x.createdAt, new Date().toISOString())
+    };
+    if (x.role === 'front' || x.role === 'back') meta.role = x.role;
+    if (typeof x.thumb === 'string' && x.thumb.length <= 80_000 && THUMB.test(x.thumb)) meta.thumb = x.thumb;
+    out.push(meta);
+  }
+  return out;
+}
+
+/** File names are shown to the user only; strip paths and control characters. */
+export function cleanFileName(v: unknown): string {
+  const n = typeof v === 'string' ? v : '';
+  const base = n.split(/[\\/]/).pop() ?? '';
+  const clean = base.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 200);
+  return clean || 'Attachment';
+}
+
+/**
+ * Card photos used to be stored in "front/back photo" fields. Those fields were
+ * replaced by attachments: keep any existing photo aside (so it is NOT dropped by
+ * field validation) and let the vault turn it into an attachment after unlock.
+ */
+function extractLegacyImages(e: any, categories: CategoryDef[]): VaultEntry['legacyImages'] | undefined {
+  const f = e?.fields && typeof e.fields === 'object' ? e.fields : {};
+  const cat = categories.find((c) => c.id === e.categoryId);
+  const stillField = (k: string) => cat?.fields.some((d) => d.key === k);
+  const pick = (k: string) =>
+    !stillField(k) && typeof f[k] === 'string' && f[k].length <= MAX_IMAGE_CHARS && IMAGE_DATA_URL.test(f[k]) ? (f[k] as string) : undefined;
+  // Also accept photos already set aside by an earlier, not-yet-finished migration.
+  const prior = e?.legacyImages && typeof e.legacyImages === 'object' ? e.legacyImages : {};
+  const ok = (x: unknown) => typeof x === 'string' && x.length <= MAX_IMAGE_CHARS && IMAGE_DATA_URL.test(x);
+  const front = pick('frontImage') ?? (ok(prior.front) ? (prior.front as string) : undefined);
+  const back = pick('backImage') ?? (ok(prior.back) ? (prior.back as string) : undefined);
+  if (!front && !back) return undefined;
+  return { ...(front ? { front } : {}), ...(back ? { back } : {}) };
 }
 
 export function validateMasterPassword(pw: unknown, field = 'password'): string {
