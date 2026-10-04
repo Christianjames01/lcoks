@@ -1881,15 +1881,18 @@ input[type='range']::-webkit-slider-thumb {
   --safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
   --safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
 }
-:root[data-platform='android'] {
+:root[data-platform='android'],
+:root[data-platform='ios'] {
   --titlebar-h: calc(52px + var(--safe-top));
 }
-:root[data-platform='android'] .titlebar {
+:root[data-platform='android'] .titlebar,
+:root[data-platform='ios'] .titlebar {
   padding-top: var(--safe-top);
   padding-left: calc(10px + var(--safe-left));
   padding-right: calc(10px + var(--safe-right));
 }
-:root[data-platform='android'] body {
+:root[data-platform='android'] body,
+:root[data-platform='ios'] body {
   -webkit-tap-highlight-color: transparent;
 }
 

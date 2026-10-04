@@ -42,9 +42,9 @@ export function QuickUnlockSettings() {
             <div className="desc">
               {status.biometricAvailable
                 ? status.deviceCredentialAvailable
-                  ? 'Your vault key is sealed in the phone’s secure hardware (Android Keystore) and released only by your face, fingerprint or the phone’s screen-lock passcode.'
-                  : 'Your vault key is sealed in the phone’s secure hardware (Android Keystore) and released only by your face or fingerprint.'
-                : 'Set up a screen lock and a fingerprint or face in Android Settings → Security to use this.'}
+                  ? 'Your vault key is sealed in the phone’s secure hardware (Android Keystore / iPhone Keychain) and released only by your face, fingerprint or the phone’s screen-lock passcode.'
+                  : 'Your vault key is sealed in the phone’s secure hardware (Android Keystore / iPhone Keychain) and released only by your face or fingerprint.'
+                : 'Set up a screen lock and a fingerprint or face in the phone’s Settings to use this.'}
               {status.biometric && !status.deviceCredential && status.deviceCredentialAvailable && (
                 <> Turn this off and on again to also allow your device passcode.</>
               )}
@@ -185,7 +185,7 @@ function EnrollDialog({ kind, onClose, onDone }: { kind: 'biometric' | 'pin'; on
             {pinInput('q-pin2', pin2, setPin2, 'Repeat PIN')}
           </>
         )}
-        {kind === 'biometric' && <p className="help-text">After this, Android asks for your face, fingerprint or screen-lock passcode to finish setup.</p>}
+        {kind === 'biometric' && <p className="help-text">After this, the phone asks for your face, fingerprint or screen-lock passcode to finish setup.</p>}
         {err('form')}
         <button type="submit" hidden aria-hidden tabIndex={-1} />
       </form>

@@ -33,7 +33,7 @@ import { PasswordInput } from '../components/PasswordInput';
 import { useToast } from '../components/Toast';
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
 import { daysSince, formatBytes, formatDateTime } from '../lib/format';
-import { isAndroid } from '../lib/platform';
+import { isIOS, isPhone } from '../lib/platform';
 import { QuickUnlockSettings } from './QuickUnlockSettings';
 import type { Route } from './VaultApp';
 
@@ -197,9 +197,9 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
           />
         </Setting>
         <Setting
-          title={isAndroid() ? 'Lock when you leave the app' : 'Lock when minimized'}
+          title={isPhone() ? 'Lock when you leave the app' : 'Lock when minimized'}
           desc={
-            isAndroid()
+            isPhone()
               ? 'Switching apps, going home or turning the screen off. Choose a grace period, or lock immediately.'
               : 'Also applies when hidden to the system tray.'
           }
@@ -218,7 +218,7 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
             onChange={(v) => update({ backgroundLockMinutes: v })}
           />
         </Setting>
-        {!isAndroid() && (
+        {!isPhone() && (
           <>
             <Setting title="Lock when computer locks or sleeps" htmlFor="s-sys">
               <input id="s-sys" type="checkbox" className="switch" checked={settings.lockOnSystemLock} onChange={(e) => update({ lockOnSystemLock: e.target.checked })} />
@@ -320,7 +320,9 @@ function PrivacyTab({ settings, update }: { settings: VaultSettings; update: (p:
         <Setting
           title="Screenshot protection"
           desc={
-            isAndroid()
+            isIOS()
+              ? 'Hides the vault in the app switcher. (iPhone does not let apps block screenshots.)'
+              : isPhone()
               ? 'Blocks screenshots, screen recording and the recent-apps preview while the vault is open. The lock screen is always protected.'
               : 'Hides the window from screenshots and screen sharing (Windows / macOS).'
           }
@@ -461,7 +463,7 @@ function AppearanceTab({ settings, update }: { settings: VaultSettings; update: 
           onChange={(v) => update({ density: v })}
         />
       </Setting>
-      {!isAndroid() && (
+      {!isPhone() && (
       <Setting title="Sidebar" desc="Auto collapses the sidebar on smaller windows.">
         <Segmented
           label="Sidebar"
@@ -507,7 +509,7 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
     return (
       <Group title="Reminders">
         <div className="card-pad muted">
-          Reminder notifications are available in the Android app. On this computer, upcoming dates are shown on the Dashboard under Security status.
+          Reminder notifications are available in the phone app. On this computer, upcoming dates are shown on the Dashboard under Security status.
         </div>
       </Group>
     );
@@ -543,7 +545,7 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
             permission === 'granted'
               ? 'Allowed. On the lock screen, reminder text stays hidden until you unlock the phone.'
               : permission === 'denied'
-                ? 'Blocked. Allow notifications for VaultLocks in Android Settings → Apps → VaultLocks → Notifications.'
+                ? 'Blocked. Allow notifications for VaultLocks in the phone’s Settings → VaultLocks → Notifications.'
                 : 'VaultLocks needs your permission to show reminders.'
           }
         >
@@ -665,8 +667,8 @@ function VaultTab({
             {busy ? <span className="spinner" aria-hidden /> : <Download size={14} aria-hidden />} Back up now
           </button>
         </Setting>
-        {isAndroid() ? (
-          <Setting title="Where backups go" desc="Back up now opens Android's share sheet: save the encrypted file to Files, a USB drive, or send it to your computer.">
+        {isPhone() ? (
+          <Setting title="Where backups go" desc="Back up now opens the share sheet: save the encrypted file to Files, a USB drive, or send it to your computer.">
             <span />
           </Setting>
         ) : (
@@ -814,7 +816,7 @@ function VaultTab({
         )}
         <div className="setting" style={{ borderTop: '1px solid var(--border)' }}>
           <div className="grow desc">The vault file contains only encrypted data and the parameters needed to decrypt it.</div>
-          {!isAndroid() && (
+          {!isPhone() && (
             <button type="button" className="btn sm" onClick={() => void api.vault.showVaultFolder()}>
               <FolderOpen size={14} aria-hidden /> Show in folder
             </button>
@@ -1350,18 +1352,18 @@ function AboutTab({ version }: { version: string }) {
           <dd>All file metadata is authenticated; any modification is detected and rejected.</dd>
           <dt>Master password</dt>
           <dd>Never stored, logged or displayed. There is no recovery or bypass.</dd>
-          {!isAndroid() && (
+          {!isPhone() && (
             <>
               <dt>Keyboard shortcuts</dt>
               <dd>Ctrl+K search · Ctrl+N new item · Ctrl+L lock · Ctrl+G generator · Ctrl+, settings · Esc close</dd>
             </>
           )}
-          {isAndroid() && (
+          {isPhone() && (
             <>
-              <dt>Android protections</dt>
+              <dt>Phone protections</dt>
               <dd>
-                Vault and attachments live in app-private storage, excluded from Android cloud backup. Quick unlock keys are kept in the hardware-backed Android
-                Keystore. Screenshots are blocked (configurable). Copied secrets are marked sensitive and cleared automatically.
+                Vault and attachments live in app-private storage, excluded from cloud backup. Quick unlock keys are kept in the hardware-backed Android Keystore or iPhone
+                Keychain. Screenshots are blocked on Android (configurable); on iPhone the app is hidden in the app switcher. Copied secrets are marked sensitive and cleared automatically.
               </dd>
             </>
           )}
@@ -1375,7 +1377,7 @@ function AboutTab({ version }: { version: string }) {
           <dd>MIT</dd>
           <dt>hash-wasm (Argon2id)</dt>
           <dd>MIT</dd>
-          <dt>Capacitor (Android)</dt>
+          <dt>Capacitor (Android / iPhone)</dt>
           <dd>MIT</dd>
           <dt>Lucide icons</dt>
           <dd>ISC</dd>

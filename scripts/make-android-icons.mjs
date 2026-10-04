@@ -87,6 +87,10 @@ for (const [d, m] of Object.entries(DENSITY)) {
   writeFileSync(path.join(dir, 'ic_launcher_foreground.png'), render(108 * m, 108 * m, { scale: 0.56 }));
 }
 
+// iPhone app icon: one opaque 1024×1024 image (iOS rounds the corners itself).
+const IOS_ICON = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
+if (existsSync(path.dirname(IOS_ICON))) writeFileSync(IOS_ICON, render(1024, 1024, { scale: 0.62, bg: 'square' }));
+
 // Splash screens: black with a small centred lock, same sizes as the template.
 for (const name of readdirSync(RES)) {
   const f = path.join(RES, name, 'splash.png');

@@ -5,7 +5,7 @@ import type { AttachmentInput, AttachmentMeta } from '../../shared/types';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { FileError, LARGE_FILE_BYTES, dataUrlOf, decodeText, isImage, isPdf, isText, kindLabel, pickFiles, toAttachmentInput, type PickSource } from '../lib/files';
 import { formatBytes, formatDateTime } from '../lib/format';
-import { isAndroid } from '../lib/platform';
+import { isPhone } from '../lib/platform';
 import { ConfirmDialog, Dialog } from './Dialog';
 import { useToast } from './Toast';
 
@@ -230,7 +230,7 @@ function useAttachmentActions(entryId: string, onChanged: () => Promise<void> | 
     exportFile: async (meta: AttachmentMeta) => {
       try {
         const r = await unwrap(api.attachments.exportFile(entryId, meta.id));
-        if (r) toast(isAndroid() ? 'Exported. A decrypted copy now exists wherever you saved it.' : 'Exported. The saved copy is not encrypted.');
+        if (r) toast(isPhone() ? 'Exported. A decrypted copy now exists wherever you saved it.' : 'Exported. The saved copy is not encrypted.');
       } catch (e) {
         toast(errorMessage(e), 'error');
       }
@@ -326,7 +326,7 @@ export function DocumentViewer({ entryId, meta, onClose, onChanged }: { entryId:
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const actions = useAttachmentActions(entryId, onChanged);
-  const canPreview = isText(meta.mime) || (isPdf(meta.mime) && isAndroid());
+  const canPreview = isText(meta.mime) || (isPdf(meta.mime) && isPhone());
 
   // Decrypted content lives only in this dialog's state and is dropped on close.
   useEffect(
@@ -367,7 +367,7 @@ export function DocumentViewer({ entryId, meta, onClose, onChanged }: { entryId:
             <button type="button" className="btn danger left" onClick={() => setConfirmDelete(true)}>
               <Trash size={15} aria-hidden /> Delete
             </button>
-            {isAndroid() && (
+            {isPhone() && (
               <button type="button" className="btn" onClick={() => void actions.openWith(meta)}>
                 <ExternalLink size={15} aria-hidden /> Open with…
               </button>
@@ -404,8 +404,8 @@ export function DocumentViewer({ entryId, meta, onClose, onChanged }: { entryId:
         )}
         {!canPreview && (
           <p className="help-text" style={{ marginTop: 14 }}>
-            {isPdf(meta.mime) ? 'PDF preview is available in the Android app. ' : 'This file type cannot be previewed inside VaultLocks. '}
-            {isAndroid() ? 'Use “Open with…” to view it in another app; the temporary copy is deleted automatically.' : 'Use Export to save a copy you can open.'}
+            {isPdf(meta.mime) ? 'PDF preview is available in the phone app. ' : 'This file type cannot be previewed inside VaultLocks. '}
+            {isPhone() ? 'Use “Open with…” to view it in another app; the temporary copy is deleted automatically.' : 'Use Export to save a copy you can open.'}
           </p>
         )}
         {previewError && (

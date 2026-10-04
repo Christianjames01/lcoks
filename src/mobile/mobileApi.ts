@@ -4,7 +4,7 @@
 // messages exactly like the desktop IPC layer.
 
 import { App } from '@capacitor/app';
-import { SystemBars, SystemBarsStyle } from '@capacitor/core';
+import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { AppLauncher } from '@capacitor/app-launcher';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
@@ -37,6 +37,8 @@ const REMINDER_CHANNEL = 'reminders';
 let channelReady = false;
 async function ensureChannel(): Promise<void> {
   if (channelReady) return;
+  // Notification channels exist only on Android.
+  if (Capacitor.getPlatform() !== 'android') return void (channelReady = true);
   await LocalNotifications.createChannel({ id: REMINDER_CHANNEL, name: 'Reminders', description: 'Expiry, renewal and payment reminders', importance: 4, visibility: 0 });
   channelReady = true;
 }
