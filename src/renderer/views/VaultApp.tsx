@@ -1,17 +1,22 @@
-import { CopyCheck, House, Layers, Lock, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, Star, Tag, Trash2, X } from 'lucide-react';
+import { CopyCheck, House, Layers, Lock, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildReminders } from '../../shared/expiry';
 import { searchEntries } from '../../shared/search';
+import { isOld, isReused } from '../../shared/security';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog } from '../components/Dialog';
+import { EntryActionsProvider, EntryMenu, passwordKeyOf, usernameOf, websiteOf, type EntryActions } from '../components/EntryActions';
 import { GeneratorDialog } from '../components/Generator';
 import { CategoryIcon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { setAppearance, setGeneratorDefaults } from '../lib/appearance';
 import { api, errorMessage, unwrap } from '../lib/api';
-import { useActivityReporter, useHotkeys } from '../lib/hooks';
+import { isEditingText, useActivityReporter, useHotkeys } from '../lib/hooks';
+import { morphClose, morphOpen } from '../lib/motion';
 import { MOBILE_QUERY, useMediaQuery } from '../lib/platform';
+import { markUsed, pruneUsed } from '../lib/recent';
 import { Dashboard } from './Dashboard';
+import { SecurityView } from './SecurityView';
 import { DuplicatesView } from './Duplicates';
 import { EntryForm } from './EntryForm';
 import { ImportNotesDialog } from './ImportNotes';
@@ -23,9 +28,10 @@ import { TrashView } from './Trash';
 
 export type Route =
   | { view: 'dashboard' }
-  /** filter: 'all' | 'favorites' | 'weak' | 'cat:<id>' | 'tag:<tag>'; entry: opened directly (phone: detail screen only). */
+  /** filter: 'all' | 'favorites' | 'weak' | 'reused' | 'old' | 'cat:<id>' | 'tag:<tag>'; entry: opened directly (phone: detail screen only). */
   | { view: 'items'; filter: string; entry?: string }
   | { view: 'search' }
+  | { view: 'security' }
   | { view: 'settings'; tab?: string }
   | { view: 'duplicates' }
   | { view: 'trash' };
@@ -54,6 +60,8 @@ export function VaultApp({ version }: { version: string }) {
   const [sharedText, setSharedText] = useState<string | undefined>(undefined);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
+  const [menu, setMenu] = useState<{ entry: EntryView; at: { x: number; y: number } } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
   const mobile = useMediaQuery(MOBILE_QUERY);
   const searchRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
@@ -62,7 +70,9 @@ export function VaultApp({ version }: { version: string }) {
 
   const refresh = useCallback(async () => {
     try {
-      setSnap(await unwrap(api.vault.snapshot()));
+      const s = await unwrap(api.vault.snapshot());
+      setSnap(s);
+      pruneUsed(s.entries.map((e) => e.id));
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
@@ -98,7 +108,7 @@ export function VaultApp({ version }: { version: string }) {
   useEffect(() => {
     if (!settings) return;
     document.documentElement.dataset.density = settings.density;
-    setAppearance(settings.theme, settings.glass);
+    setAppearance(settings.theme, settings.glass, settings.accent);
     setGeneratorDefaults(settings.generator);
   }, [settings]);
 
@@ -151,19 +161,30 @@ export function VaultApp({ version }: { version: string }) {
     setSelectedId(null);
     setRoute(t === 'favorites' ? { view: 'items', filter: 'favorites' } : t === 'search' ? { view: 'search' } : t === 'settings' ? { view: 'settings' } : { view: 'dashboard' });
   };
-  const back = (): boolean => {
-    if (drawerOpen) return setDrawerOpen(false), true;
-    if (query) return setQuery(''), true;
-    if (mobile && selectedId && route.view === 'items' && !route.entry) return setSelectedId(null), true;
+  /** What Back would do right now, or null when there is nowhere to go back to. */
+  const backAction = (): (() => void) | null => {
+    if (drawerOpen) return () => setDrawerOpen(false);
+    if (query) return () => setQuery('');
+    if (mobile && selectedId && route.view === 'items' && !route.entry) return () => setSelectedId(null);
     if (history.length) {
       const prev = history[history.length - 1]!;
-      setHistory((h) => h.slice(0, -1));
-      setRoute(prev);
-      setSelectedId(prev.view === 'items' && prev.entry ? prev.entry : null);
-      return true;
+      return () => {
+        setHistory((h) => h.slice(0, -1));
+        setRoute(prev);
+        setSelectedId(prev.view === 'items' && prev.entry ? prev.entry : null);
+      };
     }
-    if (route.view !== 'dashboard') return switchTab('vault'), true;
-    return false;
+    if (route.view !== 'dashboard') return () => switchTab('vault');
+    return null;
+  };
+  const back = (): boolean => {
+    const act = backAction();
+    if (!act) return false;
+    // Phone: leaving an item shrinks its header back into the row it came from.
+    const fromDetail = mobile && route.view === 'items' && selectedId && !drawerOpen && !query ? selectedId : null;
+    if (fromDetail) morphClose(() => document.querySelector(`main [data-id="${CSS.escape(fromDetail)}"]`), act);
+    else act();
+    return true;
   };
   const backRef = useRef(back);
   backRef.current = back;
@@ -173,12 +194,79 @@ export function VaultApp({ version }: { version: string }) {
     return () => window.removeEventListener('vault:back', onBack);
   }, []);
 
+  // ---- item actions (row menu, swipe, shortcuts)
+  const copyPassword = async (e: EntryView) => {
+    const key = passwordKeyOf(e);
+    if (!key) return toast('This item has no password to copy.', 'error');
+    try {
+      const { seconds } = await unwrap(api.vault.copyField(e.id, key));
+      markUsed(e.id);
+      api.app.haptic('success');
+      toast(`${key === 'password' ? 'Password' : 'Secret'} copied. Clipboard clears in ${seconds}s.`);
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    }
+  };
+  const copyUsername = async (e: EntryView) => {
+    const user = usernameOf(e);
+    if (!user) return toast('This item has no username to copy.', 'error');
+    try {
+      const { seconds } = await unwrap(api.vault.copyText(user.value));
+      markUsed(e.id);
+      api.app.haptic('success');
+      toast(`${user.label} copied. Clipboard clears in ${seconds}s.`);
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    }
+  };
+  const actions: EntryActions = {
+    copyPassword,
+    copyUsername,
+    openWebsite: async (e) => {
+      const url = websiteOf(e);
+      if (!url) return;
+      markUsed(e.id);
+      const r = await api.app.openExternal(url);
+      if (!r.ok) toast(r.message, 'error');
+    },
+    toggleFavorite: async (e) => {
+      try {
+        await unwrap(api.vault.setFavorite(e.id, !e.favorite));
+        api.app.haptic('tap');
+        await refresh();
+        toast(e.favorite ? 'Removed from favorites.' : 'Added to favorites.');
+      } catch (err) {
+        toast(errorMessage(err), 'error');
+      }
+    },
+    edit: (e) => setEditor({ mode: 'edit', id: e.id }),
+    remove: (e) => setDeleting(e),
+    openMenu: (e, at) => setMenu({ entry: e, at })
+  };
+
+  /** The item the keyboard shortcuts act on: the one open in the detail pane. */
+  const selectedEntry = (): EntryView | undefined =>
+    snap && (route.view === 'items' || searching) && selectedId && !editor && !menu ? snap.entries.find((e) => e.id === selectedId) : undefined;
+
   useHotkeys({
     'mod+k': focusSearch,
+    'mod+f': focusSearch,
     'mod+n': () => !editor && newItem(currentCategory(route)),
     'mod+l': lock,
     'mod+,': () => go({ view: 'settings' }),
-    'mod+g': () => setGeneratorOpen(true)
+    'mod+g': () => setGeneratorOpen(true),
+    'mod+c': () => {
+      const e = selectedEntry();
+      if (!e || isEditingText() || document.querySelector('.dialog')) return false;
+      void copyPassword(e);
+      return true;
+    },
+    'mod+b': () => {
+      const e = selectedEntry();
+      if (!e || isEditingText() || document.querySelector('.dialog')) return false;
+      void copyUsername(e);
+      return true;
+    }
   });
 
   useEffect(
@@ -222,8 +310,10 @@ export function VaultApp({ version }: { version: string }) {
     return filterEntries(snap, shownRoute.filter, searching ? query : '');
   }, [snap, shownRoute, query, searching]);
 
-  const openEntry = (id: string) => {
-    if (mobile) return go({ view: 'items', filter: route.view === 'items' ? route.filter : 'all', entry: id });
+  /** Open an item; on phones the tapped row (if given) grows into the detail screen. */
+  const openEntry = (id: string, row?: Element | null) => {
+    markUsed(id);
+    if (mobile) return morphOpen(row, () => go({ view: 'items', filter: route.view === 'items' ? route.filter : 'all', entry: id }));
     setSelectedId(id);
     if (shownRoute.view !== 'items') go({ view: 'items', filter: 'all' });
   };
@@ -269,9 +359,12 @@ export function VaultApp({ version }: { version: string }) {
     if (r.view === 'settings') return 'Settings';
     if (r.view === 'duplicates') return 'Duplicates';
     if (r.view === 'trash') return 'Recently Deleted';
+    if (r.view === 'security') return 'Security';
     if (r.filter === 'favorites') return 'Favorites';
     if (r.filter === 'all') return 'All items';
     if (r.filter === 'weak') return 'Weak passwords';
+    if (r.filter === 'reused') return 'Reused passwords';
+    if (r.filter === 'old') return 'Old passwords';
     if (r.filter.startsWith('tag:')) return `#${r.filter.slice(4)}`;
     return snap.categories.find((c) => c.id === r.filter.slice(4))?.name ?? 'Items';
   })();
@@ -279,7 +372,7 @@ export function VaultApp({ version }: { version: string }) {
   const tab = tabOf(route);
 
   return (
-    <>
+    <EntryActionsProvider value={actions}>
       <TitleBar>
         {mobile ? (
           <>
@@ -368,6 +461,7 @@ export function VaultApp({ version }: { version: string }) {
             {allTags.length > 0 && !collapsed && <div className="nav-section label">Tags</div>}
             {!collapsed && allTags.slice(0, 12).map((t) => filterNav(`tag:${t}`, `#${t}`, <Tag size={14} strokeWidth={1.75} aria-hidden />))}
             <div className="nav-section label">Tools</div>
+            {navItem('security', 'Security', <ShieldCheck size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'security', () => go({ view: 'security' }))}
             {navItem('duplicates', 'Duplicates', <CopyCheck size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'duplicates', () => go({ view: 'duplicates' }))}
             {navItem(
               'trash',
@@ -417,6 +511,7 @@ export function VaultApp({ version }: { version: string }) {
             />
           )}
           {shownRoute.view === 'search' && <SearchView snap={snap} onOpen={openEntry} />}
+          {shownRoute.view === 'security' && <SecurityView snap={snap} onOpen={openEntry} onNavigate={go} />}
           {shownRoute.view === 'duplicates' && <DuplicatesView snap={snap} onChanged={refresh} onOpen={openEntry} />}
           {shownRoute.view === 'trash' && <TrashView snap={snap} onChanged={refresh} />}
           {shownRoute.view === 'settings' && (
@@ -497,6 +592,7 @@ export function VaultApp({ version }: { version: string }) {
           onConfirm={async () => {
             try {
               await unwrap(api.vault.deleteEntry(deleting.id));
+              api.app.haptic('warning');
               const wasOpen = selectedId === deleting.id;
               setDeleting(null);
               await refresh();
@@ -512,6 +608,7 @@ export function VaultApp({ version }: { version: string }) {
         />
       )}
 
+      {menu && <EntryMenu entry={menu.entry} at={menu.at} sheet={mobile} actions={actions} onClose={closeMenu} />}
       {generatorOpen && <GeneratorDialog onClose={() => setGeneratorOpen(false)} />}
       {importOpen && (
         <ImportNotesDialog
@@ -530,7 +627,7 @@ export function VaultApp({ version }: { version: string }) {
           }}
         />
       )}
-    </>
+    </EntryActionsProvider>
   );
 }
 
@@ -544,6 +641,8 @@ export function filterEntries(snap: VaultSnapshot, filter: string, query: string
   let list = snap.entries;
   if (filter === 'favorites') list = list.filter((e) => e.favorite);
   else if (filter === 'weak') list = list.filter((e) => e.secrets.password?.set && (e.secrets.password.strength ?? 4) <= 1);
+  else if (filter === 'reused') list = list.filter(isReused);
+  else if (filter === 'old') list = list.filter((e) => isOld(e));
   else if (filter.startsWith('cat:')) list = list.filter((e) => e.categoryId === filter.slice(4));
   else if (filter.startsWith('tag:')) list = list.filter((e) => e.tags.includes(filter.slice(4)));
   if (query.trim()) return searchEntries(list, snap.categories, query);

@@ -368,8 +368,24 @@ export class VaultCore {
     return this.categories().find((c) => c.id === e.categoryId);
   }
 
+  /** Password values used by more than one item. Built per snapshot; never leaves this process. */
+  private reusedPasswords(entries: VaultEntry[]): Set<string> {
+    const firstOwner = new Map<string, string>();
+    const reused = new Set<string>();
+    for (const e of entries) {
+      for (const def of this.categoryOf(e)?.fields ?? []) {
+        const value = def.type === 'password' ? e.fields[def.key] : undefined;
+        if (!value) continue;
+        const owner = firstOwner.get(value);
+        if (owner === undefined) firstOwner.set(value, e.id);
+        else if (owner !== e.id) reused.add(value);
+      }
+    }
+    return reused;
+  }
+
   /** Redacted view — secret values are never included. */
-  toView(entry: VaultEntry): EntryView {
+  toView(entry: VaultEntry, reused?: Set<string>): EntryView {
     const fields: Record<string, string> = {};
     const secrets: Record<string, SecretMeta> = {};
     const hidePreviews = this.settings.hidePreviews;
@@ -379,6 +395,7 @@ export class VaultCore {
         const meta: SecretMeta = { set: value.length > 0 };
         if (def.partialMask && value.length > 4 && !hidePreviews) meta.preview = '•••• ' + value.replace(/\s/g, '').slice(-4);
         if (def.type === 'password' && value) meta.strength = estimateStrength(value).score;
+        if (def.type === 'password' && value && reused?.has(value)) meta.reused = true;
         if ((def.key === 'cardNumber' || def.key === 'accountNumber') && value) meta.network = detectCardNetwork(value);
         secrets[def.key] = meta;
       } else if (value) {
@@ -404,7 +421,9 @@ export class VaultCore {
 
   snapshot(): VaultSnapshot {
     const { payload } = this.requireUnlocked();
-    const entries = payload.entries.map((e) => this.toView(e));
+    const reused = this.reusedPasswords(payload.entries);
+    const entries = payload.entries.map((e) => this.toView(e, reused));
+    reused.clear();
     let withPasswords = 0;
     let weak = 0;
     for (const v of entries) {
@@ -428,6 +447,7 @@ export class VaultCore {
         notes: entries.filter((e) => e.categoryId === 'notes').length,
         favorites: entries.filter((e) => e.favorite).length,
         weak,
+        reused: entries.filter((e) => Object.values(e.secrets).some((m) => m.reused)).length,
         attachments: entries.reduce((n, e) => n + e.attachmentCount, 0)
       }
     };

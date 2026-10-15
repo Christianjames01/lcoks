@@ -2,7 +2,8 @@ import { RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { TRASH_DAYS, type TrashView as TrashItem, type VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog } from '../components/Dialog';
-import { CategoryIcon } from '../components/Icon';
+import { EmptyState } from '../components/EmptyState';
+import { EntryIcon } from '../components/EntryIcon';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { formatDate } from '../lib/format';
@@ -49,13 +50,7 @@ export function TrashView({ snap, onChanged }: { snap: VaultSnapshot; onChanged:
         </div>
 
         {items.length === 0 ? (
-          <div className="card empty">
-            <div className="empty-icon">
-              <Trash2 size={20} aria-hidden />
-            </div>
-            <div className="h3">Nothing here</div>
-            <div className="muted small">Items you delete appear here so you can restore them.</div>
-          </div>
+          <EmptyState card art="trash" title="Nothing here" text={`Items you delete appear here for ${TRASH_DAYS} days, so you can restore them.`} />
         ) : (
           <ul className="list card" style={{ padding: 6 }}>
             {items.map((t) => {
@@ -64,9 +59,7 @@ export function TrashView({ snap, onChanged }: { snap: VaultSnapshot; onChanged:
               return (
                 <li key={t.id} className="row-flex" style={{ gap: 4, flexWrap: 'wrap' }}>
                   <div className="row" style={{ cursor: 'default', flex: 1, minWidth: 200 }}>
-                    <span className="row-icon">
-                      <CategoryIcon icon={cat?.icon} />
-                    </span>
+                    <EntryIcon entry={t} category={cat} />
                     <span className="row-main">
                       <span className="row-title" style={{ display: 'block' }}>
                         {t.title}

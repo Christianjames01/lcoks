@@ -20,7 +20,16 @@ export function useActivityReporter(enabled: boolean): void {
   }, [enabled]);
 }
 
-export type Hotkeys = Partial<Record<'mod+k' | 'mod+n' | 'mod+l' | 'mod+,' | 'mod+g', () => void>>;
+/** A handler returning `false` did not use the key, so the browser's default runs (e.g. normal Ctrl+C). */
+export type Hotkeys = Partial<Record<'mod+k' | 'mod+f' | 'mod+n' | 'mod+l' | 'mod+,' | 'mod+g' | 'mod+c' | 'mod+b', () => void | boolean>>;
+
+/** True while the user is typing in a field or has text selected — keep native shortcuts there. */
+export function isEditingText(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return true;
+  const sel = window.getSelection();
+  return !!sel && !sel.isCollapsed && sel.toString().length > 0;
+}
 
 /** Global keyboard shortcuts (Ctrl on Windows/Linux, Cmd on macOS). */
 export function useHotkeys(map: Hotkeys): void {
@@ -32,10 +41,7 @@ export function useHotkeys(map: Hotkeys): void {
       if (!mod || e.altKey || e.shiftKey) return;
       const k = `mod+${e.key.toLowerCase()}` as keyof Hotkeys;
       const fn = ref.current[k];
-      if (fn) {
-        e.preventDefault();
-        fn();
-      }
+      if (fn && fn() !== false) e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

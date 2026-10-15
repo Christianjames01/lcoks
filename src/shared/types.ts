@@ -121,6 +121,8 @@ export interface SecretMeta {
   strength?: number;
   /** Card network detected from a card number (e.g. "visa"); the number itself is never sent. */
   network?: string;
+  /** Password-type field whose value is also used by another item. */
+  reused?: boolean;
 }
 
 /**
@@ -152,6 +154,8 @@ export type Density = 'comfortable' | 'compact';
 export type SidebarMode = 'auto' | 'expanded' | 'collapsed';
 export type FavoriteSort = 'manual' | 'name' | 'updated';
 export type ThemeMode = 'system' | 'light' | 'dark';
+export type AccentColor = 'blue' | 'green' | 'purple' | 'orange' | 'pink';
+export const ACCENT_COLORS: readonly AccentColor[] = ['blue', 'green', 'purple', 'orange', 'pink'];
 /** Grace period before locking after the app is left: 0 = immediately, -1 = never. */
 export type BackgroundLockMinutes = 0 | 1 | 5 | 15 | 30 | -1;
 
@@ -179,6 +183,7 @@ export interface VaultSettings {
   backupDirectory: string | null;
   closeToTray: boolean;
   theme: ThemeMode;
+  accent: AccentColor;
   glass: boolean;
   backgroundLockMinutes: BackgroundLockMinutes;
   screenshotProtection: boolean;
@@ -203,6 +208,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   backupDirectory: null,
   closeToTray: false,
   theme: 'system',
+  accent: 'blue',
   glass: true,
   backgroundLockMinutes: 0,
   screenshotProtection: true,
@@ -236,6 +242,8 @@ export interface VaultStats {
   notes: number;
   favorites: number;
   weak: number;
+  /** Items with a password that another item also uses. */
+  reused: number;
   attachments: number;
 }
 

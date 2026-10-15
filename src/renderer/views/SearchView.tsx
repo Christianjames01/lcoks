@@ -3,15 +3,15 @@ import { useMemo, useState } from 'react';
 import { subtitleFor } from '../../shared/categories';
 import { searchEntries } from '../../shared/search';
 import type { VaultSnapshot } from '../../shared/types';
-import { BankIcon } from '../components/BankIcon';
-import { CategoryIcon } from '../components/Icon';
-import { brandOf, isCardCategory } from '../lib/cardSpec';
+import { EmptyState } from '../components/EmptyState';
+import { GestureRow } from '../components/EntryActions';
+import { EntryIcon } from '../components/EntryIcon';
 
 /**
  * Search screen (phone). Searches titles, usernames, websites, categories, notes
  * and tags — never secret values: they are not present in the item list at all.
  */
-export function SearchView({ snap, onOpen }: { snap: VaultSnapshot; onOpen: (id: string) => void }) {
+export function SearchView({ snap, onOpen }: { snap: VaultSnapshot; onOpen: (id: string, row?: Element | null) => void }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const results = useMemo(() => {
@@ -51,17 +51,24 @@ export function SearchView({ snap, onOpen }: { snap: VaultSnapshot; onOpen: (id:
         </div>
 
         {!query.trim() && !category ? (
-          <div className="empty">
-            <div className="empty-icon">
-              <Search size={20} aria-hidden />
-            </div>
-            <div className="muted small">Passwords, PINs and other secret values are never searched or shown in results.</div>
-          </div>
+          <EmptyState
+            art="search"
+            title="Search your vault"
+            text="Titles, usernames, websites, notes and tags. Passwords, PINs and other secret values are never searched or shown in results."
+          />
         ) : results.length === 0 ? (
-          <div className="empty">
-            <div className="h3">No matches</div>
-            <div className="muted small">Try another word, or clear the category filter.</div>
-          </div>
+          <EmptyState
+            art="search"
+            title="No matches"
+            text="Try another word, or clear the category filter."
+            action={
+              category ? (
+                <button type="button" className="btn sm" onClick={() => setCategory('')}>
+                  Clear filter
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
           <>
             <div className="muted small" aria-live="polite" style={{ margin: '4px 4px 8px' }}>
@@ -72,16 +79,11 @@ export function SearchView({ snap, onOpen }: { snap: VaultSnapshot; onOpen: (id:
                 const cat = snap.categories.find((c) => c.id === e.categoryId);
                 return (
                   <li key={e.id}>
-                    <button type="button" className="row" onClick={() => onOpen(e.id)}>
-                      {isCardCategory(e.categoryId) ? (
-                        <BankIcon bankName={brandOf(e)} title={e.title} />
-                      ) : (
-                        <span className="row-icon">
-                          <CategoryIcon icon={cat?.icon} />
-                        </span>
-                      )}
+                    <GestureRow entry={e} swipe>
+                    <button type="button" className="row" data-id={e.id} onClick={(ev) => onOpen(e.id, ev.currentTarget)}>
+                      <EntryIcon entry={e} category={cat} />
                       <span className="row-main">
-                        <span className="row-title" style={{ display: 'block' }}>
+                        <span className="row-title" data-vt="title" style={{ display: 'block' }}>
                           {e.title}
                         </span>
                         <span className="row-sub" style={{ display: 'block' }}>
@@ -90,6 +92,7 @@ export function SearchView({ snap, onOpen }: { snap: VaultSnapshot; onOpen: (id:
                         </span>
                       </span>
                     </button>
+                    </GestureRow>
                   </li>
                 );
               })}

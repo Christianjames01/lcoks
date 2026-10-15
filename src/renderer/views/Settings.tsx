@@ -26,7 +26,7 @@ import { PLAINTEXT_CONFIRM_PHRASE, type NotificationPermission } from '../../sha
 import { buildReminders, trackedDates } from '../../shared/expiry';
 import { estimateStrength } from '../../shared/strength';
 import { MAX_LENGTH, MIN_LENGTH } from '../../shared/generator';
-import type { BackupSummary, CategoryDef, CategoryIcon as IconName, DatabaseInfo, FieldDef, FieldType, StorageInfo, VaultSettings, VaultSnapshot } from '../../shared/types';
+import { ACCENT_COLORS, type AccentColor, type BackupSummary, type CategoryDef, type CategoryIcon as IconName, type DatabaseInfo, type FieldDef, type FieldType, type StorageInfo, type VaultSettings, type VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { CATEGORY_ICONS, CategoryIcon } from '../components/Icon';
 import { PasswordInput } from '../components/PasswordInput';
@@ -152,6 +152,36 @@ function Segmented<T extends string | number>({ label, value, options, onChange 
         <button key={String(v)} type="button" aria-pressed={value === v} onClick={() => onChange(v)}>
           {l}
         </button>
+      ))}
+    </div>
+  );
+}
+
+const ACCENT_NAMES: Record<AccentColor, string> = { blue: 'Blue', green: 'Green', purple: 'Purple', orange: 'Orange', pink: 'Pink' };
+
+function AccentPicker({ value, onChange }: { value: AccentColor; onChange: (v: AccentColor) => void }) {
+  return (
+    <div className="accent-picker" role="radiogroup" aria-label="Accent color">
+      {ACCENT_COLORS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          role="radio"
+          aria-checked={value === c}
+          aria-label={ACCENT_NAMES[c]}
+          title={ACCENT_NAMES[c]}
+          className={`accent-swatch sw-${c}`}
+          onClick={() => onChange(c)}
+          onKeyDown={(e) => {
+            const i = ACCENT_COLORS.indexOf(value);
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') onChange(ACCENT_COLORS[(i + 1) % ACCENT_COLORS.length]!);
+            else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') onChange(ACCENT_COLORS[(i - 1 + ACCENT_COLORS.length) % ACCENT_COLORS.length]!);
+            else return;
+            e.preventDefault();
+            requestAnimationFrame(() => (document.querySelector('.accent-swatch[aria-checked="true"]') as HTMLElement | null)?.focus());
+          }}
+          tabIndex={value === c ? 0 : -1}
+        />
       ))}
     </div>
   );
@@ -448,6 +478,9 @@ function AppearanceTab({ settings, update }: { settings: VaultSettings; update: 
           ]}
           onChange={(v) => update({ theme: v })}
         />
+      </Setting>
+      <Setting title="Accent color" desc="Buttons, highlights and selected items.">
+        <AccentPicker value={settings.accent} onChange={(v) => update({ accent: v })} />
       </Setting>
       <Setting title="Glass effect" desc="Translucent, blurred surfaces. Turn off for solid surfaces (also faster on older phones)." htmlFor="s-glass">
         <input id="s-glass" type="checkbox" className="switch" checked={settings.glass} onChange={(e) => update({ glass: e.target.checked })} />
@@ -1355,7 +1388,10 @@ function AboutTab({ version }: { version: string }) {
           {!isPhone() && (
             <>
               <dt>Keyboard shortcuts</dt>
-              <dd>Ctrl+K search · Ctrl+N new item · Ctrl+L lock · Ctrl+G generator · Ctrl+, settings · Esc close</dd>
+              <dd>
+                Ctrl+F or Ctrl+K search · Ctrl+N new item · Ctrl+C copy password · Ctrl+B copy username · Ctrl+L lock · Ctrl+G generator · Ctrl+, settings ·
+                Esc close · right-click an item for more
+              </dd>
             </>
           )}
           {isPhone() && (
@@ -1365,6 +1401,8 @@ function AboutTab({ version }: { version: string }) {
                 Vault and attachments live in app-private storage, excluded from cloud backup. Quick unlock keys are kept in the hardware-backed Android Keystore or iPhone
                 Keychain. Screenshots are blocked on Android (configurable); on iPhone the app is hidden in the app switcher. Copied secrets are marked sensitive and cleared automatically.
               </dd>
+              <dt>Gestures</dt>
+              <dd>Swipe an item right to copy its password, left for Favorite and Delete. Long-press an item for all actions.</dd>
             </>
           )}
         </dl>

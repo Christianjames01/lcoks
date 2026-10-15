@@ -36,6 +36,8 @@ export interface VaultApi {
     suspendAutoLock(on: boolean): void;
     /** Match the system bars / window title bar to the light or dark theme. */
     setAppearance(dark: boolean): void;
+    /** Short vibration on phones (no-op on desktop). */
+    haptic(kind: HapticKind): void;
   };
   auth: {
     create(password: string, hint: string | null): Promise<Result<void>>;
@@ -138,6 +140,9 @@ export interface QuickUnlockStatus {
   pin: boolean;
   pinAttemptsLeft: number;
 }
+
+/** tap: light tick (long-press, swipe); success: copy / unlock; warning: delete. */
+export type HapticKind = 'tap' | 'success' | 'warning';
 
 export type NotificationPermission = 'granted' | 'denied' | 'prompt' | 'unsupported';
 

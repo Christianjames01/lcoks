@@ -1,4 +1,4 @@
-import { ArrowLeft, CircleAlert, FolderOpen, Info, Lock, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, CircleAlert, FolderOpen, Info, Lock, LockOpen, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import type { QuickUnlockStatus } from '../../shared/api';
 import { estimateStrength } from '../../shared/strength';
@@ -10,7 +10,9 @@ import { QuickUnlockPanel } from './QuickUnlockPanel';
 function Logo() {
   return (
     <div className="auth-logo" aria-hidden>
-      <Lock size={28} strokeWidth={1.6} />
+      {/* The open lock replaces the closed one while the vault unlocks (see App). */}
+      <Lock className="lk-closed" size={28} strokeWidth={1.6} />
+      <LockOpen className="lk-open" size={28} strokeWidth={1.6} />
     </div>
   );
 }

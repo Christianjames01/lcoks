@@ -4,6 +4,7 @@
 
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../shared/categories';
 import {
+  ACCENT_COLORS,
   DEFAULT_SETTINGS,
   type AttachmentMeta,
   type AutoLockMinutes,
@@ -186,6 +187,7 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
           : base.backupDirectory,
     closeToTray: typeof s.closeToTray === 'boolean' ? s.closeToTray : base.closeToTray,
     theme: pick(s.theme, ['system', 'light', 'dark'] as const, base.theme),
+    accent: pick(s.accent, ACCENT_COLORS, base.accent),
     glass: typeof s.glass === 'boolean' ? s.glass : base.glass,
     // Older vaults only had "lock when minimized": map it to immediately / never.
     backgroundLockMinutes: pick<BackgroundLockMinutes>(

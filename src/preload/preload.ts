@@ -18,7 +18,8 @@ const api: VaultApi = {
     readClipboardText: call('app.readClipboard') as VaultApi['app']['readClipboardText'],
     takeSharedText: async () => null,
     suspendAutoLock: () => undefined,
-    setAppearance: (dark: boolean) => ipcRenderer.send('app.appearance', dark === true)
+    setAppearance: (dark: boolean) => ipcRenderer.send('app.appearance', dark === true),
+    haptic: () => undefined
   },
   auth: {
     create: call('auth.create') as VaultApi['auth']['create'],

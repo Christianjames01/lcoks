@@ -6,6 +6,7 @@
 import { App } from '@capacitor/app';
 import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { AppLauncher } from '@capacitor/app-launcher';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
 import { PLAINTEXT_CONFIRM_PHRASE, type QuickUnlockStatus, type VaultApi } from '../shared/api';
@@ -207,6 +208,13 @@ export function createMobileApi(native: NativeVault): VaultApi {
       },
       setAppearance(dark: boolean) {
         void SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => undefined);
+      },
+      haptic(kind) {
+        const p =
+          kind === 'tap'
+            ? Haptics.impact({ style: ImpactStyle.Light })
+            : Haptics.notification({ type: kind === 'success' ? NotificationType.Success : NotificationType.Warning });
+        void p.catch(() => undefined);
       },
       reportActivity() {
         lastActivity = Date.now();

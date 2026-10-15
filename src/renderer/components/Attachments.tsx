@@ -55,10 +55,12 @@ interface Props {
   cardRoles: boolean;
   hidePreviews: boolean;
   onChanged: () => Promise<void> | void;
+  /** How many attachments the item has: placeholders are shown while they decrypt. */
+  expected?: number;
 }
 
 /** Attachments of a saved item: grid, add, view, export, delete. */
-export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged }: Props) {
+export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged, expected }: Props) {
   const [items, setItems] = useState<AttachmentMeta[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -133,9 +135,21 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
         </button>
       </div>
       {items === null ? (
-        <div className="att-empty">
-          <span className="spinner" aria-label="Loading attachments" />
-        </div>
+        expected === 0 ? (
+          <div className="att-empty">No attachments. Add photos of documents, PDFs or other files.</div>
+        ) : (
+          <div className="att-grid" aria-busy="true" aria-label="Loading attachments">
+            {Array.from({ length: Math.min(6, expected ?? 1) }, (_, i) => (
+              <div key={i} className="att-tile skeleton-tile" aria-hidden>
+                <span className="att-thumb skeleton" />
+                <span className="att-meta">
+                  <span className="skeleton skeleton-line" style={{ width: '70%' }} />
+                  <span className="skeleton skeleton-line" style={{ width: '40%' }} />
+                </span>
+              </div>
+            ))}
+          </div>
+        )
       ) : items.length === 0 ? (
         <div className="att-empty">No attachments. Add photos of documents, PDFs or other files.</div>
       ) : (
@@ -644,7 +658,7 @@ export function ImageViewer({
             {error}
           </div>
         ) : (
-          <span className="spinner" aria-label="Decrypting image" />
+          <span className="skeleton viewer-skeleton" role="status" aria-label="Decrypting image" />
         )}
       </div>
 

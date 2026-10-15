@@ -2,19 +2,22 @@ import { Archive, CalendarClock, ChevronRight, CopyCheck, Copy, KeyRound, Plus, 
 import { useEffect, useMemo, useState } from 'react';
 import { subtitleFor } from '../../shared/categories';
 import { describeUpcoming, upcomingDates } from '../../shared/expiry';
+import { securityReport } from '../../shared/security';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
-import { BankIcon } from '../components/BankIcon';
+import { EmptyState } from '../components/EmptyState';
+import { GestureRow, useEntryActions } from '../components/EntryActions';
+import { EntryIcon } from '../components/EntryIcon';
 import { CategoryIcon } from '../components/Icon';
-import { useToast } from '../components/Toast';
-import { api, errorMessage, unwrap } from '../lib/api';
-import { brandOf, isCardCategory } from '../lib/cardSpec';
+import { api } from '../lib/api';
 import { daysSince, greeting, relativeTime } from '../lib/format';
+import { useRecentlyUsed } from '../lib/recent';
+import { ScoreRing } from './SecurityView';
 import type { Route } from './VaultApp';
 
 interface Props {
   snap: VaultSnapshot;
   mobile: boolean;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, row?: Element | null) => void;
   onNavigate: (r: Route) => void;
   onNew: (categoryId?: string) => void;
   onSearch: () => void;
@@ -34,7 +37,8 @@ const QUICK_ADD: [string, string][] = [
 type Health = 'ok' | 'warn' | 'bad';
 
 export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, onImport }: Props) {
-  const toast = useToast();
+  const actions = useEntryActions();
+  const used = useRecentlyUsed();
   const [dupCount, setDupCount] = useState<number | null>(null);
   const { settings, meta, stats } = snap;
 
@@ -48,6 +52,16 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
   }, [snap]);
 
   const recent = useMemo(() => [...snap.entries].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6), [snap.entries]);
+  const recentlyUsed = useMemo(
+    () =>
+      snap.entries
+        .filter((e) => used[e.id])
+        .sort((a, b) => used[b.id]! - used[a.id]!)
+        .slice(0, 5),
+    [snap.entries, used]
+  );
+  const report = useMemo(() => securityReport(snap.entries, meta, settings.backupReminderDays), [snap.entries, meta, settings.backupReminderDays]);
+  const pwIssues = report.issues.filter((i) => i.id !== 'backup');
   const favorites = useMemo(() => snap.entries.filter((e) => e.favorite).sort((a, b) => a.favoriteOrder - b.favoriteOrder).slice(0, 4), [snap.entries]);
   const upcoming = useMemo(() => upcomingDates(snap.entries, undefined, 30, snap.categories).slice(0, 5), [snap.entries, snap.categories]);
 
@@ -60,49 +74,38 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
         ? 'Auto-lock is off'
         : `Auto-locks after ${settings.autoLockMinutes} min of inactivity`;
 
-  const copySecret = async (e: EntryView) => {
-    const key = e.secrets.password?.set ? 'password' : Object.keys(e.secrets).find((k) => e.secrets[k]?.set);
-    if (!key) return;
-    try {
-      const { seconds } = await unwrap(api.vault.copyField(e.id, key));
-      toast(`Copied. Clipboard clears in ${seconds}s.`);
-    } catch (err) {
-      toast(errorMessage(err), 'error');
-    }
-  };
-
-  const row = (e: EntryView) => {
+  /** when: what the time in the subtitle means (last update, or last use on this device). */
+  const row = (e: EntryView, when: 'updated' | 'used' = 'updated') => {
     const cat = snap.categories.find((c) => c.id === e.categoryId);
     const hasSecret = Object.values(e.secrets).some((s) => s.set);
+    const time = when === 'used' && used[e.id] ? `used ${relativeTime(new Date(used[e.id]!).toISOString())}` : relativeTime(e.updatedAt);
     return (
-      <li key={e.id} className="row-flex" style={{ gap: 4 }}>
-        <button type="button" className="row" onClick={() => onOpen(e.id)}>
-          {isCardCategory(e.categoryId) ? (
-            <BankIcon bankName={brandOf(e)} title={e.title} />
-          ) : (
-            <span className="row-icon">
-              <CategoryIcon icon={cat?.icon} />
-            </span>
-          )}
-          <span className="row-main">
-            <span className="row-title" style={{ display: 'block' }}>
-              {e.title}
-            </span>
-            <span className="row-sub" style={{ display: 'block' }}>
-              {subtitleFor(cat, e.fields) || cat?.name} · {relativeTime(e.updatedAt)}
-            </span>
-          </span>
-          {e.favorite && (
-            <span className="row-end">
-              <Star size={13} className="star" fill="currentColor" aria-label="Favorite" />
-            </span>
-          )}
-        </button>
-        {hasSecret && (
-          <button type="button" className="icon-btn" onClick={() => copySecret(e)} aria-label={`Copy secret for ${e.title}`} title="Copy password">
-            <Copy size={16} />
-          </button>
-        )}
+      <li key={e.id}>
+        <GestureRow entry={e} swipe={mobile}>
+          <div className="row-flex" style={{ gap: 4 }}>
+            <button type="button" className="row" data-id={e.id} onClick={(ev) => onOpen(e.id, ev.currentTarget)}>
+              <EntryIcon entry={e} category={cat} />
+              <span className="row-main">
+                <span className="row-title" data-vt="title" style={{ display: 'block' }}>
+                  {e.title}
+                </span>
+                <span className="row-sub" style={{ display: 'block' }}>
+                  {subtitleFor(cat, e.fields) || cat?.name} · {time}
+                </span>
+              </span>
+              {e.favorite && (
+                <span className="row-end">
+                  <Star size={13} className="star" fill="currentColor" aria-label="Favorite" />
+                </span>
+              )}
+            </button>
+            {hasSecret && actions && (
+              <button type="button" className="icon-btn" onClick={() => void actions.copyPassword(e)} aria-label={`Copy secret for ${e.title}`} title="Copy password">
+                <Copy size={16} />
+              </button>
+            )}
+          </div>
+        </GestureRow>
       </li>
     );
   };
@@ -139,9 +142,13 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
     <div className="page">
       <div className="page-narrow">
         <section className="card hero" aria-label="Vault status">
-          <span className="hero-icon" aria-hidden>
-            <ShieldCheck size={28} />
-          </span>
+          {report.score === null ? (
+            <span className="hero-icon" aria-hidden>
+              <ShieldCheck size={28} />
+            </span>
+          ) : (
+            <ScoreRing report={report} size={56} onClick={() => onNavigate({ view: 'security' })} />
+          )}
           <div className="grow">
             {!mobile && <div className="muted small">{greeting()}</div>}
             <h2 className="h2" style={{ margin: 0 }}>
@@ -150,6 +157,12 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
             <div className="muted small">
               {stats.total} item{stats.total === 1 ? '' : 's'} · AES-256 encrypted · {lockText}
             </div>
+            {report.score !== null && (
+              <button type="button" className="linkish small hero-score" onClick={() => onNavigate({ view: 'security' })}>
+                Security score {report.score} · {report.label}
+                {report.issues.length ? ` · ${report.issues.length} thing${report.issues.length === 1 ? '' : 's'} to fix` : ''}
+              </button>
+            )}
           </div>
         </section>
 
@@ -196,21 +209,22 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
         </div>
 
         {stats.total === 0 ? (
-          <div className="card empty" style={{ marginBottom: 20 }}>
-            <div className="empty-icon">
-              <Plus size={20} aria-hidden />
-            </div>
-            <div className="h3">Your vault is empty</div>
-            <div className="muted small">Add passwords, bank accounts, cards, IDs, documents and secure notes.</div>
-            <div className="row-flex" style={{ marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <button type="button" className="btn primary" onClick={() => onNew()}>
-                <Plus size={15} aria-hidden /> Add your first item
-              </button>
-              <button type="button" className="btn" onClick={onImport}>
-                <Upload size={15} aria-hidden /> Import notes
-              </button>
-            </div>
-          </div>
+          <EmptyState
+            card
+            art="vault"
+            title="Your vault is empty"
+            text="Add passwords, bank accounts, cards, IDs, documents and secure notes. Everything is encrypted on this device."
+            action={
+              <>
+                <button type="button" className="btn primary" onClick={() => onNew()}>
+                  <Plus size={15} aria-hidden /> Add your first item
+                </button>
+                <button type="button" className="btn" onClick={onImport}>
+                  <Upload size={15} aria-hidden /> Import notes
+                </button>
+              </>
+            }
+          />
         ) : (
           <>
             <div className="section-title">
@@ -218,12 +232,12 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
             </div>
             <ul className="card health" aria-label="Security status">
               {health(
-                'weak',
-                stats.weak > 0 ? 'warn' : 'ok',
-                stats.weak > 0 ? <ShieldAlert size={17} /> : <KeyRound size={17} />,
-                'Password strength',
-                stats.weak > 0 ? `${stats.weak} weak password${stats.weak === 1 ? '' : 's'}` : 'No weak passwords',
-                () => onNavigate({ view: 'items', filter: stats.weak > 0 ? 'weak' : 'all' })
+                'passwords',
+                pwIssues.some((i) => i.severity === 'bad') ? 'bad' : pwIssues.length ? 'warn' : 'ok',
+                pwIssues.length ? <ShieldAlert size={17} /> : <KeyRound size={17} />,
+                'Passwords',
+                pwIssues.length ? pwIssues.map((i) => i.title).join(' · ') : 'No weak, reused or old passwords',
+                () => onNavigate({ view: 'security' })
               )}
               {health(
                 'dups',
@@ -268,7 +282,18 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
               </button>
             </div>
             <ul className="list card" style={{ padding: 6 }}>
-              {favorites.map(row)}
+              {favorites.map((e) => row(e))}
+            </ul>
+          </>
+        )}
+
+        {recentlyUsed.length > 0 && (
+          <>
+            <div className="section-title">
+              <span className="label">Recently used</span>
+            </div>
+            <ul className="list card" style={{ padding: 6 }}>
+              {recentlyUsed.map((e) => row(e, 'used'))}
             </ul>
           </>
         )}
@@ -282,7 +307,7 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
               </button>
             </div>
             <ul className="list card" style={{ padding: 6 }}>
-              {recent.map(row)}
+              {recent.map((e) => row(e))}
             </ul>
           </>
         )}

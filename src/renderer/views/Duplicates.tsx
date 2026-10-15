@@ -1,7 +1,8 @@
-import { CircleCheck, CopyCheck, ExternalLink, Merge, Trash2 } from 'lucide-react';
+import { CopyCheck, ExternalLink, Merge, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { DuplicateGroup, EntryView, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog } from '../components/Dialog';
+import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { formatDate } from '../lib/format';
@@ -60,13 +61,7 @@ export function DuplicatesView({ snap, onChanged, onOpen }: { snap: VaultSnapsho
           </div>
         )}
         {groups && groups.length === 0 && (
-          <div className="card empty">
-            <div className="empty-icon">
-              <CircleCheck size={20} aria-hidden />
-            </div>
-            <div className="h3">No duplicates found</div>
-            <div className="muted small">Your vault has no items that look like copies of each other.</div>
-          </div>
+          <EmptyState card art="secure" title="No duplicates found" text="Your vault has no items that look like copies of each other." />
         )}
         {groups?.map((g) => (
           <DuplicateCard
