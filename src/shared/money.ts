@@ -38,7 +38,42 @@ export interface MoneyAccount {
   opening: number;
 }
 
-export type AccountKind = 'cash' | 'ewallet' | 'bank' | 'other';
+export type AccountKind = 'cash' | 'ewallet' | 'bank' | 'credit' | 'other';
+
+/** Display order of account groups (wallets page, pickers). */
+export const ACCOUNT_KIND_ORDER: readonly AccountKind[] = ['cash', 'ewallet', 'bank', 'credit', 'other'];
+
+/** Card colour for an account: familiar colours for common PH banks / e-wallets, else one picked from the name. */
+export function accountColor(a: Pick<MoneyAccount, 'name' | 'kind'>): { bg: string; fg: string } {
+  const n = a.name.toLowerCase();
+  const known: [RegExp, string, string?][] = [
+    [/gcash/, '#0a5bd6'],
+    [/maya|paymaya/, '#0f9d58'],
+    [/bdo/, '#0b3a8c'],
+    [/bpi/, '#c8102e'],
+    [/metrobank|metro bank/, '#1c3f94'],
+    [/landbank|land bank/, '#00843d'],
+    [/union ?bank/, '#f47920'],
+    [/security ?bank/, '#0097d7'],
+    [/rcbc/, '#0b63b5'],
+    [/china ?bank/, '#b5121b'],
+    [/pnb/, '#1f3c88'],
+    [/seabank|sea bank/, '#ff6a13'],
+    [/gotyme/, '#5b3cc4'],
+    [/cimb/, '#9e1b32'],
+    [/shopee/, '#ee4d2d'],
+    [/grab ?pay/, '#00a84f'],
+    [/coins/, '#1a73e8'],
+    [/wise/, '#9fe870', '#0e2a0e'],
+    [/paypal/, '#003087']
+  ];
+  for (const [re, bg, fg] of known) if (re.test(n)) return { bg, fg: fg ?? '#ffffff' };
+  if (a.kind === 'cash') return { bg: '#2e7d32', fg: '#ffffff' };
+  const palette = ['#e53935', '#8e24aa', '#3949ab', '#00897b', '#f4511e', '#6d4c41', '#d81b60', '#5e35b1', '#039be5', '#43a047'];
+  let h = 0;
+  for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return { bg: palette[h % palette.length]!, fg: '#ffffff' };
+}
 
 export const DEFAULT_ACCOUNTS: readonly MoneyAccount[] = [
   { id: 'cash', name: 'Cash', kind: 'cash', opening: 0 },

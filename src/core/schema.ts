@@ -365,7 +365,7 @@ export function validateTransactionInput(input: unknown): TransactionInput {
   return { id, kind, amount: i.amount as number, category, note: str(i.note, 'note', LIMITS.title).trim(), date: i.date, ...(accountId ? { accountId } : {}) };
 }
 
-const ACCOUNT_KINDS: AccountKind[] = ['cash', 'ewallet', 'bank', 'other'];
+const ACCOUNT_KINDS: AccountKind[] = ['cash', 'ewallet', 'bank', 'credit', 'other'];
 
 /** A money account (Cash, GCash…). `id` is optional for a new one. */
 export function validateAccountInput(input: unknown): Omit<MoneyAccount, 'id'> & { id?: string } {

@@ -1,6 +1,9 @@
 import {
   Banknote,
   BookOpen,
+  CreditCard,
+  Search,
+  X,
   Briefcase,
   CalendarDays,
   Car,
@@ -42,6 +45,8 @@ import {
   parseDay,
   parseQuick,
   totals,
+  ACCOUNT_KIND_ORDER,
+  accountColor,
   balances,
   type AccountKind,
   type MoneyAccount,
@@ -151,6 +156,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   const accountBalances = useMemo(() => balances(snap.accounts, snap.transactions), [snap.accounts, snap.transactions]);
   const [managing, setManaging] = useState(false);
   const [viewingAccount, setViewingAccount] = useState<string | null>(null);
+  const delTx = useDeleteTx(onChanged);
 
   const goMonth = (delta: number) => {
     const next = addMonths(month, delta);
@@ -266,24 +272,6 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
           )}
         </section>
 
-        <section className="acct-strip" aria-label="Accounts">
-          {snap.accounts.map((a) => (
-            <button key={a.id} type="button" className={`acct-card kind-${a.kind}`} onClick={() => setViewingAccount(a.id)} title={`Open ${a.name}`}>
-              <span className="acct-icon">
-                <AccountIcon kind={a.kind} />
-              </span>
-              <span className="acct-name">{a.name}</span>
-              <span className="acct-bal">{money(accountBalances.get(a.id) ?? 0, { compact: mobile })}</span>
-            </button>
-          ))}
-          <button type="button" className="acct-card add" onClick={() => setManaging(true)}>
-            <span className="acct-icon">
-              <Plus size={16} aria-hidden />
-            </span>
-            <span className="acct-name">{snap.accounts.length ? 'Manage' : 'Add account'}</span>
-          </button>
-        </section>
-
         <form className="quick-entry" onSubmit={addQuick}>
           <input
             className="input"
@@ -364,7 +352,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
               <ul className="tx-list">
                 {dayList.map((t) => (
                   <li key={t.id}>
-                    <TxRow tx={t} money={money} account={snap.accounts.find((a) => a.id === t.accountId)?.name} onOpen={() => setEditing({ tx: t, date: t.date, kind: t.kind })} />
+                    <TxRow tx={t} money={money} account={snap.accounts.find((a) => a.id === t.accountId)?.name} onOpen={() => setEditing({ tx: t, date: t.date, kind: t.kind })} onDelete={delTx.ask} />
                   </li>
                 ))}
               </ul>
@@ -399,6 +387,13 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
             ))}
           </ul>
         )}
+        <WalletsSection
+          accounts={snap.accounts}
+          balances={accountBalances}
+          money={money}
+          onOpen={setViewingAccount}
+          onAdd={() => setManaging(true)}
+        />
       </div>
 
       {editing && (
@@ -452,6 +447,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
           onChanged={onChanged}
         />
       )}
+      {delTx.dialog}
       {setup && <MoneySetup currency={currency} budget={monthlyBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
     </div>
   );
@@ -533,9 +529,21 @@ function Calendar({
 
 // ---------------------------------------------------------------- rows ---
 
-function TxRow({ tx, money, account, onOpen }: { tx: Transaction; money: (v: number, o?: { sign?: boolean }) => string; account?: string; onOpen: () => void }) {
+function TxRow({
+  tx,
+  money,
+  account,
+  onOpen,
+  onDelete
+}: {
+  tx: Transaction;
+  money: (v: number, o?: { sign?: boolean }) => string;
+  account?: string;
+  onOpen: () => void;
+  onDelete?: (t: Transaction) => void;
+}) {
   const cat = moneyCategory(tx.category);
-  return (
+  const row = (
     <button type="button" className={`tx-row ${tx.kind}`} onClick={onOpen}>
       <span className="tx-icon">
         <MoneyIconFor category={tx.category} />
@@ -552,6 +560,42 @@ function TxRow({ tx, money, account, onOpen }: { tx: Transaction; money: (v: num
       <span className="tx-amount">{tx.kind === 'income' ? `+${money(tx.amount)}` : `−${money(tx.amount)}`}</span>
     </button>
   );
+  if (!onDelete) return row;
+  return (
+    <div className="tx-line">
+      {row}
+      <button type="button" className="icon-btn tx-del" onClick={() => onDelete(tx)} aria-label={`Delete ${tx.note || cat.name}`} title="Delete">
+        <Trash size={15} />
+      </button>
+    </div>
+  );
+}
+
+/** Confirm, then delete one expense / cash-in record. */
+function useDeleteTx(onChanged: () => Promise<void>) {
+  const [target, setTarget] = useState<Transaction | null>(null);
+  const toast = useToast();
+  const dialog = target && (
+    <ConfirmDialog
+      title={target.kind === 'income' ? 'Delete this cash in?' : 'Delete this expense?'}
+      danger
+      confirmLabel="Delete"
+      message={`${target.note || moneyCategory(target.category).name} will be deleted and the account balance updated.`}
+      onCancel={() => setTarget(null)}
+      onConfirm={async () => {
+        try {
+          await unwrap(api.vault.deleteTransaction(target.id));
+          api.app.haptic('warning');
+          await onChanged();
+          setTarget(null);
+          toast('Deleted.');
+        } catch (err) {
+          toast(errorMessage(err), 'error');
+        }
+      }}
+    />
+  );
+  return { ask: setTarget, dialog };
 }
 
 // ---------------------------------------------------------------- editor --
@@ -685,6 +729,7 @@ function TxEditor({
                     role="radio"
                     aria-checked={accountId === a.id}
                     className={`pick-card kind-${a.kind}`}
+                    style={cardStyle(a)}
                     onClick={() => setAccountId(accountId === a.id ? undefined : a.id)}
                   >
                     <span className="pick-top">
@@ -1035,11 +1080,12 @@ function Segmented<T extends string | number>({ label, value, options, onChange 
 
 // --------------------------------------------------------------- accounts --
 
-const ACCOUNT_ICONS: Record<AccountKind, LucideIcon> = { cash: Banknote, ewallet: Smartphone, bank: Landmark, other: Wallet };
+const ACCOUNT_ICONS: Record<AccountKind, LucideIcon> = { cash: Banknote, ewallet: Smartphone, bank: Landmark, credit: CreditCard, other: Wallet };
 const ACCOUNT_KIND_NAMES: [AccountKind, string][] = [
   ['cash', 'Cash'],
   ['ewallet', 'E-wallet'],
   ['bank', 'Bank'],
+  ['credit', 'Credit card'],
   ['other', 'Other']
 ];
 
@@ -1176,7 +1222,8 @@ function AccountEditor({
     if (minor === null) return setError('Enter a valid starting balance.');
     setBusy(true);
     try {
-      await unwrap(api.vault.saveAccount({ id: account?.id, name: name.trim(), kind, opening: negative ? -minor : minor }));
+      // A credit card's balance is what you owe: stored as a negative balance.
+      await unwrap(api.vault.saveAccount({ id: account?.id, name: name.trim(), kind, opening: kind === 'credit' || negative ? -minor : minor }));
       await onSaved();
     } catch (err) {
       setError(errorMessage(err));
@@ -1227,11 +1274,13 @@ function AccountEditor({
           </div>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="acc-open">Starting balance ({currency})</label>
+          <label htmlFor="acc-open">{kind === 'credit' ? `Amount owed now (${currency})` : `Starting balance (${currency})`}</label>
           <input id="acc-open" className="input" inputMode="decimal" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0" autoComplete="off" />
-          <label className="checkbox" style={{ marginTop: 8 }}>
-            <input type="checkbox" checked={negative} onChange={(e) => setNegative(e.target.checked)} /> It's a debt (e.g. credit card balance)
-          </label>
+          {kind !== 'credit' && (
+            <label className="checkbox" style={{ marginTop: 8 }}>
+              <input type="checkbox" checked={negative} onChange={(e) => setNegative(e.target.checked)} /> It's a debt (money owed)
+            </label>
+          )}
           {error ? <div className="error-text">{error}</div> : <div className="help-text">How much was in it before you started tracking.</div>}
         </div>
         <button type="submit" hidden />
@@ -1266,6 +1315,7 @@ function AccountPage({
 }) {
   const [editingAccount, setEditingAccount] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const delTx = useDeleteTx(onChanged);
   const toast = useToast();
   const list = useMemo(() => [...transactions].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [transactions]);
   const sums = useMemo(() => totals(transactions), [transactions]);
@@ -1273,7 +1323,7 @@ function AccountPage({
   return (
     <>
       <Dialog title={account.name} subtitle={ACCOUNT_KIND_NAMES.find(([k]) => k === account.kind)?.[1]} onClose={onClose}>
-        <div className={`money-card kind-${account.kind}`}>
+        <div className={`money-card kind-${account.kind}`} style={cardStyle(account)}>
           <div className="mc-top">
             <span className="mc-icon">
               <AccountIcon kind={account.kind} size={18} />
@@ -1312,12 +1362,13 @@ function AccountPage({
             {list.map((t, i) => (
               <li key={t.id}>
                 {(i === 0 || list[i - 1]!.date !== t.date) && <div className="tx-day">{dayLabel(t.date)}</div>}
-                <TxRow tx={t} money={money} onOpen={() => onOpenTx(t)} />
+                <TxRow tx={t} money={money} onOpen={() => onOpenTx(t)} onDelete={delTx.ask} />
               </li>
             ))}
           </ul>
         )}
       </Dialog>
+      {delTx.dialog}
       {editingAccount && (
         <AccountEditor
           account={account}
@@ -1351,5 +1402,133 @@ function AccountPage({
         />
       )}
     </>
+  );
+}
+
+// ----------------------------------------------------------------- wallets --
+
+/** Colour of an account's card (background + readable text on it). */
+function cardStyle(a: Pick<MoneyAccount, 'name' | 'kind'>): React.CSSProperties {
+  const c = accountColor(a);
+  return { ['--card-bg' as string]: c.bg, ['--card-fg' as string]: c.fg };
+}
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('') || '?';
+
+const KIND_GROUP: Record<AccountKind, string> = { cash: 'Cash', ewallet: 'E-wallets', bank: 'Bank accounts', credit: 'Credit cards', other: 'Other' };
+
+/**
+ * All accounts as colourful cards, Tarsi-style: net worth, filter chips, search,
+ * one 2-column grid per kind with its total. Tap a card to open its page.
+ */
+function WalletsSection({
+  accounts,
+  balances: bal,
+  money,
+  onOpen,
+  onAdd
+}: {
+  accounts: MoneyAccount[];
+  balances: Map<string, number>;
+  money: (v: number, o?: { sign?: boolean; compact?: boolean }) => string;
+  onOpen: (id: string) => void;
+  onAdd: () => void;
+}) {
+  const [filter, setFilter] = useState<AccountKind | 'all'>('all');
+  const [q, setQ] = useState('');
+  const kinds = ACCOUNT_KIND_ORDER.filter((k) => accounts.some((a) => a.kind === k));
+  const assets = accounts.reduce((n, a) => n + Math.max(0, bal.get(a.id) ?? 0), 0);
+  const debts = accounts.reduce((n, a) => n + Math.min(0, bal.get(a.id) ?? 0), 0);
+  const query = q.trim().toLowerCase();
+  const shown = accounts.filter((a) => (filter === 'all' || a.kind === filter) && (!query || a.name.toLowerCase().includes(query) || KIND_GROUP[a.kind].toLowerCase().includes(query)));
+
+  return (
+    <section className="wallets" aria-label="Wallets and balances">
+      <div className="section-title">
+        <span className="label">Wallets & balances</span>
+        <button type="button" className="linkish" onClick={onAdd}>
+          Manage
+        </button>
+      </div>
+
+      <div className="networth">
+        <div className="nw-label">Net worth</div>
+        <div className={`nw-value ${assets + debts < 0 ? 'neg' : ''}`}>{money(assets + debts)}</div>
+        <div className="nw-sub">
+          <span className="mc-in">Assets {money(assets)}</span>
+          {debts < 0 && <span className="mc-out">Owed {money(-debts)}</span>}
+          <span className="dim">
+            {accounts.length} account{accounts.length === 1 ? '' : 's'}
+          </span>
+        </div>
+      </div>
+
+      <div className="wallet-tools">
+        <div className="wallet-search">
+          <Search size={15} aria-hidden />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search GCash, BDO, Maya…" aria-label="Search accounts" autoComplete="off" />
+          {q && (
+            <button type="button" className="icon-btn" onClick={() => setQ('')} aria-label="Clear search">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        <div className="tag-chips" role="group" aria-label="Show">
+          <button type="button" className="tchip" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+            All
+          </button>
+          {kinds.map((k) => (
+            <button key={k} type="button" className="tchip" aria-pressed={filter === k} onClick={() => setFilter(k)}>
+              {KIND_GROUP[k]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {shown.length === 0 ? (
+        <div className="day-empty">{accounts.length ? `No account matches “${q}”.` : 'No accounts yet.'}</div>
+      ) : (
+        ACCOUNT_KIND_ORDER.filter((k) => shown.some((a) => a.kind === k)).map((k, gi, groups) => {
+          const group = shown.filter((a) => a.kind === k);
+          const total = group.reduce((n, a) => n + (bal.get(a.id) ?? 0), 0);
+          return (
+            <div key={k} className="wallet-group">
+              <div className="wg-head">
+                <span>{KIND_GROUP[k]}</span>
+                <span className={total < 0 ? 'mc-out' : ''}>{money(total)}</span>
+              </div>
+              <div className="wallet-grid">
+                {group.map((a) => {
+                  const b = bal.get(a.id) ?? 0;
+                  return (
+                    <button key={a.id} type="button" className="wallet-card" style={cardStyle(a)} onClick={() => onOpen(a.id)} aria-label={`${a.name}, balance ${money(b)}`}>
+                      <span className="wc-top">
+                        <span className="wc-badge">{initials(a.name)}</span>
+                        <span className="wc-name">{a.name}</span>
+                      </span>
+                      <span className="wc-kind">{a.kind === 'credit' ? 'Credit card · owed' : ACCOUNT_KIND_NAMES.find(([x]) => x === a.kind)?.[1]}</span>
+                      <span className="wc-label">{a.kind === 'credit' ? 'Balance owed' : 'Balance'}</span>
+                      <span className="wc-amount">{a.kind === 'credit' ? money(Math.abs(b)) : money(b)}</span>
+                    </button>
+                  );
+                })}
+                {gi === groups.length - 1 && (
+                  <button type="button" className="wallet-card add" onClick={onAdd}>
+                    <Plus size={18} aria-hidden />
+                    <span>Add account</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </section>
   );
 }

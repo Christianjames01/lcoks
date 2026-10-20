@@ -375,8 +375,7 @@ public class QuickAddActivity extends Activity {
                 JSONObject a = list.optJSONObject(i);
                 if (a == null) continue;
                 accounts.add(a);
-                Long bal = balanceOf(a);
-                TextView c = chip(a.optString("name", "Account") + (bal != null ? "  " + money(bal) : ""));
+                TextView c = accountCard(a);
                 c.setTag(a.optString("id"));
                 c.setOnClickListener(v -> setAccount((String) v.getTag()));
                 accountChips.add(c);
@@ -456,11 +455,59 @@ public class QuickAddActivity extends Activity {
         }
     }
 
+    /** Small coloured card for an account (its colour from the app): name, and balance if shown. */
+    private TextView accountCard(JSONObject a) {
+        Long bal = balanceOf(a);
+        boolean credit = "credit".equals(a.optString("kind"));
+        String body = a.optString("name", "Account") + "\n" + (bal != null ? money(credit ? Math.abs(bal) : bal) + (credit ? " owed" : "") : kindName(a.optString("kind")));
+        TextView t = text(body, 12, Color.WHITE, true);
+        t.setLineSpacing(dp(2), 1f);
+        t.setPadding(dp(12), dp(8), dp(14), dp(8));
+        t.setMinWidth(dp(96));
+        t.setClickable(true);
+        t.setFocusable(true);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMarginEnd(dp(6));
+        t.setLayoutParams(lp);
+        return t;
+    }
+
+    private static String kindName(String kind) {
+        switch (kind) {
+            case "cash": return "Cash";
+            case "ewallet": return "E-wallet";
+            case "bank": return "Bank";
+            case "credit": return "Credit card";
+            default: return "Account";
+        }
+    }
+
+    private int cardColor(Object tag) {
+        JSONObject a = tag == null ? null : accountById((String) tag);
+        try {
+            if (a != null && a.has("color")) return Color.parseColor(a.getString("color"));
+        } catch (Exception ignored) {
+            // fall through
+        }
+        return Color.parseColor("#3A3A40");
+    }
+
     private void setAccount(String id) {
         account = id;
         for (TextView t : accountChips) {
             Object tag = t.getTag();
-            select(t, id == null ? tag == null : id.equals(tag));
+            boolean on = id == null ? tag == null : id.equals(tag);
+            if (tag == null) {
+                select(t, on);
+                continue;
+            }
+            // Coloured card; the chosen one gets a white ring and a check.
+            GradientDrawable d = round(cardColor(tag), 14, 0);
+            if (on) d.setStroke(dp(2), Color.WHITE);
+            t.setBackground(d);
+            t.setAlpha(on || id == null ? 1f : 0.7f);
+            String txt = t.getText().toString().replaceFirst("^✓ ", "");
+            t.setText(on ? "✓ " + txt : txt);
         }
         updateBalanceLine();
     }

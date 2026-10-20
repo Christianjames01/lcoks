@@ -18,7 +18,7 @@
 
 import { BUILTIN_CATEGORIES } from '../shared/categories';
 import { detectCardNetwork } from '../shared/cards';
-import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, balances, dayKey, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type Transaction } from '../shared/money';
+import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, accountColor, balances, dayKey, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type Transaction } from '../shared/money';
 import { generateInboxKeys, openInbox, sealInbox, type InboxEntry } from './inbox';
 import { estimateStrength } from '../shared/strength';
 import {
@@ -1022,7 +1022,7 @@ export class VaultCore {
     const meta = JSON.stringify({
       v: 1,
       currency: payload.settings.currency,
-      accounts: payload.accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind, ...(bal ? { balance: bal.get(a.id) ?? 0 } : {}) }))
+      accounts: payload.accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind, color: accountColor(a).bg, ...(bal ? { balance: bal.get(a.id) ?? 0 } : {}) }))
     });
     if ((await this.storage.read(INBOX_META_FILE)) !== meta) await this.storage.writeAtomic(INBOX_META_FILE, meta);
   }
