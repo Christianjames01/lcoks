@@ -491,6 +491,7 @@ export function VaultApp({ version }: { version: string }) {
               onNew={newItem}
               onImport={() => setImportOpen(true)}
               onSearch={() => focusSearch()}
+              onLock={lock}
             />
           )}
           {shownRoute.view === 'items' && (

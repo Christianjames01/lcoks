@@ -1,5 +1,12 @@
 import {
+  Archive,
   Bell,
+  CalendarClock,
+  ClipboardCheck,
+  Eye,
+  HardDrive,
+  Lock,
+  Scale,
   CircleAlert,
   CircleCheck,
   CopyCheck,
@@ -118,10 +125,13 @@ export function SettingsView({ snap, version, initialTab, onChanged, onSnapshot,
 
 // ------------------------------------------------------------- primitives --
 
-function Group({ title, children }: { title: string; children: ReactNode }) {
+function Group({ title, icon, children }: { title: string; icon?: ReactNode; children: ReactNode }) {
   return (
     <section className="setting-group" aria-label={title}>
-      <span className="label">{title}</span>
+      <span className="label group-label">
+        {icon && <span className="group-icon">{icon}</span>}
+        {title}
+      </span>
       <div className="card">{children}</div>
     </section>
   );
@@ -157,7 +167,7 @@ function Segmented<T extends string | number>({ label, value, options, onChange 
   );
 }
 
-const ACCENT_NAMES: Record<AccentColor, string> = { blue: 'Blue', green: 'Green', purple: 'Purple', orange: 'Orange', pink: 'Pink' };
+const ACCENT_NAMES: Record<AccentColor, string> = { mono: 'Monochrome', blue: 'Blue', green: 'Green', purple: 'Purple', orange: 'Orange', pink: 'Pink' };
 
 function AccentPicker({ value, onChange }: { value: AccentColor; onChange: (v: AccentColor) => void }) {
   return (
@@ -200,7 +210,7 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
   };
   return (
     <>
-      <Group title="Master password">
+      <Group title="Master password" icon={<KeyRound size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting title="Change master password" desc="Re-encrypts the entire vault with a new key and a new random salt.">
           <button type="button" className="btn sm" onClick={() => setChanging(true)}>
             <KeyRound size={14} aria-hidden /> Change…
@@ -210,7 +220,7 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
 
       <QuickUnlockSettings />
 
-      <Group title="Locking">
+      <Group title="Locking" icon={<Lock size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting title="Auto-lock" desc="Lock the vault after a period of inactivity.">
           <Segmented
             label="Auto-lock timer"
@@ -260,7 +270,7 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
         )}
       </Group>
 
-      <Group title="Password generator">
+      <Group title="Password generator" icon={<Sparkles size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting title={`Default length: ${gen.length}`} htmlFor="s-gen-len">
           <input
             id="s-gen-len"
@@ -302,7 +312,7 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
 function PrivacyTab({ settings, update }: { settings: VaultSettings; update: (p: Partial<VaultSettings>) => Promise<void> }) {
   return (
     <>
-      <Group title="Clipboard">
+      <Group title="Clipboard" icon={<ClipboardCheck size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting title="Clear clipboard after" desc="Copied values are removed from the clipboard automatically." htmlFor="s-clip">
           <select
             id="s-clip"
@@ -319,7 +329,7 @@ function PrivacyTab({ settings, update }: { settings: VaultSettings; update: (p:
           </select>
         </Setting>
       </Group>
-      <Group title="Visibility">
+      <Group title="Visibility" icon={<Eye size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting title="Hide revealed values after" desc="Sensitive fields are always hidden by default." htmlFor="s-reveal">
           <select
             id="s-reveal"
@@ -466,7 +476,7 @@ function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
 
 function AppearanceTab({ settings, update }: { settings: VaultSettings; update: (p: Partial<VaultSettings>) => Promise<void> }) {
   return (
-    <Group title="Appearance">
+    <Group title="Appearance" icon={<Paintbrush size={15} strokeWidth={1.8} aria-hidden />}>
       <Setting title="Theme" desc="System follows your device's light or dark mode.">
         <Segmented
           label="Theme"
@@ -540,7 +550,7 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
 
   if (permission === 'unsupported') {
     return (
-      <Group title="Reminders">
+      <Group title="Reminders" icon={<Bell size={15} strokeWidth={1.8} aria-hidden />}>
         <div className="card-pad muted">
           Reminder notifications are available in the phone app. On this computer, upcoming dates are shown on the Dashboard under Security status.
         </div>
@@ -550,7 +560,7 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
 
   return (
     <>
-      <Group title="Reminders">
+      <Group title="Reminders" icon={<Bell size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting
           title="Expiry, renewal & payment reminders"
           desc="Subscriptions, cards, IDs, documents, insurance, licenses — and date fields named “due”, “payment”, “renewal” or “expiry” in your own categories."
@@ -604,7 +614,7 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
           )}
         </Setting>
       </Group>
-      <Group title={`Next reminders (${tracked} tracked date${tracked === 1 ? '' : 's'})`}>
+      <Group icon={<CalendarClock size={15} strokeWidth={1.8} aria-hidden />} title={`Next reminders (${tracked} tracked date${tracked === 1 ? '' : 's'})`}>
         {!settings.reminders ? (
           <div className="card-pad muted">Reminders are off.</div>
         ) : upcoming.length === 0 ? (
@@ -685,7 +695,7 @@ function VaultTab({
         </span>
       </div>
 
-      <Group title="Backup">
+      <Group title="Backup" icon={<Archive size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting
           title="Create encrypted backup"
           desc={
@@ -750,7 +760,7 @@ function VaultTab({
         </Setting>
       </Group>
 
-      <Group title="Clean up">
+      <Group title="Clean up" icon={<Trash2 size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting title="Duplicate detection" desc="Find items that look like copies, compare them side by side, and merge or keep them. Nothing changes without your OK.">
           <button type="button" className="btn sm" onClick={() => onNavigate({ view: 'duplicates' })}>
             <CopyCheck size={14} aria-hidden /> Review…
@@ -763,7 +773,7 @@ function VaultTab({
         </Setting>
       </Group>
 
-      <Group title="Import">
+      <Group title="Import" icon={<Upload size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting title="Import notes from another app" desc="Paste many notes at once — each becomes its own encrypted item in the right category.">
           <button type="button" className="btn sm" onClick={onImport}>
             <Upload size={14} aria-hidden /> Import notes…
@@ -771,7 +781,7 @@ function VaultTab({
         </Setting>
       </Group>
 
-      <Group title="Storage">
+      <Group title="Storage" icon={<HardDrive size={15} strokeWidth={1.8} aria-hidden />}>
         {storage ? (
           <div className="card-pad">
             <dl className="kv" style={{ padding: 0 }}>
@@ -807,7 +817,7 @@ function VaultTab({
         )}
       </Group>
 
-      <Group title="Restore & import">
+      <Group title="Restore & import" icon={<FolderOpen size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting title="Restore or import encrypted backup" desc="Replace this vault with a backup, or merge items from a backup into it.">
           <button type="button" className="btn sm" onClick={() => setRestoring('restore')}>
             <Upload size={14} aria-hidden /> Restore…
@@ -820,7 +830,7 @@ function VaultTab({
         </Setting>
       </Group>
 
-      <Group title="Database information">
+      <Group title="Database information" icon={<Database size={15} strokeWidth={1.8} aria-hidden />}>
         {info ? (
           <dl className="kv">
             <dt>Location</dt>
@@ -1165,7 +1175,7 @@ function CategoriesTab({ snap, onChanged }: { snap: VaultSnapshot; onChanged: ()
           ))}
         </div>
       </section>
-      <Group title="Built-in categories">
+      <Group title="Built-in categories" icon={<Layers size={15} strokeWidth={1.8} aria-hidden />}>
         {builtin.map((c) => (
           <div key={c.id} className="setting">
             <span className="row-icon">
@@ -1365,7 +1375,7 @@ function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef 
 function AboutTab({ version }: { version: string }) {
   return (
     <>
-      <Group title="Application">
+      <Group title="Application" icon={<Info size={15} strokeWidth={1.8} aria-hidden />}>
         <dl className="kv">
           <dt>Application</dt>
           <dd>VaultLocks</dd>
@@ -1375,7 +1385,7 @@ function AboutTab({ version }: { version: string }) {
           <dd>None — all network requests are blocked. No accounts, sync, analytics or telemetry.</dd>
         </dl>
       </Group>
-      <Group title="Security">
+      <Group title="Security" icon={<Shield size={15} strokeWidth={1.8} aria-hidden />}>
         <dl className="kv">
           <dt>Encryption</dt>
           <dd>AES-256-GCM authenticated encryption with a fresh random 96-bit nonce on every save. Every attachment is encrypted separately with your vault key.</dd>
@@ -1407,7 +1417,7 @@ function AboutTab({ version }: { version: string }) {
           )}
         </dl>
       </Group>
-      <Group title="Open-source licenses">
+      <Group title="Open-source licenses" icon={<Scale size={15} strokeWidth={1.8} aria-hidden />}>
         <dl className="kv">
           <dt>Electron / Chromium</dt>
           <dd>MIT / BSD-style (see LICENSES.chromium.html in the install folder)</dd>

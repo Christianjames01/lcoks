@@ -10,6 +10,8 @@ import { QuickUnlockPanel } from './QuickUnlockPanel';
 function Logo() {
   return (
     <div className="auth-logo" aria-hidden>
+      <span className="auth-halo" />
+      <span className="auth-ring" />
       {/* The open lock replaces the closed one while the vault unlocks (see App). */}
       <Lock className="lk-closed" size={28} strokeWidth={1.6} />
       <LockOpen className="lk-open" size={28} strokeWidth={1.6} />
@@ -25,7 +27,7 @@ export function Welcome({ onCreate, onRestored }: { onCreate: () => void; onRest
     <main className="auth">
       <div className="auth-card">
         <Logo />
-        <h1 className="auth-title">WELCOME TO VAULT</h1>
+        <h1 className="auth-title">Welcome to VaultLocks</h1>
         <p className="auth-sub">
           A private password manager that
           <br />
@@ -95,8 +97,8 @@ export function Setup({ onBack, onCreated }: { onBack: () => void; onCreated: ()
         <button type="button" className="btn ghost sm" style={{ alignSelf: 'flex-start', marginBottom: 12 }} onClick={onBack} disabled={busy}>
           <ArrowLeft size={14} aria-hidden /> Back
         </button>
-        <h1 className="auth-title" style={{ textAlign: 'left', paddingLeft: 0, letterSpacing: '0.28em' }}>
-          CREATE MASTER PASSWORD
+        <h1 className="auth-title" style={{ textAlign: 'left' }}>
+          Create a master password
         </h1>
         <p className="muted" style={{ margin: '0 0 24px' }}>
           This password encrypts your vault. It is never stored and cannot be recovered.
@@ -248,7 +250,10 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
     <main className="auth">
       <form className="auth-card" onSubmit={submit}>
         <Logo />
-        <h1 className="auth-title">VAULT</h1>
+        <span className="status-pill locked" role="status">
+          <Lock size={11} strokeWidth={2.2} aria-hidden /> Locked
+        </span>
+        <h1 className="auth-title">VaultLocks</h1>
         <p className="auth-sub">Your data stays on this device.</p>
 
         {quick === null ? (

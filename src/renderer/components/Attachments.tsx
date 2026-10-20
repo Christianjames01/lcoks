@@ -1,10 +1,10 @@
-import { Camera, ChevronLeft, ChevronRight, Download, ExternalLink, File as FileIcon, FileText, FolderOpen, ImagePlus, Images, Paperclip, Pencil, Plus, Trash, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, Download, ExternalLink, EyeOff, File as FileIcon, FileArchive, FileAudio, FileSpreadsheet, FileText, FileVideo, FolderOpen, Image as ImageIcon, ImagePlus, Images, Paperclip, Pencil, Plus, Presentation, Trash, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AttachmentInput, AttachmentMeta } from '../../shared/types';
 import { api, errorMessage, unwrap } from '../lib/api';
-import { FileError, LARGE_FILE_BYTES, dataUrlOf, decodeText, isImage, isPdf, isText, kindLabel, pickFiles, toAttachmentInput, type PickSource } from '../lib/files';
-import { formatBytes, formatDateTime } from '../lib/format';
+import { FileError, LARGE_FILE_BYTES, dataUrlOf, decodeText, fileBadge, fileKind, isImage, isPdf, isText, kindLabel, pickFiles, toAttachmentInput, type FileKind, type PickSource } from '../lib/files';
+import { formatBytes, formatDate, formatDateTime } from '../lib/format';
 import { isPhone } from '../lib/platform';
 import { ConfirmDialog, Dialog } from './Dialog';
 import { useToast } from './Toast';
@@ -123,6 +123,7 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
 
   const dup = dupQueue[0];
   const images = (items ?? []).filter((a) => isImage(a.mime));
+  const files = (items ?? []).filter((a) => !isImage(a.mime));
 
   return (
     <section className="att-section" aria-label="Attachments">
@@ -151,18 +152,32 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
           </div>
         )
       ) : items.length === 0 ? (
-        <div className="att-empty">No attachments. Add photos of documents, PDFs or other files.</div>
+        <button type="button" className="att-empty" onClick={() => setAdding(true)} disabled={busy}>
+          <Paperclip size={18} aria-hidden />
+          <span>No attachments yet</span>
+          <span className="att-empty-sub">Add photos of documents, PDFs or other files. They are encrypted with your vault key.</span>
+        </button>
       ) : (
-        <div className="att-grid">
-          {items.map((a) => (
-            <AttachmentTile
-              key={a.id}
-              meta={a}
-              hidden={hidePreviews}
-              onOpen={() => (isImage(a.mime) ? setViewing(a.id) : setDoc(a))}
-            />
-          ))}
-        </div>
+        <>
+          {images.length > 0 && (
+            <div className="photo-grid" role="list" aria-label={`Photos (${images.length})`}>
+              {images.map((a) => (
+                <div role="listitem" key={a.id}>
+                  <PhotoCard meta={a} hidden={hidePreviews} onOpen={() => setViewing(a.id)} />
+                </div>
+              ))}
+            </div>
+          )}
+          {files.length > 0 && (
+            <div className="doc-list" role="list" aria-label={`Documents and files (${files.length})`}>
+              {files.map((a) => (
+                <div role="listitem" key={a.id}>
+                  <DocumentCard meta={a} hidden={hidePreviews} onOpen={() => setDoc(a)} />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {adding && <AddAttachmentSheet onPick={(s) => void pick(s)} onClose={() => setAdding(false)} />}
@@ -212,26 +227,82 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
   );
 }
 
-function AttachmentTile({ meta, hidden, onOpen }: { meta: AttachmentMeta; hidden: boolean; onOpen: () => void }) {
+/** Photo: the stored thumbnail fills the card (the full image is only decrypted in the viewer). */
+function PhotoCard({ meta, hidden, onOpen }: { meta: AttachmentMeta; hidden: boolean; onOpen: () => void }) {
   const [peek, setPeek] = useState(false);
   const blurred = hidden && !peek;
   return (
     <button
       type="button"
-      className="att-tile"
+      className="photo-card"
       onClick={() => (blurred && meta.thumb ? setPeek(true) : onOpen())}
-      aria-label={`${meta.name}, ${kindLabel(meta.mime)}, ${formatBytes(meta.size)}${blurred && meta.thumb ? '. Preview hidden, tap to show' : ''}`}
+      aria-label={`${meta.name}, image, ${formatBytes(meta.size)}${blurred && meta.thumb ? '. Preview hidden, tap to show' : ''}`}
     >
-      {meta.role && <span className="att-role">{meta.role === 'front' ? 'Card front' : 'Card back'}</span>}
-      <span className={`att-thumb ${blurred ? 'hidden' : ''}`} aria-hidden>
-        {meta.thumb ? <img src={meta.thumb} alt="" /> : isPdf(meta.mime) || isText(meta.mime) ? <FileText size={30} strokeWidth={1.5} /> : <FileIcon size={30} strokeWidth={1.5} />}
+      <span className={`photo-thumb ${blurred ? 'hidden' : ''}`} aria-hidden>
+        {meta.thumb ? <img src={meta.thumb} alt="" loading="lazy" decoding="async" /> : <ImageIcon size={26} strokeWidth={1.5} />}
       </span>
-      <span className="att-meta">
+      {meta.role && <span className="att-role">{meta.role === 'front' ? 'Card front' : 'Card back'}</span>}
+      {blurred && meta.thumb && (
+        <span className="photo-hidden" aria-hidden>
+          <EyeOff size={16} /> Tap to show
+        </span>
+      )}
+      <span className="photo-caption" aria-hidden>
         <span className="att-name">{meta.name}</span>
+      </span>
+    </button>
+  );
+}
+
+const KIND_ICON: Record<FileKind, typeof FileIcon> = {
+  image: ImageIcon,
+  pdf: FileText,
+  doc: FileText,
+  sheet: FileSpreadsheet,
+  slides: Presentation,
+  text: FileText,
+  archive: FileArchive,
+  audio: FileAudio,
+  video: FileVideo,
+  other: FileIcon
+};
+
+/**
+ * Documents get a small paper page (with the stored preview on it when there is one);
+ * archives, audio, video and other files get a type tile. Both show the real name, type, size and date.
+ */
+function DocumentCard({ meta, hidden, onOpen }: { meta: AttachmentMeta; hidden: boolean; onOpen: () => void }) {
+  const kind = fileKind(meta.mime);
+  const paper = kind === 'pdf' || kind === 'doc' || kind === 'text' || kind === 'sheet' || kind === 'slides';
+  const Icon = KIND_ICON[kind];
+  const badge = fileBadge(meta.name, meta.mime);
+  return (
+    <button type="button" className={`doc-card kind-${kind}`} onClick={onOpen} aria-label={`${meta.name}, ${kindLabel(meta.mime)}, ${formatBytes(meta.size)}, added ${formatDate(meta.createdAt)}`}>
+      <span className={paper ? 'doc-paper' : 'doc-tile'} aria-hidden>
+        {meta.thumb && !hidden ? (
+          <img src={meta.thumb} alt="" loading="lazy" decoding="async" />
+        ) : paper ? (
+          <span className="doc-lines">
+            <i />
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+        ) : (
+          <Icon size={26} strokeWidth={1.5} />
+        )}
+        <span className="doc-badge">{badge}</span>
+      </span>
+      <span className="doc-meta" aria-hidden>
+        <span className="att-name" title={meta.name}>
+          {meta.name}
+        </span>
         <span className="att-sub">
-          {kindLabel(meta.mime)} · {formatBytes(meta.size)}
+          {formatBytes(meta.size)} · {formatDate(meta.createdAt)}
         </span>
       </span>
+      <ChevronRight size={15} className="doc-chev" aria-hidden />
     </button>
   );
 }

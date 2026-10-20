@@ -52,6 +52,29 @@ export function kindLabel(mime: string): string {
   return 'File';
 }
 
+export type FileKind = 'image' | 'pdf' | 'doc' | 'sheet' | 'slides' | 'text' | 'archive' | 'audio' | 'video' | 'other';
+
+export function fileKind(mime: string): FileKind {
+  if (isImage(mime)) return 'image';
+  if (isPdf(mime)) return 'pdf';
+  if (/word|opendocument\.text|rtf/.test(mime)) return 'doc';
+  if (/sheet|excel|csv/.test(mime)) return 'sheet';
+  if (/presentation|powerpoint/.test(mime)) return 'slides';
+  if (isText(mime)) return 'text';
+  if (/zip|compressed|x-tar|x-7z|x-rar|gzip/.test(mime)) return 'archive';
+  if (/^audio\//.test(mime)) return 'audio';
+  if (/^video\//.test(mime)) return 'video';
+  return 'other';
+}
+
+/** Short type badge for a file card: the file's extension, else one derived from its type. */
+export function fileBadge(name: string, mime: string): string {
+  const ext = /\.([a-z0-9]{1,5})$/i.exec(name)?.[1];
+  if (ext) return ext.toUpperCase();
+  const k = fileKind(mime);
+  return { image: 'IMG', pdf: 'PDF', doc: 'DOC', sheet: 'XLS', slides: 'PPT', text: 'TXT', archive: 'ZIP', audio: 'AUDIO', video: 'VIDEO', other: 'FILE' }[k];
+}
+
 /**
  * Open the camera, the photo gallery or the file picker. On Android the app's
  * background lock is paused while the picker is open, and any temporary camera

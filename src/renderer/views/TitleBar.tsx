@@ -9,7 +9,7 @@ export function TitleBar({ children }: { children?: ReactNode }) {
         <span className="brand-mark" aria-hidden>
           <Lock size={12} strokeWidth={2.2} />
         </span>
-        VAULT
+        VaultLocks
       </div>
       {children ?? <div className="drag" />}
     </header>

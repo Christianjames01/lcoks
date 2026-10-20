@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeft, ArrowUp, Copy, CopyPlus, ExternalLink, Eye, EyeOff, Maximize2, Paperclip, Pencil, Plus, Star, Trash } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Copy, CopyPlus, ExternalLink, Eye, EyeOff, Lock, Maximize2, Paperclip, Pencil, Plus, Star, Trash } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { subtitleFor } from '../../shared/categories';
 import { isSecretType, type EntryView, type FavoriteSort, type FieldDef, type VaultSnapshot } from '../../shared/types';
@@ -269,8 +269,18 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
                               {e.title}
                             </span>
                             <span className="row-sub" style={{ display: 'block' }}>
-                              {subtitleFor(cat, e.fields)}
-                              {e.secrets.cardNumber?.preview ? ` · ${e.secrets.cardNumber.preview}` : ''}
+                              {e.categoryId === 'notes' ? (
+                                // The note body is a secret: show that it is locked, never a preview of it.
+                                <>
+                                  <Lock size={11} aria-hidden className="inline-lock" />
+                                  Encrypted note · {formatDate(e.updatedAt)}
+                                </>
+                              ) : (
+                                <>
+                                  {subtitleFor(cat, e.fields)}
+                                  {e.secrets.cardNumber?.preview ? ` · ${e.secrets.cardNumber.preview}` : ''}
+                                </>
+                              )}
                             </span>
                           </span>
                           {(e.favorite || e.attachmentCount > 0) && (

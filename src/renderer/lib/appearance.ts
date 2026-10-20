@@ -6,11 +6,11 @@ import { api } from './api';
 const KEY = 'vaultlocks.appearance';
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 
-let current: { theme: ThemeMode; glass: boolean; accent: AccentColor } = { theme: 'system', glass: true, accent: 'blue' };
+let current: { theme: ThemeMode; glass: boolean; accent: AccentColor } = { theme: 'system', glass: true, accent: 'mono' };
 try {
   const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
   if (raw && ['system', 'light', 'dark'].includes(raw.theme)) {
-    current = { theme: raw.theme, glass: raw.glass !== false, accent: ACCENT_COLORS.includes(raw.accent) ? raw.accent : 'blue' };
+    current = { theme: raw.theme, glass: raw.glass !== false, accent: ACCENT_COLORS.includes(raw.accent) ? raw.accent : 'mono' };
   }
 } catch {
   /* ignore */

@@ -154,8 +154,8 @@ export type Density = 'comfortable' | 'compact';
 export type SidebarMode = 'auto' | 'expanded' | 'collapsed';
 export type FavoriteSort = 'manual' | 'name' | 'updated';
 export type ThemeMode = 'system' | 'light' | 'dark';
-export type AccentColor = 'blue' | 'green' | 'purple' | 'orange' | 'pink';
-export const ACCENT_COLORS: readonly AccentColor[] = ['blue', 'green', 'purple', 'orange', 'pink'];
+export type AccentColor = 'mono' | 'blue' | 'green' | 'purple' | 'orange' | 'pink';
+export const ACCENT_COLORS: readonly AccentColor[] = ['mono', 'blue', 'green', 'purple', 'orange', 'pink'];
 /** Grace period before locking after the app is left: 0 = immediately, -1 = never. */
 export type BackgroundLockMinutes = 0 | 1 | 5 | 15 | 30 | -1;
 
@@ -208,7 +208,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   backupDirectory: null,
   closeToTray: false,
   theme: 'system',
-  accent: 'blue',
+  accent: 'mono',
   glass: true,
   backgroundLockMinutes: 0,
   screenshotProtection: true,

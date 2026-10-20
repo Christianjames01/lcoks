@@ -1,17 +1,15 @@
-import { Archive, CalendarClock, ChevronRight, CopyCheck, Copy, KeyRound, Plus, Search, ShieldAlert, ShieldCheck, Star, Trash2, TriangleAlert, Upload } from 'lucide-react';
+import { Archive, CalendarClock, ChevronRight, CopyCheck, KeyRound, Plus, Search, Settings as SettingsIcon, ShieldAlert, Trash2, TriangleAlert, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { subtitleFor } from '../../shared/categories';
 import { describeUpcoming, upcomingDates } from '../../shared/expiry';
 import { securityReport } from '../../shared/security';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
+import { CategoryCard, QuickActionCard, RecentItemCard, StorageUsageCard, VaultStatusCard } from '../components/DashboardCards';
 import { EmptyState } from '../components/EmptyState';
-import { GestureRow, useEntryActions } from '../components/EntryActions';
-import { EntryIcon } from '../components/EntryIcon';
 import { CategoryIcon } from '../components/Icon';
 import { api } from '../lib/api';
 import { daysSince, greeting, relativeTime } from '../lib/format';
 import { useRecentlyUsed } from '../lib/recent';
-import { ScoreRing } from './SecurityView';
 import type { Route } from './VaultApp';
 
 interface Props {
@@ -22,6 +20,7 @@ interface Props {
   onNew: (categoryId?: string) => void;
   onSearch: () => void;
   onImport: () => void;
+  onLock: () => void;
 }
 
 const QUICK_ADD: [string, string][] = [
@@ -34,10 +33,12 @@ const QUICK_ADD: [string, string][] = [
   ['notes', 'Secure note']
 ];
 
+/** How many category cards the overview shows before "View all". */
+const CATEGORY_CARDS = 8;
+
 type Health = 'ok' | 'warn' | 'bad';
 
-export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, onImport }: Props) {
-  const actions = useEntryActions();
+export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, onImport, onLock }: Props) {
   const used = useRecentlyUsed();
   const [dupCount, setDupCount] = useState<number | null>(null);
   const { settings, meta, stats } = snap;
@@ -65,6 +66,16 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
   const favorites = useMemo(() => snap.entries.filter((e) => e.favorite).sort((a, b) => a.favoriteOrder - b.favoriteOrder).slice(0, 4), [snap.entries]);
   const upcoming = useMemo(() => upcomingDates(snap.entries, undefined, 30, snap.categories).slice(0, 5), [snap.entries, snap.categories]);
 
+  // Categories that hold items, fullest first (ties keep the vault's own order).
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of snap.entries) counts.set(e.categoryId, (counts.get(e.categoryId) ?? 0) + 1);
+    return snap.categories
+      .map((c, i) => ({ c, i, n: counts.get(c.id) ?? 0 }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n || a.i - b.i);
+  }, [snap.entries, snap.categories]);
+
   const backupAge = daysSince(meta.lastBackupAt);
   const backupDue = settings.backupReminderDays > 0 && stats.total > 0 && backupAge > settings.backupReminderDays;
   const lockText =
@@ -77,37 +88,10 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
   /** when: what the time in the subtitle means (last update, or last use on this device). */
   const row = (e: EntryView, when: 'updated' | 'used' = 'updated') => {
     const cat = snap.categories.find((c) => c.id === e.categoryId);
-    const hasSecret = Object.values(e.secrets).some((s) => s.set);
     const time = when === 'used' && used[e.id] ? `used ${relativeTime(new Date(used[e.id]!).toISOString())}` : relativeTime(e.updatedAt);
-    return (
-      <li key={e.id}>
-        <GestureRow entry={e} swipe={mobile}>
-          <div className="row-flex" style={{ gap: 4 }}>
-            <button type="button" className="row" data-id={e.id} onClick={(ev) => onOpen(e.id, ev.currentTarget)}>
-              <EntryIcon entry={e} category={cat} />
-              <span className="row-main">
-                <span className="row-title" data-vt="title" style={{ display: 'block' }}>
-                  {e.title}
-                </span>
-                <span className="row-sub" style={{ display: 'block' }}>
-                  {subtitleFor(cat, e.fields) || cat?.name} · {time}
-                </span>
-              </span>
-              {e.favorite && (
-                <span className="row-end">
-                  <Star size={13} className="star" fill="currentColor" aria-label="Favorite" />
-                </span>
-              )}
-            </button>
-            {hasSecret && actions && (
-              <button type="button" className="icon-btn" onClick={() => void actions.copyPassword(e)} aria-label={`Copy secret for ${e.title}`} title="Copy password">
-                <Copy size={16} />
-              </button>
-            )}
-          </div>
-        </GestureRow>
-      </li>
-    );
+    // A note's body is a secret: the list never shows any of it.
+    const lead = e.categoryId === 'notes' ? 'Encrypted note' : subtitleFor(cat, e.fields) || cat?.name;
+    return <RecentItemCard key={e.id} entry={e} category={cat} subtitle={`${lead} · ${time}`} swipe={mobile} onOpen={onOpen} />;
   };
 
   const health = (
@@ -138,74 +122,63 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
     </li>
   );
 
+  const sectionHead = (label: string, onAll?: () => void) => (
+    <div className="section-title">
+      <span className="label">{label}</span>
+      {onAll && (
+        <button type="button" className="linkish" onClick={onAll}>
+          View all
+        </button>
+      )}
+    </div>
+  );
+
   return (
-    <div className="page">
+    <div className="page dashboard">
       <div className="page-narrow">
-        <section className="card hero" aria-label="Vault status">
-          {report.score === null ? (
-            <span className="hero-icon" aria-hidden>
-              <ShieldCheck size={28} />
-            </span>
-          ) : (
-            <ScoreRing report={report} size={56} onClick={() => onNavigate({ view: 'security' })} />
-          )}
-          <div className="grow">
-            {!mobile && <div className="muted small">{greeting()}</div>}
-            <h2 className="h2" style={{ margin: 0 }}>
-              Vault unlocked
-            </h2>
-            <div className="muted small">
-              {stats.total} item{stats.total === 1 ? '' : 's'} · AES-256 encrypted · {lockText}
+        {!mobile && (
+          <header className="dash-head">
+            <img className="dash-logo" src="./icon.png" alt="" width={40} height={40} />
+            <div className="grow">
+              <div className="dash-greeting">{greeting()}</div>
+              <h1 className="dash-title">VaultLocks</h1>
             </div>
-            {report.score !== null && (
-              <button type="button" className="linkish small hero-score" onClick={() => onNavigate({ view: 'security' })}>
-                Security score {report.score} · {report.label}
-                {report.issues.length ? ` · ${report.issues.length} thing${report.issues.length === 1 ? '' : 's'} to fix` : ''}
-              </button>
-            )}
-          </div>
-        </section>
+            <button type="button" className="icon-btn" onClick={() => onNavigate({ view: 'settings' })} aria-label="Settings" title="Settings">
+              <SettingsIcon size={18} />
+            </button>
+          </header>
+        )}
+
+        <div className="dash-top">
+          <VaultStatusCard
+            greeting={mobile ? greeting() : undefined}
+            description={`${stats.total} item${stats.total === 1 ? '' : 's'}, encrypted with AES-256 on this device. ${lockText}.`}
+            metrics={[
+              { label: 'Items', value: stats.total, onClick: () => onNavigate({ view: 'items', filter: 'all' }) },
+              { label: 'Favorites', value: stats.favorites, onClick: () => onNavigate({ view: 'items', filter: 'favorites' }) },
+              { label: 'Notes', value: stats.notes, onClick: () => onNavigate({ view: 'items', filter: 'cat:notes' }) },
+              { label: 'Files', value: stats.attachments, onClick: () => onNavigate({ view: 'items', filter: 'all' }) }
+            ]}
+            report={report}
+            onLock={onLock}
+            onSecurity={() => onNavigate({ view: 'security' })}
+          />
+          <StorageUsageCard refreshKey={snap} onOpen={() => onNavigate({ view: 'settings', tab: 'vault' })} />
+        </div>
 
         {mobile && (
-          <button type="button" className="search" style={{ width: '100%', marginBottom: 14, padding: 0, border: 0, background: 'none' }} onClick={onSearch} aria-label="Search vault">
-            <Search size={16} className="search-icon" style={{ top: 13, left: 13 }} aria-hidden />
-            <span className="input" style={{ display: 'flex', alignItems: 'center', paddingLeft: 38, color: 'var(--muted)', borderRadius: 14 }}>
-              Search vault
-            </span>
+          <button type="button" className="search-trigger" onClick={onSearch} aria-label="Search vault">
+            <Search size={16} aria-hidden />
+            <span>Search vault</span>
           </button>
         )}
 
-        <div className="section-title" style={{ marginTop: 0 }}>
-          <span className="label">Quick add</span>
-        </div>
-        <div className="quick-add" role="group" aria-label="Quick add">
+        {sectionHead('Quick actions')}
+        <div className="qa-grid" role="group" aria-label="Quick actions">
           {QUICK_ADD.filter(([id]) => snap.categories.some((c) => c.id === id)).map(([id, label]) => (
-            <button key={id} type="button" className="qchip" onClick={() => onNew(id)}>
-              <CategoryIcon icon={snap.categories.find((c) => c.id === id)?.icon} /> {label}
-            </button>
+            <QuickActionCard key={id} icon={<CategoryIcon icon={snap.categories.find((c) => c.id === id)?.icon} size={20} />} label={label} onClick={() => onNew(id)} />
           ))}
-          <button type="button" className="qchip" onClick={onImport}>
-            <Upload size={16} aria-hidden /> Import notes
-          </button>
-        </div>
-
-        <div className="stats" style={{ margin: '6px 0 20px' }}>
-          <button type="button" className="card stat" onClick={() => onNavigate({ view: 'items', filter: 'all' })}>
-            <div className="num">{stats.total}</div>
-            <span className="label">Items</span>
-          </button>
-          <button type="button" className="card stat" onClick={() => onNavigate({ view: 'items', filter: 'favorites' })}>
-            <div className="num">{stats.favorites}</div>
-            <span className="label">Favorites</span>
-          </button>
-          <button type="button" className="card stat" onClick={() => onNavigate({ view: 'items', filter: 'cat:notes' })}>
-            <div className="num">{stats.notes}</div>
-            <span className="label">Secure notes</span>
-          </button>
-          <button type="button" className="card stat" onClick={() => onNavigate({ view: 'items', filter: 'all' })} title="Files attached to items">
-            <div className="num">{stats.attachments}</div>
-            <span className="label">Attachments</span>
-          </button>
+          <QuickActionCard icon={<Upload size={20} strokeWidth={1.75} />} label="Import notes" onClick={onImport} />
         </div>
 
         {stats.total === 0 ? (
@@ -227,9 +200,14 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
           />
         ) : (
           <>
-            <div className="section-title">
-              <span className="label">Security status</span>
+            {sectionHead('Categories', categories.length > CATEGORY_CARDS ? () => onNavigate({ view: 'items', filter: 'all' }) : undefined)}
+            <div className="cat-cards">
+              {categories.slice(0, CATEGORY_CARDS).map(({ c, n }) => (
+                <CategoryCard key={c.id} category={c} count={n} onClick={() => onNavigate({ view: 'items', filter: `cat:${c.id}` })} />
+              ))}
             </div>
+
+            {sectionHead('Security status')}
             <ul className="card health" aria-label="Security status">
               {health(
                 'passwords',
@@ -272,43 +250,24 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
           </>
         )}
 
-
         {favorites.length > 0 && (
           <>
-            <div className="section-title">
-              <span className="label">Favorites</span>
-              <button type="button" className="linkish" onClick={() => onNavigate({ view: 'items', filter: 'favorites' })}>
-                View all
-              </button>
-            </div>
-            <ul className="list card" style={{ padding: 6 }}>
-              {favorites.map((e) => row(e))}
-            </ul>
+            {sectionHead('Favorites', () => onNavigate({ view: 'items', filter: 'favorites' }))}
+            <ul className="list card recent-list">{favorites.map((e) => row(e))}</ul>
           </>
         )}
 
         {recentlyUsed.length > 0 && (
           <>
-            <div className="section-title">
-              <span className="label">Recently used</span>
-            </div>
-            <ul className="list card" style={{ padding: 6 }}>
-              {recentlyUsed.map((e) => row(e, 'used'))}
-            </ul>
+            {sectionHead('Recently used')}
+            <ul className="list card recent-list">{recentlyUsed.map((e) => row(e, 'used'))}</ul>
           </>
         )}
 
         {recent.length > 0 && (
           <>
-            <div className="section-title">
-              <span className="label">Recently updated</span>
-              <button type="button" className="linkish" onClick={() => onNavigate({ view: 'items', filter: 'all' })}>
-                View all
-              </button>
-            </div>
-            <ul className="list card" style={{ padding: 6 }}>
-              {recent.map((e) => row(e))}
-            </ul>
+            {sectionHead('Recently updated', () => onNavigate({ view: 'items', filter: 'all' }))}
+            <ul className="list card recent-list">{recent.map((e) => row(e))}</ul>
           </>
         )}
 
