@@ -112,12 +112,15 @@ public final class QuickAdd {
         // Tapping the notification opens the pop-up (categories + accounts) over the lock screen.
         Intent popup = new Intent(c, QuickAddActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent popupPi = PendingIntent.getActivity(c, 2, popup, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        NotificationCompat.Action open = new NotificationCompat.Action.Builder(R.drawable.ic_stat_vault, "Add expense", popupPi).build();
+        NotificationCompat.Action open = new NotificationCompat.Action.Builder(R.drawable.ic_stat_vault, "− Expense", popupPi).build();
+        Intent cash = new Intent(c, QuickAddActivity.class).putExtra("cash", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent cashPi = PendingIntent.getActivity(c, 5, cash, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        NotificationCompat.Action addCash = new NotificationCompat.Action.Builder(R.drawable.ic_stat_vault, "+ Add cash", cashPi).build();
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(c, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_vault)
-            .setContentTitle("Add an expense")
-            .setContentText(status != null ? status : "Tap to pick Food, Fare… or type “lunch 150”")
+            .setContentTitle("VaultLocks quick add")
+            .setContentText(status != null ? status : "Add an expense or cash — or type “lunch 150”")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
@@ -127,6 +130,7 @@ public final class QuickAdd {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(popupPi)
             .addAction(open)
+            .addAction(addCash)
             .addAction(action);
         try {
             NotificationManagerCompat.from(c).notify(NOTIFICATION_ID, b.build());

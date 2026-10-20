@@ -70,6 +70,7 @@ public class QuickAddActivity extends Activity {
     private final List<TextView> kindButtons = new ArrayList<>();
     private final List<TextView> accountChips = new ArrayList<>();
     private boolean saving = false;
+    private TextView accountLabel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,7 +83,7 @@ public class QuickAddActivity extends Activity {
         }
         // Keep the pop-up out of screenshots and the recent-apps preview.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE | WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
         // Opened from the double-tap full-screen notification: remove it.
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) nm.cancel(KnockService.POPUP_NOTIFICATION_ID);
@@ -146,38 +147,38 @@ public class QuickAddActivity extends Activity {
         return sv;
     }
 
+    /** Height of the status bar, so the card starts just below it. */
+    private int statusBar() {
+        int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : dp(24);
+    }
+
+    /**
+     * Compact card at the TOP of the screen (like a notification), so the keyboard
+     * below never covers it: Expense / Add cash, amount + Save, category, account, note.
+     */
     private View build() {
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.parseColor("#99000000"));
+        root.setBackgroundColor(Color.parseColor("#80000000"));
         root.setOnClickListener(v -> finish());
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(dp(10), statusBar() + dp(8), dp(10), dp(10));
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(20), dp(18), dp(20), dp(20));
-        GradientDrawable bg = round(BG, 28, BORDER);
-        bg.setCornerRadii(new float[] { dp(28), dp(28), dp(28), dp(28), 0, 0, 0, 0 });
-        card.setBackground(bg);
+        card.setPadding(dp(16), dp(14), dp(16), dp(16));
+        card.setBackground(round(BG, 26, BORDER));
+        card.setElevation(dp(12));
         card.setClickable(true); // taps inside don't close it
         scroll.addView(card);
-        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
-        root.addView(scroll, clp);
+        root.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP));
 
-        // Header
-        LinearLayout head = new LinearLayout(this);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = text("Add expense", 20, FG, true);
-        head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        head.addView(text("🔒 Stays encrypted", 12, MUTED, false));
-        card.addView(head);
-
-        // Expense / Add money
+        // Expense / Add cash (top row, always visible)
         LinearLayout seg = new LinearLayout(this);
         seg.setPadding(dp(4), dp(4), dp(4), dp(4));
         seg.setBackground(round(CHIP, 14, BORDER));
-        LinearLayout.LayoutParams segLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        segLp.topMargin = dp(14);
-        for (String[] k : new String[][] { { "expense", "Expense" }, { "income", "Add money" } }) {
+        for (String[] k : new String[][] { { "expense", "− Expense" }, { "income", "+ Add cash" } }) {
             TextView b = text(k[1], 15, FG, true);
             b.setGravity(Gravity.CENTER);
             b.setPadding(0, dp(10), 0, dp(10));
@@ -186,9 +187,9 @@ public class QuickAddActivity extends Activity {
             kindButtons.add(b);
             seg.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         }
-        card.addView(seg, segLp);
+        card.addView(seg);
 
-        // Amount
+        // Amount + Save in one row
         String symbol = "₱";
         JSONObject meta = QuickAdd.meta(this);
         try {
@@ -198,22 +199,37 @@ public class QuickAddActivity extends Activity {
         }
         LinearLayout amountRow = new LinearLayout(this);
         amountRow.setGravity(Gravity.CENTER_VERTICAL);
-        amountRow.setPadding(dp(16), dp(4), dp(16), dp(4));
-        amountRow.setBackground(round(CHIP, 16, BORDER));
-        amountRow.addView(text(symbol, 30, MUTED, true));
+        LinearLayout amountBox = new LinearLayout(this);
+        amountBox.setGravity(Gravity.CENTER_VERTICAL);
+        amountBox.setPadding(dp(14), 0, dp(10), 0);
+        amountBox.setBackground(round(CHIP, 16, BORDER));
+        amountBox.addView(text(symbol, 24, MUTED, true));
         amount = new EditText(this);
         amount.setHint("0");
         amount.setHintTextColor(Color.parseColor("#55FFFFFF"));
         amount.setTextColor(FG);
-        amount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 34);
+        amount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
         amount.setTypeface(Typeface.DEFAULT_BOLD);
         amount.setBackground(null);
+        amount.setSingleLine(true);
         amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         amount.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        amount.setPadding(dp(8), dp(6), 0, dp(6));
-        amountRow.addView(amount, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        amount.setPadding(dp(6), dp(8), 0, dp(8));
+        amountBox.addView(amount, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        amountRow.addView(amountBox, new LinearLayout.LayoutParams(0, dp(60), 1));
+        Button save = new Button(this);
+        save.setText("Save");
+        save.setAllCaps(false);
+        save.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        save.setTypeface(Typeface.DEFAULT_BOLD);
+        save.setTextColor(Color.BLACK);
+        save.setBackground(round(FG, 16, 0));
+        save.setOnClickListener(v -> save());
+        LinearLayout.LayoutParams sbp = new LinearLayout.LayoutParams(dp(92), dp(60));
+        sbp.setMarginStart(dp(8));
+        amountRow.addView(save, sbp);
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        alp.topMargin = dp(14);
+        alp.topMargin = dp(10);
         card.addView(amountRow, alp);
 
         // Category
@@ -224,7 +240,8 @@ public class QuickAddActivity extends Activity {
         // Account
         JSONArray accounts = meta == null ? null : meta.optJSONArray("accounts");
         if (accounts != null && accounts.length() > 0) {
-            card.addView(label("Paid with"));
+            accountLabel = label("Paid with");
+            card.addView(accountLabel);
             LinearLayout accRow = new LinearLayout(this);
             TextView none = chip("None");
             none.setTag(null);
@@ -250,7 +267,7 @@ public class QuickAddActivity extends Activity {
         note.setTextColor(FG);
         note.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
         note.setSingleLine(true);
-        note.setPadding(dp(14), dp(12), dp(14), dp(12));
+        note.setPadding(dp(14), dp(10), dp(14), dp(10));
         note.setBackground(round(CHIP, 14, BORDER));
         note.setImeOptions(EditorInfo.IME_ACTION_DONE);
         note.setOnEditorActionListener((v, id, e) -> {
@@ -258,28 +275,26 @@ public class QuickAddActivity extends Activity {
             return true;
         });
         LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        nlp.topMargin = dp(16);
+        nlp.topMargin = dp(12);
         card.addView(note, nlp);
 
-        // Save
-        Button save = new Button(this);
-        save.setText("Save");
-        save.setAllCaps(false);
-        save.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        save.setTypeface(Typeface.DEFAULT_BOLD);
-        save.setTextColor(Color.BLACK);
-        save.setBackground(round(FG, 16, 0));
-        save.setOnClickListener(v -> save());
-        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
-        slp.topMargin = dp(16);
-        card.addView(save, slp);
+        TextView foot = text("🔒 Saved encrypted — added to VaultLocks when you unlock", 11.5f, MUTED, false);
+        LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        flp.topMargin = dp(10);
+        card.addView(foot, flp);
+
         amount.setOnEditorActionListener((v, id, e) -> {
             save();
             return true;
         });
 
-        setKind("expense");
+        setKind(getIntent().getBooleanExtra("cash", false) ? "income" : "expense");
         setAccount(null);
+
+        // Slide down from the top like a notification.
+        card.setTranslationY(-dp(40));
+        card.setAlpha(0f);
+        card.animate().translationY(0).alpha(1f).setDuration(180).start();
         return root;
     }
 
@@ -295,6 +310,7 @@ public class QuickAddActivity extends Activity {
 
     private void setKind(String k) {
         kind = k;
+        if (accountLabel != null) accountLabel.setText("income".equals(k) ? "ADD TO" : "PAID WITH");
         for (TextView b : kindButtons) {
             boolean on = k.equals(b.getTag());
             b.setBackground(on ? round(FG, 11, 0) : null);

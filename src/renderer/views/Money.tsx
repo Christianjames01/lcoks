@@ -575,7 +575,7 @@ function TxEditor({
   return (
     <>
       <Dialog
-        title={existing ? 'Edit record' : kind === 'income' ? 'Add money' : 'Add expense'}
+        title={existing ? 'Edit record' : kind === 'income' ? 'Add cash' : 'Add expense'}
         onClose={onClose}
         busy={busy}
         footer={
@@ -600,7 +600,7 @@ function TxEditor({
               Expense
             </button>
             <button type="button" aria-pressed={kind === 'income'} onClick={() => switchKind('income')}>
-              Add money
+              Add cash
             </button>
           </div>
           <div className="field amount-field">
