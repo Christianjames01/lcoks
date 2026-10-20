@@ -202,6 +202,7 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
     reminders: typeof s.reminders === 'boolean' ? s.reminders : base.reminders,
     reminderDaysBefore: [1, 3, 7, 14, 30].includes(s.reminderDaysBefore as number) ? (s.reminderDaysBefore as ReminderDays) : base.reminderDaysBefore,
     currency: typeof s.currency === 'string' && /^[A-Z]{3}$/.test(s.currency) ? s.currency : base.currency,
+    quickAddBalances: typeof s.quickAddBalances === 'boolean' ? s.quickAddBalances : base.quickAddBalances,
     monthlyBudget: Number.isInteger(s.monthlyBudget) && (s.monthlyBudget as number) >= 0 && (s.monthlyBudget as number) <= MAX_AMOUNT ? (s.monthlyBudget as number) : base.monthlyBudget,
     generator: validateGeneratorDefaults(s.generator, base.generator)
   };

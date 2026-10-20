@@ -201,12 +201,14 @@ public class KnockService extends Service implements SensorEventListener {
     public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 
     private void onDoubleTap() {
-        if (!QuickAdd.ready(this)) return;
         Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         if (v != null) {
             if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE));
             else v.vibrate(30);
         }
+        // VaultLocks is open and unlocked: use its own add form (no app switch, so no re-lock).
+        if (VaultNativePlugin.openInApp(false)) return;
+        if (!QuickAdd.ready(this)) return;
         Intent popup = new Intent(this, QuickAddActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         if (canPopUp(this)) {
             try {

@@ -7,6 +7,21 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
 
+    /** VaultLocks is on screen: a double tap opens the add form inside the app (no switch, no re-lock). */
+    static volatile boolean resumed = false;
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        resumed = true;
+    }
+
+    @Override
+    public void onPause() {
+        resumed = false;
+        super.onPause();
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(VaultNativePlugin.class);

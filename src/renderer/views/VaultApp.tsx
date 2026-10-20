@@ -59,7 +59,9 @@ export function VaultApp({ version }: { version: string }) {
   const [deleting, setDeleting] = useState<EntryView | null>(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [moneyAdd, setMoneyAdd] = useState(0);
+  // "Open the add form" request for the Expenses screen (+ button, double tap on the back).
+  const [moneyAdd, setMoneyAdd] = useState<{ id: number; kind: 'expense' | 'income' } | null>(null);
+  const requestAdd = (kind: 'expense' | 'income' = 'expense') => setMoneyAdd({ id: Date.now(), kind });
   const [sharedText, setSharedText] = useState<string | undefined>(undefined);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
@@ -86,6 +88,18 @@ export function VaultApp({ version }: { version: string }) {
   }, [refresh]);
 
   // Expenses added while locked (lock screen / notification) were picked up by this unlock.
+  // Double tap on the back while the app is open (Android): straight to the add form, no app switch.
+  useEffect(() => {
+    const onQuick = (e: Event) => {
+      const cash = (e as CustomEvent<{ cash?: boolean }>).detail?.cash === true;
+      setEditor(null);
+      setRoute({ view: 'money' });
+      requestAdd(cash ? 'income' : 'expense');
+    };
+    window.addEventListener('vault:quickadd', onQuick);
+    return () => window.removeEventListener('vault:quickadd', onQuick);
+  }, []);
+
   // Also checked when the app comes back (a notification reply may have arrived meanwhile).
   useEffect(() => {
     const check = async () => {
@@ -463,7 +477,7 @@ export function VaultApp({ version }: { version: string }) {
             </div>
             <div className="drag" />
             {route.view === 'money' && !searching ? (
-              <button type="button" className="btn sm primary" onClick={() => setMoneyAdd((n) => n + 1)} aria-label="Add expense">
+              <button type="button" className="btn sm primary" onClick={() => requestAdd()} aria-label="Add expense">
                 <Plus size={14} aria-hidden /> <span className="btn-text">Add expense</span>
               </button>
             ) : (
@@ -542,7 +556,7 @@ export function VaultApp({ version }: { version: string }) {
             />
           )}
           {shownRoute.view === 'search' && <SearchView snap={snap} onOpen={openEntry} />}
-          {shownRoute.view === 'money' && <MoneyView snap={snap} mobile={mobile} onChanged={refresh} addSignal={moneyAdd} />}
+          {shownRoute.view === 'money' && <MoneyView snap={snap} mobile={mobile} onChanged={refresh} addRequest={moneyAdd} onAddHandled={() => setMoneyAdd(null)} />}
           {shownRoute.view === 'security' && <SecurityView snap={snap} onOpen={openEntry} onNavigate={go} />}
           {shownRoute.view === 'duplicates' && <DuplicatesView snap={snap} onChanged={refresh} onOpen={openEntry} />}
           {shownRoute.view === 'trash' && <TrashView snap={snap} onChanged={refresh} />}
@@ -575,7 +589,7 @@ export function VaultApp({ version }: { version: string }) {
           <button
             type="button"
             className="fab"
-            onClick={() => (route.view === 'money' ? setMoneyAdd((n) => n + 1) : newItem(currentCategory(route)))}
+            onClick={() => (route.view === 'money' ? requestAdd() : newItem(currentCategory(route)))}
             aria-label={route.view === 'money' ? 'Add expense' : 'Add item'}
           >
             <Plus size={28} strokeWidth={2.2} aria-hidden />

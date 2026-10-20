@@ -85,6 +85,8 @@ function memoryNative() {
     setKnock: async () => undefined,
     openQuickAdd: async () => undefined,
     openQuickAddPermissions: async () => undefined,
+    setVaultState: async () => undefined,
+    onQuickAdd: () => undefined,
     read: async (n) => files.get(n) ?? null,
     writeAtomic: async (n, d) => {
       if (self.failNextWrite) {

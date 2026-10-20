@@ -18,7 +18,7 @@
 
 import { BUILTIN_CATEGORIES } from '../shared/categories';
 import { detectCardNetwork } from '../shared/cards';
-import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, dayKey, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type Transaction } from '../shared/money';
+import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, balances, dayKey, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type Transaction } from '../shared/money';
 import { generateInboxKeys, openInbox, sealInbox, type InboxEntry } from './inbox';
 import { estimateStrength } from '../shared/strength';
 import {
@@ -380,6 +380,7 @@ export class VaultCore {
       for (const r of records) if (!have.has(r.id) && d.transactions.length < LIMITS.transactions) d.transactions.push(r);
     });
     for (const name of done) await this.storage.remove(name).catch(() => undefined);
+    if (records.length) await this.writeInboxMeta().catch(() => undefined);
     if (records.length || unreadable.length) {
       this.inboxReport = { added: (this.inboxReport?.added ?? 0) + records.length, unreadable: [...(this.inboxReport?.unreadable ?? []), ...unreadable].slice(0, 50) };
     }
@@ -955,6 +956,12 @@ export class VaultCore {
   // -------------------------------------------------------------- expenses ----
 
   async saveTransaction(input: unknown): Promise<Transaction> {
+    const rec = await this.saveTransactionNow(input);
+    if (this.settings.quickAddBalances) await this.writeInboxMeta().catch(() => undefined);
+    return rec;
+  }
+
+  private saveTransactionNow(input: unknown): Promise<Transaction> {
     const t = validateTransactionInput(input);
     const now = this.iso();
     return this.mutate((d) => {
@@ -1011,7 +1018,12 @@ export class VaultCore {
   private async writeInboxMeta(): Promise<void> {
     const { payload } = this.requireUnlocked();
     if (!payload.inboxKey) return;
-    const meta = JSON.stringify({ v: 1, currency: payload.settings.currency, accounts: payload.accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind })) });
+    const bal = payload.settings.quickAddBalances ? balances(payload.accounts, payload.transactions) : null;
+    const meta = JSON.stringify({
+      v: 1,
+      currency: payload.settings.currency,
+      accounts: payload.accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind, ...(bal ? { balance: bal.get(a.id) ?? 0 } : {}) }))
+    });
     if ((await this.storage.read(INBOX_META_FILE)) !== meta) await this.storage.writeAtomic(INBOX_META_FILE, meta);
   }
 
@@ -1021,6 +1033,7 @@ export class VaultCore {
     await this.mutate((d) => {
       d.transactions = d.transactions.filter((t) => t.id !== id);
     });
+    if (this.settings.quickAddBalances) await this.writeInboxMeta().catch(() => undefined);
   }
 
   async updateSettings(patch: unknown): Promise<VaultSettings> {
@@ -1029,7 +1042,7 @@ export class VaultCore {
     await this.mutate((d) => {
       d.settings = merged;
     });
-    if (merged.currency !== payload.settings.currency) await this.writeInboxMeta().catch(() => undefined);
+    if (merged.currency !== payload.settings.currency || merged.quickAddBalances !== payload.settings.quickAddBalances) await this.writeInboxMeta().catch(() => undefined);
     return structuredClone(merged);
   }
 

@@ -28,7 +28,7 @@ import {
   Zap,
   type LucideIcon
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   CURRENCIES,
   MAX_AMOUNT,
@@ -100,12 +100,13 @@ interface Props {
   mobile: boolean;
   onChanged: () => Promise<void>;
   /** Bumped by the "+" button: open the editor for the selected day. */
-  addSignal: number;
+  addRequest: { id: number; kind: TxKind } | null;
+  onAddHandled: () => void;
 }
 
-type Editing = { tx?: Transaction; date: string; kind: TxKind } | null;
+type Editing = { tx?: Transaction; date: string; kind: TxKind; accountId?: string } | null;
 
-export function MoneyView({ snap, mobile, onChanged, addSignal }: Props) {
+export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }: Props) {
   const toast = useToast();
   const today = dayKey(new Date());
   const [month, setMonth] = useState(monthOf(today));
@@ -118,11 +119,12 @@ export function MoneyView({ snap, mobile, onChanged, addSignal }: Props) {
   const money = (v: number, o?: { compact?: boolean; sign?: boolean }) => formatMoney(v, currency, o);
 
   // "+" in the bottom bar / title bar.
-  const firstSignal = useRef(addSignal);
   useEffect(() => {
-    if (addSignal !== firstSignal.current) setEditing({ date: selected, kind: 'expense' });
+    if (!addRequest) return;
+    setEditing({ date: selected, kind: addRequest.kind });
+    onAddHandled();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addSignal]);
+  }, [addRequest?.id]);
 
   const inMonth = useMemo(() => snap.transactions.filter((t) => monthOf(t.date) === month), [snap.transactions, month]);
   const sums = useMemo(() => totals(inMonth), [inMonth]);
@@ -148,6 +150,7 @@ export function MoneyView({ snap, mobile, onChanged, addSignal }: Props) {
   const parsed = useMemo(() => parseQuick(quick, new Date(), snap.accounts), [quick, snap.accounts]);
   const accountBalances = useMemo(() => balances(snap.accounts, snap.transactions), [snap.accounts, snap.transactions]);
   const [managing, setManaging] = useState(false);
+  const [viewingAccount, setViewingAccount] = useState<string | null>(null);
 
   const goMonth = (delta: number) => {
     const next = addMonths(month, delta);
@@ -229,7 +232,7 @@ export function MoneyView({ snap, mobile, onChanged, addSignal }: Props) {
             </span>
             <span className="ms-value" title={money(sums.expense)}>{money(sums.expense, { compact: mobile })}</span>
           </div>
-          <div className="ms-card">
+          <div className="ms-card income">
             <span className="ms-label">
               <TrendingUp size={14} aria-hidden /> Income
             </span>
@@ -265,7 +268,7 @@ export function MoneyView({ snap, mobile, onChanged, addSignal }: Props) {
 
         <section className="acct-strip" aria-label="Accounts">
           {snap.accounts.map((a) => (
-            <button key={a.id} type="button" className={`acct-card kind-${a.kind}`} onClick={() => setManaging(true)} title="Manage accounts">
+            <button key={a.id} type="button" className={`acct-card kind-${a.kind}`} onClick={() => setViewingAccount(a.id)} title={`Open ${a.name}`}>
               <span className="acct-icon">
                 <AccountIcon kind={a.kind} />
               </span>
@@ -403,13 +406,15 @@ export function MoneyView({ snap, mobile, onChanged, addSignal }: Props) {
           editing={editing}
           currency={currency}
           accounts={snap.accounts}
+          balances={accountBalances}
+          money={money}
           onClose={() => setEditing(null)}
           onSave={async (input) => {
             const t = await save(input);
             setSelected(t.date);
             setMonth(monthOf(t.date));
             setEditing(null);
-            toast(input.id ? 'Changes saved.' : `${t.kind === 'income' ? 'Income' : 'Expense'} added.`);
+            toast(input.id ? 'Changes saved.' : t.kind === 'income' ? `Cash added: ${money(t.amount)}.` : `Expense added: ${money(t.amount)}.`);
           }}
           onDelete={async (id) => {
             await unwrap(api.vault.deleteTransaction(id));
@@ -420,8 +425,34 @@ export function MoneyView({ snap, mobile, onChanged, addSignal }: Props) {
           }}
         />
       )}
-      {managing && <AccountsDialog accounts={snap.accounts} balances={accountBalances} money={money} currency={currency} onClose={() => setManaging(false)} onChanged={onChanged} />}
-      {setup && <MoneySetup currency={currency} budget={monthlyBudget} onClose={() => setSetup(false)} onSaved={onChanged} />}
+      {managing && (
+        <AccountsDialog
+          accounts={snap.accounts}
+          balances={accountBalances}
+          money={money}
+          currency={currency}
+          onClose={() => setManaging(false)}
+          onChanged={onChanged}
+          onOpen={(id) => {
+            setManaging(false);
+            setViewingAccount(id);
+          }}
+        />
+      )}
+      {viewingAccount && !editing && snap.accounts.some((a) => a.id === viewingAccount) && (
+        <AccountPage
+          account={snap.accounts.find((a) => a.id === viewingAccount)!}
+          balance={accountBalances.get(viewingAccount) ?? 0}
+          transactions={snap.transactions.filter((t) => t.accountId === viewingAccount)}
+          currency={currency}
+          money={money}
+          onClose={() => setViewingAccount(null)}
+          onAdd={(kind) => setEditing({ date: today, kind, accountId: viewingAccount })}
+          onOpenTx={(t) => setEditing({ tx: t, date: t.date, kind: t.kind })}
+          onChanged={onChanged}
+        />
+      )}
+      {setup && <MoneySetup currency={currency} budget={monthlyBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
     </div>
   );
 }
@@ -529,6 +560,8 @@ function TxEditor({
   editing,
   currency,
   accounts,
+  balances: bal,
+  money,
   onClose,
   onSave,
   onDelete
@@ -536,6 +569,8 @@ function TxEditor({
   editing: NonNullable<Editing>;
   currency: string;
   accounts: MoneyAccount[];
+  balances: Map<string, number>;
+  money: (v: number, o?: { sign?: boolean }) => string;
   onClose: () => void;
   onSave: (input: { id?: string; kind: TxKind; amount: number; category: string; note: string; date: string; accountId?: string }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -543,10 +578,12 @@ function TxEditor({
   const existing = editing.tx?.id ? editing.tx : undefined;
   const [kind, setKind] = useState<TxKind>(editing.tx?.kind ?? editing.kind);
   const [amount, setAmount] = useState(editing.tx ? fromMinor(editing.tx.amount) : '');
-  const [category, setCategory] = useState(editing.tx?.category ?? defaultCategory(editing.kind));
+  // Add cash starts on "Cash in / Top-up", the usual reason.
+  const firstCategory = (k: TxKind) => (k === 'income' ? 'topup' : defaultCategory(k));
+  const [category, setCategory] = useState(editing.tx?.category ?? firstCategory(editing.kind));
   const [note, setNote] = useState(editing.tx?.note ?? '');
   const [date, setDate] = useState(editing.tx?.date || editing.date);
-  const [accountId, setAccountId] = useState<string | undefined>(editing.tx?.accountId);
+  const [accountId, setAccountId] = useState<string | undefined>(editing.tx?.accountId ?? editing.accountId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -554,7 +591,7 @@ function TxEditor({
 
   const switchKind = (k: TxKind) => {
     setKind(k);
-    if (moneyCategory(category).kind !== k) setCategory(defaultCategory(k));
+    if (moneyCategory(category).kind !== k) setCategory(firstCategory(k));
   };
 
   const submit = async (e?: FormEvent) => {
@@ -575,7 +612,7 @@ function TxEditor({
   return (
     <>
       <Dialog
-        title={existing ? 'Edit record' : kind === 'income' ? 'Add cash' : 'Add expense'}
+        title={existing ? (kind === 'income' ? 'Edit cash in' : 'Edit expense') : kind === 'income' ? 'Add cash' : 'Add expense'}
         onClose={onClose}
         busy={busy}
         footer={
@@ -588,19 +625,19 @@ function TxEditor({
             <button type="button" className="btn" onClick={onClose} disabled={busy}>
               Cancel
             </button>
-            <button type="button" className="btn primary" onClick={() => void submit()} disabled={busy}>
-              {busy && <span className="spinner" aria-hidden />} Save
+            <button type="button" className={`btn primary tx-save is-${kind}`} onClick={() => void submit()} disabled={busy}>
+              {busy && <span className="spinner" aria-hidden />} {kind === 'income' ? 'Add cash' : 'Save expense'}
             </button>
           </>
         }
       >
         <form onSubmit={submit} noValidate>
-          <div className="segmented tx-kind" role="group" aria-label="Type">
+          <div className={`segmented tx-kind is-${kind}`} role="group" aria-label="Type">
             <button type="button" aria-pressed={kind === 'expense'} onClick={() => switchKind('expense')}>
-              Expense
+              − Expense
             </button>
             <button type="button" aria-pressed={kind === 'income'} onClick={() => switchKind('income')}>
-              Add cash
+              + Add cash
             </button>
           </div>
           <div className="field amount-field">
@@ -640,17 +677,46 @@ function TxEditor({
           {accounts.length > 0 && (
             <div className="field">
               <span className="label">{kind === 'income' ? 'Add to' : 'Paid with'}</span>
-              <div className="cat-picker" role="radiogroup" aria-label="Account">
-                <button type="button" role="radio" aria-checked={!accountId} className="cat-chip" onClick={() => setAccountId(undefined)}>
-                  None
-                </button>
+              <div className="pick-cards" role="radiogroup" aria-label="Account">
                 {accounts.map((a) => (
-                  <button key={a.id} type="button" role="radio" aria-checked={accountId === a.id} className="cat-chip" onClick={() => setAccountId(a.id)}>
-                    <AccountIcon kind={a.kind} size={15} />
-                    {a.name}
+                  <button
+                    key={a.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={accountId === a.id}
+                    className={`pick-card kind-${a.kind}`}
+                    onClick={() => setAccountId(accountId === a.id ? undefined : a.id)}
+                  >
+                    <span className="pick-top">
+                      <AccountIcon kind={a.kind} size={14} />
+                      <span className="pick-name">{a.name}</span>
+                    </span>
+                    <span className="pick-bal">{money(bal.get(a.id) ?? 0)}</span>
                   </button>
                 ))}
               </div>
+              {(() => {
+                const acc = accounts.find((a) => a.id === accountId);
+                const minor = toMinor(amount);
+                if (!acc) return <div className="help-text">Tap an account to take the money from it (tap again to clear).</div>;
+                // Editing: take this record's old effect out first.
+                const sign = (k: TxKind) => (k === 'income' ? 1 : -1);
+                const before = (bal.get(acc.id) ?? 0) - (existing && existing.accountId === acc.id ? sign(existing.kind) * existing.amount : 0);
+                const after = minor ? before + sign(kind) * minor : before;
+                return (
+                  <div className={`bal-after is-${kind}`}>
+                    <span>{acc.name}</span>
+                    <span className="bal-from">{money(before)}</span>
+                    {minor ? (
+                      <>
+                        <span aria-hidden>→</span>
+                        <strong>{money(after)}</strong>
+                        <span className="dim">{kind === 'income' ? 'after cash in' : 'left'}</span>
+                      </>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </div>
           )}
           <div className="grid-2">
@@ -691,7 +757,7 @@ function TxEditor({
 
 // ------------------------------------------------------------ budget setup --
 
-function MoneySetup({ currency, budget, onClose, onSaved }: { currency: string; budget: number; onClose: () => void; onSaved: () => Promise<void> }) {
+function MoneySetup({ currency, budget, balancesOn, onClose, onSaved }: { currency: string; budget: number; balancesOn: boolean; onClose: () => void; onSaved: () => Promise<void> }) {
   const [cur, setCur] = useState(currency);
   const [amount, setAmount] = useState(budget ? fromMinor(budget) : '');
   const [busy, setBusy] = useState(false);
@@ -758,13 +824,13 @@ function MoneySetup({ currency, budget, onClose, onSaved }: { currency: string; 
         />
         {error ? <div className="error-text">{error}</div> : <div className="help-text">Shows how much you have left to spend each month.</div>}
       </div>
-      <QuickAddSettings />
+      <QuickAddSettings balancesOn={balancesOn} onSaved={onSaved} />
     </Dialog>
   );
 }
 
 /** Adding while locked: lock screen box (always) and, on Android, back tap + notification. */
-function QuickAddSettings() {
+function QuickAddSettings({ balancesOn, onSaved }: { balancesOn: boolean; onSaved: () => Promise<void> }) {
   const [notif, setNotif] = useState<'on' | 'off' | 'unsupported' | null>(null);
   const [knock, setKnock] = useState<KnockInfo | null>(null);
   const [busy, setBusy] = useState(false);
@@ -902,6 +968,36 @@ function QuickAddSettings() {
             </button>
           </div>
 
+          <label className="setting qas-row" htmlFor="qa-bal">
+            <span className="grow">
+              <span className="title" style={{ display: 'block' }}>
+                Show balances in the pop-up
+              </span>
+              <span className="desc" style={{ display: 'block' }}>
+                See how much is left in GCash, BDO… while locked. Anyone holding your phone could see the balances (never your records or passwords).
+              </span>
+            </span>
+            <input
+              id="qa-bal"
+              type="checkbox"
+              className="switch"
+              checked={balancesOn}
+              disabled={busy}
+              onChange={async (e) => {
+                const on = e.target.checked;
+                setBusy(true);
+                try {
+                  await unwrap(api.vault.updateSettings({ quickAddBalances: on }));
+                  await onSaved();
+                } catch (err) {
+                  toast(errorMessage(err), 'error');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+          </label>
+
           {notif !== null && notif !== 'unsupported' && (
             <label className="setting qas-row" htmlFor="qa-notif">
               <span className="grow">
@@ -959,7 +1055,8 @@ function AccountsDialog({
   money,
   currency,
   onClose,
-  onChanged
+  onChanged,
+  onOpen
 }: {
   accounts: MoneyAccount[];
   balances: Map<string, number>;
@@ -967,6 +1064,7 @@ function AccountsDialog({
   currency: string;
   onClose: () => void;
   onChanged: () => Promise<void>;
+  onOpen: (id: string) => void;
 }) {
   const [editing, setEditing] = useState<MoneyAccount | 'new' | null>(null);
   const [removing, setRemoving] = useState<MoneyAccount | null>(null);
@@ -996,7 +1094,7 @@ function AccountsDialog({
           <ul className="tx-list">
             {accounts.map((a) => (
               <li key={a.id}>
-                <button type="button" className="tx-row" onClick={() => setEditing(a)}>
+                <button type="button" className="tx-row" onClick={() => onOpen(a.id)}>
                   <span className="tx-icon">
                     <AccountIcon kind={a.kind} />
                   </span>
@@ -1139,5 +1237,119 @@ function AccountEditor({
         <button type="submit" hidden />
       </form>
     </Dialog>
+  );
+}
+
+// ------------------------------------------------------------ account page --
+
+/** One account (e.g. BDO, GCash): its card and balance, add buttons, and every record — tap one to edit or delete it. */
+function AccountPage({
+  account,
+  balance,
+  transactions,
+  currency,
+  money,
+  onClose,
+  onAdd,
+  onOpenTx,
+  onChanged
+}: {
+  account: MoneyAccount;
+  balance: number;
+  transactions: Transaction[];
+  currency: string;
+  money: (v: number, o?: { sign?: boolean }) => string;
+  onClose: () => void;
+  onAdd: (kind: TxKind) => void;
+  onOpenTx: (t: Transaction) => void;
+  onChanged: () => Promise<void>;
+}) {
+  const [editingAccount, setEditingAccount] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const toast = useToast();
+  const list = useMemo(() => [...transactions].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [transactions]);
+  const sums = useMemo(() => totals(transactions), [transactions]);
+
+  return (
+    <>
+      <Dialog title={account.name} subtitle={ACCOUNT_KIND_NAMES.find(([k]) => k === account.kind)?.[1]} onClose={onClose}>
+        <div className={`money-card kind-${account.kind}`}>
+          <div className="mc-top">
+            <span className="mc-icon">
+              <AccountIcon kind={account.kind} size={18} />
+            </span>
+            <span className="mc-name">{account.name}</span>
+            <span className="mc-kind">{ACCOUNT_KIND_NAMES.find(([k]) => k === account.kind)?.[1]}</span>
+          </div>
+          <div className="mc-label">Available balance</div>
+          <div className={`mc-balance ${balance < 0 ? 'neg' : ''}`}>{money(balance)}</div>
+          <div className="mc-foot">
+            <span className="mc-in">+{money(sums.income)} in</span>
+            <span className="mc-out">−{money(sums.expense)} out</span>
+          </div>
+        </div>
+
+        <div className="acct-actions">
+          <button type="button" className="btn tx-save is-expense" onClick={() => onAdd('expense')}>
+            − Expense
+          </button>
+          <button type="button" className="btn tx-save is-income" onClick={() => onAdd('income')}>
+            + Add cash
+          </button>
+          <button type="button" className="btn" onClick={() => setEditingAccount(true)} aria-label={`Edit ${account.name}`}>
+            <Settings2 size={15} aria-hidden /> Edit
+          </button>
+        </div>
+
+        <div className="section-title" style={{ marginTop: 18 }}>
+          <span className="label">History</span>
+          <span className="dim small">{list.length} record{list.length === 1 ? '' : 's'} · tap to edit or delete</span>
+        </div>
+        {list.length === 0 ? (
+          <div className="day-empty">No records for {account.name} yet.</div>
+        ) : (
+          <ul className="tx-list">
+            {list.map((t, i) => (
+              <li key={t.id}>
+                {(i === 0 || list[i - 1]!.date !== t.date) && <div className="tx-day">{dayLabel(t.date)}</div>}
+                <TxRow tx={t} money={money} onOpen={() => onOpenTx(t)} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Dialog>
+      {editingAccount && (
+        <AccountEditor
+          account={account}
+          currency={currency}
+          onClose={() => setEditingAccount(false)}
+          onRemove={() => setRemoving(true)}
+          onSaved={async () => {
+            await onChanged();
+            setEditingAccount(false);
+            toast('Account saved.');
+          }}
+        />
+      )}
+      {removing && (
+        <ConfirmDialog
+          title={`Remove ${account.name}?`}
+          danger
+          confirmLabel="Remove account"
+          message="Its records stay in your expenses, just without an account."
+          onCancel={() => setRemoving(false)}
+          onConfirm={async () => {
+            try {
+              await unwrap(api.vault.deleteAccount(account.id));
+              await onChanged();
+              toast('Account removed.');
+              onClose();
+            } catch (err) {
+              toast(errorMessage(err), 'error');
+            }
+          }}
+        />
+      )}
+    </>
   );
 }

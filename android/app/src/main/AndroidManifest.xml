@@ -45,7 +45,7 @@
             android:taskAffinity="com.vaultlocks.app.quickadd"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:windowSoftInputMode="adjustResize|stateAlwaysVisible"
+            android:windowSoftInputMode="adjustNothing|stateAlwaysVisible"
             android:theme="@style/QuickAddTheme" />
 
         <!-- Separate "Add expense" entry so the phone's own Back Tap / shortcuts can open the pop-up. -->

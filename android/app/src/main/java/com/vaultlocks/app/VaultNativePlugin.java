@@ -600,8 +600,30 @@ public class VaultNativePlugin extends Plugin {
 
     // ---------------------------------------------------------- quick add ----
 
+    /** The running plugin (to send the double tap to the app while it is open). */
+    static volatile VaultNativePlugin instance;
+    /** Set by the app: the vault is unlocked right now. */
+    static volatile boolean vaultUnlocked = false;
+
+    /** Double tap while VaultLocks is open and unlocked: open the in-app add form. Returns false if not possible. */
+    static boolean openInApp(boolean cash) {
+        VaultNativePlugin p = instance;
+        if (p == null || !vaultUnlocked || !MainActivity.resumed) return false;
+        JSObject data = new JSObject();
+        data.put("cash", cash);
+        p.getBridge().executeOnMainThread(() -> p.notifyListeners("quickAdd", data));
+        return true;
+    }
+
+    @PluginMethod
+    public void setVaultState(PluginCall call) {
+        vaultUnlocked = call.getBoolean("unlocked", false);
+        call.resolve();
+    }
+
     @Override
     public void load() {
+        instance = this;
         // Put the quick-add notification / double-tap detector back if the system stopped them.
         if (QuickAdd.isOn(getContext())) QuickAdd.show(getContext(), null);
         if (KnockService.isOn(getContext())) KnockService.start(getContext());
@@ -630,12 +652,34 @@ public class VaultNativePlugin extends Plugin {
         call.resolve();
     }
 
-    /** Open the add-expense pop-up now (the "Try it" button). */
+    private static PluginCall previewCall;
+
+    /**
+     * Open the add-expense pop-up now (the "Try it" button). Resolves when the pop-up
+     * closes, so the app can keep the vault open while it is only being previewed.
+     */
     @PluginMethod
     public void openQuickAdd(PluginCall call) {
+        call.setKeepAlive(true);
+        synchronized (VaultNativePlugin.class) {
+            if (previewCall != null) previewCall.resolve();
+            previewCall = call;
+        }
         Intent i = new Intent(getContext(), QuickAddActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         getContext().startActivity(i);
-        call.resolve();
+    }
+
+    /** Called by QuickAddActivity when it closes. */
+    static void quickAddClosed() {
+        PluginCall c;
+        synchronized (VaultNativePlugin.class) {
+            c = previewCall;
+            previewCall = null;
+        }
+        if (c != null) {
+            c.resolve();
+            c.setKeepAlive(false);
+        }
     }
 
     /**

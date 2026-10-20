@@ -70,6 +70,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
   const lock = () => {
     const was = vault.isUnlocked;
     vault.lock();
+    void native.setVaultState(false).catch(() => undefined);
     pending.clear();
     if (idleTimer) clearTimeout(idleTimer);
     void native.clearClipboard().catch(() => undefined);
@@ -88,7 +89,17 @@ export function createMobileApi(native: NativeVault): VaultApi {
     lastActivity = Date.now();
     armIdle();
     applySecure();
+    void native.setVaultState(true).catch(() => undefined);
   };
+
+  // Double tap on the back while VaultLocks is open: open the in-app add form.
+  if (Capacitor.getPlatform() === 'android') {
+    try {
+      native.onQuickAdd((cash) => window.dispatchEvent(new CustomEvent('vault:quickadd', { detail: { cash } })));
+    } catch {
+      /* older native shell */
+    }
+  }
 
   // ---- Android lifecycle -----------------------------------------------------
   // Lock when the app goes to the background: immediately or after the chosen delay.
@@ -521,7 +532,8 @@ export function createMobileApi(native: NativeVault): VaultApi {
       openPopup: () =>
         wrap(async () => {
           if (Capacitor.getPlatform() !== 'android') throw new AppError('UNSUPPORTED', 'Available on Android.');
-          await native.openQuickAdd();
+          // Only a preview: keep the vault open while the pop-up is on screen.
+          await withExternalUi(() => native.openQuickAdd());
         }),
       openPermissions: async (which) => {
         if (Capacitor.getPlatform() === 'android') await withExternalUi(() => native.openQuickAddPermissions(which)).catch(() => undefined);

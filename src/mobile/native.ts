@@ -52,6 +52,10 @@ export interface NativeVault {
   /** Open the add-expense pop-up now. */
   openQuickAdd(): Promise<void>;
   openQuickAddPermissions(which: 'overlay' | 'fullscreen' | 'app'): Promise<void>;
+  /** Tell the native side whether the vault is unlocked (a double tap then opens the in-app form). */
+  setVaultState(unlocked: boolean): Promise<void>;
+  /** Double tap while VaultLocks is open and unlocked. */
+  onQuickAdd(cb: (cash: boolean) => void): void;
 }
 
 export interface KnockStatus {
@@ -96,6 +100,8 @@ interface VaultNativePlugin {
   setKnock(o: { on: boolean; sensitivity: number }): Promise<void>;
   openQuickAdd(): Promise<void>;
   openQuickAddPermissions(o: { which: string }): Promise<void>;
+  setVaultState(o: { unlocked: boolean }): Promise<void>;
+  addListener(event: 'quickAdd', cb: (data: { cash?: boolean }) => void): Promise<unknown>;
 }
 
 const Plugin = registerPlugin<VaultNativePlugin>('VaultNative');
@@ -139,5 +145,7 @@ export const capacitorNative: NativeVault = {
   knockStatus: () => Plugin.knockStatus(),
   setKnock: (on, sensitivity) => Plugin.setKnock({ on, sensitivity }),
   openQuickAdd: () => Plugin.openQuickAdd(),
-  openQuickAddPermissions: (which) => Plugin.openQuickAddPermissions({ which })
+  openQuickAddPermissions: (which) => Plugin.openQuickAddPermissions({ which }),
+  setVaultState: (unlocked) => Plugin.setVaultState({ unlocked }),
+  onQuickAdd: (cb) => void Plugin.addListener('quickAdd', (d) => cb(d?.cash === true))
 };
