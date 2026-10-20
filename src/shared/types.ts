@@ -1,5 +1,7 @@
 // Shared data model. Imported by main, preload (types only) and renderer.
 
+import type { MoneyAccount, Transaction } from './money';
+
 export type FieldType =
   | 'text'
   | 'username'
@@ -194,6 +196,10 @@ export interface VaultSettings {
   reminders: boolean;
   /** How many days before the date the first reminder comes (one more on the day). */
   reminderDaysBefore: ReminderDays;
+  /** Expenses: ISO 4217 currency code. */
+  currency: string;
+  /** Expenses: monthly spending budget in minor units (0 = no budget). */
+  monthlyBudget: number;
 }
 
 export const DEFAULT_SETTINGS: VaultSettings = {
@@ -215,6 +221,8 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   hidePreviews: false,
   reminders: true,
   reminderDaysBefore: 1,
+  currency: 'PHP',
+  monthlyBudget: 0,
   generator: { length: 20, upper: true, lower: true, digits: true, symbols: true, avoidAmbiguous: false }
 };
 
@@ -234,6 +242,25 @@ export interface VaultPayload {
   settings: VaultSettings;
   meta: VaultMeta;
   trash: TrashedEntry[];
+  /** Expense & income records (inside the encrypted payload like everything else). */
+  transactions: Transaction[];
+  /** Money accounts (Cash, GCash…). */
+  accounts: MoneyAccount[];
+  /** Quick-add inbox key pair (see core/inbox.ts); the private half never leaves the payload. */
+  inboxKey?: { priv: JsonWebKey; pub: string };
+}
+
+/** Quick add while locked: is it set up, and how many entries wait for the next unlock. */
+export interface InboxStatus {
+  enabled: boolean;
+  pending: number;
+}
+
+/** What the last unlock picked up from the quick-add inbox. */
+export interface InboxReport {
+  added: number;
+  /** Entries without a readable amount (kept here so the user can re-enter them). */
+  unreadable: string[];
 }
 
 export interface VaultStats {
@@ -249,6 +276,8 @@ export interface VaultStats {
 
 export interface VaultSnapshot {
   entries: EntryView[];
+  transactions: Transaction[];
+  accounts: MoneyAccount[];
   categories: CategoryDef[];
   settings: VaultSettings;
   stats: VaultStats;

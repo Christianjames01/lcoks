@@ -3,6 +3,7 @@
 // unexpected properties (e.g. prototype-pollution keys) are dropped.
 
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../shared/categories';
+import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MONEY_CATEGORY_IDS, defaultCategory, isDayKey, moneyCategory, type AccountKind, type MoneyAccount, type Transaction, type TransactionInput } from '../shared/money';
 import {
   ACCENT_COLORS,
   DEFAULT_SETTINGS,
@@ -45,7 +46,8 @@ export const LIMITS = {
   fieldLabel: 60,
   customCategories: 100,
   masterPasswordMax: 1024,
-  masterPasswordMin: 8
+  masterPasswordMin: 8,
+  transactions: 200_000
 } as const;
 
 const FIELD_TYPES: FieldType[] = [
@@ -199,6 +201,8 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
     hidePreviews: typeof s.hidePreviews === 'boolean' ? s.hidePreviews : base.hidePreviews,
     reminders: typeof s.reminders === 'boolean' ? s.reminders : base.reminders,
     reminderDaysBefore: [1, 3, 7, 14, 30].includes(s.reminderDaysBefore as number) ? (s.reminderDaysBefore as ReminderDays) : base.reminderDaysBefore,
+    currency: typeof s.currency === 'string' && /^[A-Z]{3}$/.test(s.currency) ? s.currency : base.currency,
+    monthlyBudget: Number.isInteger(s.monthlyBudget) && (s.monthlyBudget as number) >= 0 && (s.monthlyBudget as number) <= MAX_AMOUNT ? (s.monthlyBudget as number) : base.monthlyBudget,
     generator: validateGeneratorDefaults(s.generator, base.generator)
   };
 }
@@ -219,7 +223,7 @@ function validateGeneratorDefaults(v: unknown, base: VaultSettings['generator'])
   return out;
 }
 
-function isoOr(v: unknown, fallback: string): string {
+export function isoOr(v: unknown, fallback: string): string {
   return typeof v === 'string' && v.length <= 64 && !Number.isNaN(Date.parse(v)) ? v : fallback;
 }
 
@@ -281,6 +285,33 @@ export function validatePayload(v: unknown): VaultPayload {
     }
   }
 
+  // Money accounts: vaults from before accounts existed get the defaults.
+  const accounts: MoneyAccount[] = [];
+  if (!Array.isArray(p.accounts)) accounts.push(...DEFAULT_ACCOUNTS.map((a) => ({ ...a })));
+  else
+    for (const raw of p.accounts.slice(0, MAX_ACCOUNTS)) {
+      try {
+        const a = validateAccountInput(raw);
+        if (a.id && !accounts.some((x) => x.id === a.id)) accounts.push(a as MoneyAccount);
+      } catch {
+        /* skip */
+      }
+    }
+
+  // Expenses: a damaged record is skipped, never fatal (older vaults have none).
+  const transactions: Transaction[] = [];
+  const txIds = new Set<string>();
+  for (const raw of Array.isArray(p.transactions) ? p.transactions.slice(0, LIMITS.transactions) : []) {
+    try {
+      const t = validateTransactionInput(raw);
+      const id = t.id && !txIds.has(t.id) ? t.id : randomUUID();
+      txIds.add(id);
+      transactions.push({ ...t, id, createdAt: isoOr(raw.createdAt, now), updatedAt: isoOr(raw.updatedAt, now) });
+    } catch {
+      /* skip */
+    }
+  }
+
   const m = p.meta && typeof p.meta === 'object' ? p.meta : {};
   return {
     schema: 1,
@@ -295,8 +326,56 @@ export function validatePayload(v: unknown): VaultPayload {
         ? m.dismissedDuplicates.filter((x: unknown) => typeof x === 'string' && x.length <= 300).slice(0, 2000)
         : []
     },
-    trash
+    trash,
+    transactions,
+    accounts,
+    ...(validInboxKey(p.inboxKey) ? { inboxKey: { priv: { ...p.inboxKey.priv }, pub: p.inboxKey.pub } } : {})
   };
+}
+
+function validInboxKey(k: any): k is { priv: JsonWebKey; pub: string } {
+  const s = (v: unknown) => typeof v === 'string' && v.length > 0 && v.length <= 200;
+  return (
+    !!k &&
+    typeof k === 'object' &&
+    s(k.pub) &&
+    !!k.priv &&
+    typeof k.priv === 'object' &&
+    k.priv.kty === 'EC' &&
+    k.priv.crv === 'P-256' &&
+    s(k.priv.d) &&
+    s(k.priv.x) &&
+    s(k.priv.y)
+  );
+}
+
+/** One expense / income record from the renderer or the decrypted payload. */
+export function validateTransactionInput(input: unknown): TransactionInput {
+  if (!input || typeof input !== 'object') throw new ValidationError('form', 'Invalid record.');
+  const i = input as Record<string, unknown>;
+  const id = i.id === undefined || i.id === null ? undefined : str(i.id, 'id', 64);
+  if (id !== undefined && !ID_RE.test(id)) throw new ValidationError('id', 'Invalid record.');
+  const kind = i.kind === 'income' ? 'income' : i.kind === 'expense' ? 'expense' : null;
+  if (!kind) throw new ValidationError('kind', 'Choose expense or income.');
+  if (!Number.isInteger(i.amount) || (i.amount as number) <= 0 || (i.amount as number) > MAX_AMOUNT) throw new ValidationError('amount', 'Enter an amount greater than zero.');
+  const category = typeof i.category === 'string' && MONEY_CATEGORY_IDS.has(i.category) && moneyCategory(i.category).kind === kind ? i.category : defaultCategory(kind);
+  if (!isDayKey(i.date)) throw new ValidationError('date', 'Choose a valid date.');
+  const accountId = typeof i.accountId === 'string' && ID_RE.test(i.accountId) ? i.accountId : undefined;
+  return { id, kind, amount: i.amount as number, category, note: str(i.note, 'note', LIMITS.title).trim(), date: i.date, ...(accountId ? { accountId } : {}) };
+}
+
+const ACCOUNT_KINDS: AccountKind[] = ['cash', 'ewallet', 'bank', 'other'];
+
+/** A money account (Cash, GCash…). `id` is optional for a new one. */
+export function validateAccountInput(input: unknown): Omit<MoneyAccount, 'id'> & { id?: string } {
+  if (!input || typeof input !== 'object') throw new ValidationError('form', 'Invalid account.');
+  const i = input as Record<string, unknown>;
+  const id = i.id === undefined || i.id === null ? undefined : str(i.id, 'id', 64);
+  if (id !== undefined && !ID_RE.test(id)) throw new ValidationError('id', 'Invalid account.');
+  const name = str(i.name, 'name', 40, true).trim();
+  const opening = i.opening === undefined ? 0 : i.opening;
+  if (!Number.isInteger(opening) || Math.abs(opening as number) > MAX_AMOUNT) throw new ValidationError('opening', 'Enter a valid starting balance.');
+  return { id, name, kind: ACCOUNT_KINDS.includes(i.kind as AccountKind) ? (i.kind as AccountKind) : 'other', opening: opening as number };
 }
 
 const ATT_ID = /^[A-Za-z0-9-]{8,64}$/;

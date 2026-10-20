@@ -190,6 +190,14 @@ export function registerIpc(d: IpcDeps): void {
   });
   handle('vault.saveCategory', (input: unknown) => d.vault.saveCategory(input));
   handle('vault.deleteCategory', (id: unknown) => d.vault.deleteCategory(id));
+  // Quick add: works while locked (writes only an entry encrypted to the inbox public key).
+  handle('inbox.status', () => d.vault.inboxStatus());
+  handle('inbox.add', (text: unknown, day: unknown) => d.vault.quickAdd(text, day));
+  handle('inbox.takeReport', () => d.vault.takeInboxReport());
+  handle('vault.saveTransaction', (input: unknown) => d.vault.saveTransaction(input));
+  handle('vault.deleteTransaction', (id: unknown) => d.vault.deleteTransaction(id));
+  handle('vault.saveAccount', (input: unknown) => d.vault.saveAccount(input));
+  handle('vault.deleteAccount', (id: unknown) => d.vault.deleteAccount(id));
   handle('vault.updateSettings', async (patch: unknown) => {
     const s = await d.vault.updateSettings(patch);
     d.onSettingsChanged();

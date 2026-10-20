@@ -47,6 +47,10 @@ const api: VaultApi = {
     copyText: call('vault.copyText') as VaultApi['vault']['copyText'],
     saveCategory: call('vault.saveCategory') as VaultApi['vault']['saveCategory'],
     deleteCategory: call('vault.deleteCategory') as VaultApi['vault']['deleteCategory'],
+    saveTransaction: call('vault.saveTransaction') as VaultApi['vault']['saveTransaction'],
+    deleteTransaction: call('vault.deleteTransaction') as VaultApi['vault']['deleteTransaction'],
+    saveAccount: call('vault.saveAccount') as VaultApi['vault']['saveAccount'],
+    deleteAccount: call('vault.deleteAccount') as VaultApi['vault']['deleteAccount'],
     updateSettings: call('vault.updateSettings') as VaultApi['vault']['updateSettings'],
     databaseInfo: call('vault.databaseInfo') as VaultApi['vault']['databaseInfo'],
     showVaultFolder: call('vault.showVaultFolder') as VaultApi['vault']['showVaultFolder']
@@ -86,6 +90,17 @@ const api: VaultApi = {
     disable: async () => unsupported,
     unlockBiometric: async () => unsupported,
     unlockPin: async () => unsupported
+  },
+  inbox: {
+    status: call('inbox.status') as VaultApi['inbox']['status'],
+    add: call('inbox.add') as VaultApi['inbox']['add'],
+    takeReport: call('inbox.takeReport') as VaultApi['inbox']['takeReport'],
+    notification: async () => 'unsupported' as const,
+    setNotification: async () => unsupported,
+    knock: async () => ({ supported: false, on: false, sensitivity: 1, canPopUp: false, fullScreen: false, xiaomi: false }),
+    setKnock: async () => unsupported,
+    openPopup: async () => unsupported,
+    openPermissions: async () => undefined
   },
   events: {
     onCommand(cb) {

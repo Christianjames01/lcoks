@@ -1,7 +1,8 @@
-import { Archive, CalendarClock, ChevronRight, CopyCheck, KeyRound, Plus, Search, Settings as SettingsIcon, ShieldAlert, Trash2, TriangleAlert, Upload } from 'lucide-react';
+import { Archive, CalendarClock, ChevronRight, CopyCheck, KeyRound, Plus, Search, Settings as SettingsIcon, ShieldAlert, Trash2, TriangleAlert, Upload, Wallet } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { subtitleFor } from '../../shared/categories';
 import { describeUpcoming, upcomingDates } from '../../shared/expiry';
+import { dayKey, formatMoney, monthOf, totals } from '../../shared/money';
 import { securityReport } from '../../shared/security';
 import type { EntryView, VaultSnapshot } from '../../shared/types';
 import { CategoryCard, QuickActionCard, RecentItemCard, StorageUsageCard, VaultStatusCard } from '../components/DashboardCards';
@@ -75,6 +76,11 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
       .filter((x) => x.n > 0)
       .sort((a, b) => b.n - a.n || a.i - b.i);
   }, [snap.entries, snap.categories]);
+
+  const month = useMemo(() => {
+    const m = monthOf(dayKey(new Date()));
+    return totals(snap.transactions.filter((t) => monthOf(t.date) === m));
+  }, [snap.transactions]);
 
   const backupAge = daysSince(meta.lastBackupAt);
   const backupDue = settings.backupReminderDays > 0 && stats.total > 0 && backupAge > settings.backupReminderDays;
@@ -163,6 +169,20 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
             onLock={onLock}
             onSecurity={() => onNavigate({ view: 'security' })}
           />
+          <button type="button" className="storage-card" onClick={() => onNavigate({ view: 'money' })}>
+            <span className="sc-icon" aria-hidden>
+              <Wallet size={18} strokeWidth={1.75} />
+            </span>
+            <span className="grow">
+              <span className="sc-title">This month</span>
+              <span className="sc-sub">
+                {snap.transactions.length === 0
+                  ? 'Track expenses and income with a calendar'
+                  : `Spent ${formatMoney(month.expense, settings.currency)} · Income ${formatMoney(month.income, settings.currency)}`}
+              </span>
+            </span>
+            <ChevronRight size={16} aria-hidden className="dim" />
+          </button>
           <StorageUsageCard refreshKey={snap} onOpen={() => onNavigate({ view: 'settings', tab: 'vault' })} />
         </div>
 
@@ -178,6 +198,7 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
           {QUICK_ADD.filter(([id]) => snap.categories.some((c) => c.id === id)).map(([id, label]) => (
             <QuickActionCard key={id} icon={<CategoryIcon icon={snap.categories.find((c) => c.id === id)?.icon} size={20} />} label={label} onClick={() => onNew(id)} />
           ))}
+          <QuickActionCard icon={<Wallet size={20} strokeWidth={1.75} />} label="Expense" onClick={() => onNavigate({ view: 'money' })} />
           <QuickActionCard icon={<Upload size={20} strokeWidth={1.75} />} label="Import notes" onClick={onImport} />
         </div>
 

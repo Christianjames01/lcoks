@@ -286,6 +286,10 @@ export function createMobileApi(native: NativeVault): VaultApi {
         }),
       saveCategory: (i) => wrap(() => vault.saveCategory(i)),
       deleteCategory: (id) => wrap(() => vault.deleteCategory(id)),
+      saveTransaction: (i) => wrap(() => vault.saveTransaction(i)),
+      deleteTransaction: (id) => wrap(() => vault.deleteTransaction(id)),
+      saveAccount: (i) => wrap(() => vault.saveAccount(i)),
+      deleteAccount: (id) => wrap(() => vault.deleteAccount(id)),
       updateSettings: (patch) =>
         wrap(async () => {
           const s = await vault.updateSettings(patch);
@@ -480,6 +484,48 @@ export function createMobileApi(native: NativeVault): VaultApi {
           await quick.unlockPin(pin);
           unlocked();
         })
+    },
+    inbox: {
+      status: () => wrap(() => vault.inboxStatus()),
+      add: (text, day) => wrap(() => vault.quickAdd(text, day)),
+      takeReport: () => wrap(() => vault.takeInboxReport()),
+      notification: async () => {
+        if (Capacitor.getPlatform() !== 'android') return 'unsupported';
+        try {
+          return (await native.quickAddNotification()) ? 'on' : 'off';
+        } catch {
+          return 'unsupported';
+        }
+      },
+      setNotification: (on) =>
+        wrap(async () => {
+          if (Capacitor.getPlatform() !== 'android') throw new AppError('UNSUPPORTED', 'Quick add notification is available on Android.');
+          if (on && !(await vault.inboxStatus()).enabled) throw new AppError('INBOX_OFF', 'Unlock VaultLocks once to turn on quick add.');
+          await native.setQuickAddNotification(on === true);
+        }),
+      knock: async () => {
+        const off = { supported: false, on: false, sensitivity: 1, canPopUp: false, fullScreen: false, xiaomi: false };
+        if (Capacitor.getPlatform() !== 'android') return off;
+        try {
+          return { supported: true, ...(await native.knockStatus()) };
+        } catch {
+          return off;
+        }
+      },
+      setKnock: (on, sensitivity) =>
+        wrap(async () => {
+          if (Capacitor.getPlatform() !== 'android') throw new AppError('UNSUPPORTED', 'Available on Android.');
+          if (on && !(await vault.inboxStatus()).enabled) throw new AppError('INBOX_OFF', 'Unlock VaultLocks once to turn on quick add.');
+          await native.setKnock(on === true, Number.isInteger(sensitivity) ? sensitivity : 1);
+        }),
+      openPopup: () =>
+        wrap(async () => {
+          if (Capacitor.getPlatform() !== 'android') throw new AppError('UNSUPPORTED', 'Available on Android.');
+          await native.openQuickAdd();
+        }),
+      openPermissions: async (which) => {
+        if (Capacitor.getPlatform() === 'android') await withExternalUi(() => native.openQuickAddPermissions(which)).catch(() => undefined);
+      }
     },
     events: {
       onCommand: () => () => undefined

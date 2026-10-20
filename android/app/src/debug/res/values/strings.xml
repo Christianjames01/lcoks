@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Debug / live-reload build only: installs next to the real app as "VaultLocks Dev". -->
+<resources>
+    <string name="app_name">VaultLocks Dev</string>
+    <string name="title_activity_main">VaultLocks Dev</string>
+</resources>

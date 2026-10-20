@@ -79,6 +79,12 @@ function memoryNative() {
     readClipboard: async () => self.clipboard,
     takeSharedText: async () => null,
     purgeCaptures: async () => undefined,
+    quickAddNotification: async () => false,
+    setQuickAddNotification: async () => undefined,
+    knockStatus: async () => ({ on: false, sensitivity: 1, canPopUp: false, fullScreen: false, xiaomi: false }),
+    setKnock: async () => undefined,
+    openQuickAdd: async () => undefined,
+    openQuickAddPermissions: async () => undefined,
     read: async (n) => files.get(n) ?? null,
     writeAtomic: async (n, d) => {
       if (self.failNextWrite) {

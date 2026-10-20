@@ -35,6 +35,12 @@ android {
         }
     }
     buildTypes {
+        // Live-reload / test build (npm run android:live): a separate app with its own
+        // empty vault, so the real VaultLocks install and its data are never touched.
+        debug {
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
+        }
         release {
             // Without the release keystore (e.g. a fork without secrets) fall back to the
             // debug key so the APK is still installable; such builds cannot update a

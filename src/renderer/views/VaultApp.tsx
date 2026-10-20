@@ -1,4 +1,4 @@
-import { CopyCheck, House, Layers, Lock, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
+import { CopyCheck, House, Layers, Lock, Wallet, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildReminders } from '../../shared/expiry';
 import { searchEntries } from '../../shared/search';
@@ -21,6 +21,7 @@ import { DuplicatesView } from './Duplicates';
 import { EntryForm } from './EntryForm';
 import { ImportNotesDialog } from './ImportNotes';
 import { ItemsView } from './Items';
+import { MoneyView } from './Money';
 import { SearchView } from './SearchView';
 import { SettingsView } from './Settings';
 import { TitleBar } from './TitleBar';
@@ -31,6 +32,7 @@ export type Route =
   /** filter: 'all' | 'favorites' | 'weak' | 'reused' | 'old' | 'cat:<id>' | 'tag:<tag>'; entry: opened directly (phone: detail screen only). */
   | { view: 'items'; filter: string; entry?: string }
   | { view: 'search' }
+  | { view: 'money' }
   | { view: 'security' }
   | { view: 'settings'; tab?: string }
   | { view: 'duplicates' }
@@ -38,10 +40,10 @@ export type Route =
 
 export type EditorState = { mode: 'new'; categoryId?: string } | { mode: 'edit'; id: string } | null;
 
-type Tab = 'vault' | 'favorites' | 'search' | 'settings';
+type Tab = 'vault' | 'money' | 'search' | 'settings';
 
 function tabOf(r: Route): Tab {
-  if (r.view === 'items' && r.filter === 'favorites') return 'favorites';
+  if (r.view === 'money') return 'money';
   if (r.view === 'search') return 'search';
   if (r.view === 'settings' || r.view === 'duplicates' || r.view === 'trash') return 'settings';
   return 'vault';
@@ -57,6 +59,7 @@ export function VaultApp({ version }: { version: string }) {
   const [deleting, setDeleting] = useState<EntryView | null>(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [moneyAdd, setMoneyAdd] = useState(0);
   const [sharedText, setSharedText] = useState<string | undefined>(undefined);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
@@ -81,6 +84,25 @@ export function VaultApp({ version }: { version: string }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Expenses added while locked (lock screen / notification) were picked up by this unlock.
+  // Also checked when the app comes back (a notification reply may have arrived meanwhile).
+  useEffect(() => {
+    const check = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const r = await api.inbox.takeReport();
+      if (!r.ok || !r.value) return;
+      const { added, unreadable } = r.value;
+      if (added) {
+        await refresh();
+        toast(`${added} expense${added === 1 ? '' : 's'} added from quick add.`);
+      }
+      if (unreadable.length) toast(`Couldn't read an amount in: ${unreadable.map((t) => `“${t}”`).join(', ')}. Please add ${unreadable.length === 1 ? 'it' : 'them'} again.`, 'error');
+    };
+    void check();
+    document.addEventListener('visibilitychange', check);
+    return () => document.removeEventListener('visibilitychange', check);
+  }, [toast, refresh]);
 
   useEffect(() => {
     const onResize = () => setNarrow(window.innerWidth < 1180);
@@ -159,7 +181,7 @@ export function VaultApp({ version }: { version: string }) {
     setHistory([]);
     setQuery('');
     setSelectedId(null);
-    setRoute(t === 'favorites' ? { view: 'items', filter: 'favorites' } : t === 'search' ? { view: 'search' } : t === 'settings' ? { view: 'settings' } : { view: 'dashboard' });
+    setRoute(t === 'money' ? { view: 'money' } : t === 'search' ? { view: 'search' } : t === 'settings' ? { view: 'settings' } : { view: 'dashboard' });
   };
   /** What Back would do right now, or null when there is nowhere to go back to. */
   const backAction = (): (() => void) | null => {
@@ -356,6 +378,7 @@ export function VaultApp({ version }: { version: string }) {
     const r = shownRoute;
     if (r.view === 'dashboard') return 'Vault';
     if (r.view === 'search') return 'Search';
+    if (r.view === 'money') return 'Expenses';
     if (r.view === 'settings') return 'Settings';
     if (r.view === 'duplicates') return 'Duplicates';
     if (r.view === 'trash') return 'Recently Deleted';
@@ -439,9 +462,15 @@ export function VaultApp({ version }: { version: string }) {
               )}
             </div>
             <div className="drag" />
-            <button type="button" className="btn sm primary" onClick={() => newItem(currentCategory(route))} title="New item (Ctrl+N)" aria-label="New item">
-              <Plus size={14} aria-hidden /> <span className="btn-text">New item</span>
-            </button>
+            {route.view === 'money' && !searching ? (
+              <button type="button" className="btn sm primary" onClick={() => setMoneyAdd((n) => n + 1)} aria-label="Add expense">
+                <Plus size={14} aria-hidden /> <span className="btn-text">Add expense</span>
+              </button>
+            ) : (
+              <button type="button" className="btn sm primary" onClick={() => newItem(currentCategory(route))} title="New item (Ctrl+N)" aria-label="New item">
+                <Plus size={14} aria-hidden /> <span className="btn-text">New item</span>
+              </button>
+            )}
             <button type="button" className="btn sm" onClick={lock} title="Lock vault (Ctrl+L)" aria-label="Lock vault">
               <Lock size={14} aria-hidden /> <span className="btn-text">Lock</span>
             </button>
@@ -455,6 +484,7 @@ export function VaultApp({ version }: { version: string }) {
           <nav id="vault-nav" className={`sidebar ${drawerOpen ? 'open' : ''}`} aria-label="Vault navigation">
             {navItem('dashboard', 'Dashboard', <House size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'dashboard', () => go({ view: 'dashboard' }))}
             {filterNav('favorites', 'Favorites', <Star size={16} strokeWidth={1.75} aria-hidden />, snap.stats.favorites)}
+            {navItem('money', 'Expenses', <Wallet size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'money', () => go({ view: 'money' }))}
             <div className="nav-section label">Vault</div>
             {filterNav('all', 'All Items', <Layers size={16} strokeWidth={1.75} aria-hidden />, snap.entries.length)}
             {categoryNav.map((c) => filterNav(`cat:${c.id}`, c.name, <CategoryIcon icon={c.icon} />, counts.get(c.id) ?? 0))}
@@ -512,6 +542,7 @@ export function VaultApp({ version }: { version: string }) {
             />
           )}
           {shownRoute.view === 'search' && <SearchView snap={snap} onOpen={openEntry} />}
+          {shownRoute.view === 'money' && <MoneyView snap={snap} mobile={mobile} onChanged={refresh} addSignal={moneyAdd} />}
           {shownRoute.view === 'security' && <SecurityView snap={snap} onOpen={openEntry} onNavigate={go} />}
           {shownRoute.view === 'duplicates' && <DuplicatesView snap={snap} onChanged={refresh} onOpen={openEntry} />}
           {shownRoute.view === 'trash' && <TrashView snap={snap} onChanged={refresh} />}
@@ -537,11 +568,16 @@ export function VaultApp({ version }: { version: string }) {
             <House size={22} strokeWidth={1.9} aria-hidden />
             Vault
           </button>
-          <button type="button" className="tab-btn" aria-current={tab === 'favorites' ? 'page' : undefined} onClick={() => switchTab('favorites')}>
-            <Star size={22} strokeWidth={1.9} aria-hidden />
-            Favorites
+          <button type="button" className="tab-btn" aria-current={tab === 'money' ? 'page' : undefined} onClick={() => switchTab('money')}>
+            <Wallet size={22} strokeWidth={1.9} aria-hidden />
+            Expenses
           </button>
-          <button type="button" className="fab" onClick={() => newItem(currentCategory(route))} aria-label="Add item">
+          <button
+            type="button"
+            className="fab"
+            onClick={() => (route.view === 'money' ? setMoneyAdd((n) => n + 1) : newItem(currentCategory(route)))}
+            aria-label={route.view === 'money' ? 'Add expense' : 'Add item'}
+          >
             <Plus size={28} strokeWidth={2.2} aria-hidden />
           </button>
           <button type="button" className="tab-btn" aria-current={tab === 'search' ? 'page' : undefined} onClick={() => switchTab('search')}>

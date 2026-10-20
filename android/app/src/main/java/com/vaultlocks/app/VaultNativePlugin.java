@@ -16,6 +16,7 @@ import com.getcapacitor.JSArray;
 import java.io.ByteArrayOutputStream;
 import android.net.Uri;
 import android.os.Build;
+import android.provider.Settings;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PersistableBundle;
@@ -595,6 +596,87 @@ public class VaultNativePlugin extends Plugin {
             out.getFD().sync();
         }
         return f;
+    }
+
+    // ---------------------------------------------------------- quick add ----
+
+    @Override
+    public void load() {
+        // Put the quick-add notification / double-tap detector back if the system stopped them.
+        if (QuickAdd.isOn(getContext())) QuickAdd.show(getContext(), null);
+        if (KnockService.isOn(getContext())) KnockService.start(getContext());
+    }
+
+    @PluginMethod
+    public void knockStatus(PluginCall call) {
+        Context c = getContext();
+        JSObject ret = new JSObject();
+        ret.put("on", KnockService.isOn(c));
+        ret.put("sensitivity", KnockService.sensitivity(c));
+        ret.put("canPopUp", KnockService.canPopUp(c));
+        boolean fsi = true;
+        if (Build.VERSION.SDK_INT >= 34) {
+            android.app.NotificationManager nm = (android.app.NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
+            fsi = nm != null && nm.canUseFullScreenIntent();
+        }
+        ret.put("fullScreen", fsi);
+        ret.put("xiaomi", "xiaomi".equalsIgnoreCase(Build.MANUFACTURER) || "poco".equalsIgnoreCase(Build.BRAND) || "redmi".equalsIgnoreCase(Build.BRAND));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setKnock(PluginCall call) {
+        KnockService.setOn(getContext(), call.getBoolean("on", false), call.getInt("sensitivity", 1));
+        call.resolve();
+    }
+
+    /** Open the add-expense pop-up now (the "Try it" button). */
+    @PluginMethod
+    public void openQuickAdd(PluginCall call) {
+        Intent i = new Intent(getContext(), QuickAddActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(i);
+        call.resolve();
+    }
+
+    /**
+     * Permission screens the pop-up needs: "overlay" (display over other apps),
+     * "fullscreen" (Android 14+), or "app" — on Xiaomi/HyperOS its own permission page
+     * with "Show on lock screen" and "Display pop-up windows while running in the background".
+     */
+    @PluginMethod
+    public void openQuickAddPermissions(PluginCall call) {
+        Context c = getContext();
+        String which = call.getString("which", "app");
+        Uri pkg = Uri.parse("package:" + c.getPackageName());
+        Intent i;
+        if ("overlay".equals(which) && Build.VERSION.SDK_INT >= 23) i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, pkg);
+        else if ("fullscreen".equals(which) && Build.VERSION.SDK_INT >= 34) i = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, pkg);
+        else {
+            i = new Intent("miui.intent.action.APP_PERM_EDITOR")
+                .setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity")
+                .putExtra("extra_pkgname", c.getPackageName());
+            if (i.resolveActivity(c.getPackageManager()) == null) i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg);
+        }
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            c.startActivity(i);
+        } catch (Exception e) {
+            c.startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void quickAddNotification(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("on", QuickAdd.isOn(getContext()));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setQuickAddNotification(PluginCall call) {
+        QuickAdd.setOn(getContext(), call.getBoolean("on", false));
+        call.resolve();
     }
 
     /** Decoded (binary) file in the private export cache, for the share sheet. */

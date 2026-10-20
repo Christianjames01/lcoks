@@ -14,12 +14,15 @@ import type {
   DuplicateGroup,
   EntryInput,
   EntryView,
+  InboxReport,
+  InboxStatus,
   Result,
   StorageInfo,
   VaultEntry,
   VaultSettings,
   VaultSnapshot
 } from './types';
+import type { AccountKind, MoneyAccount, Transaction, TransactionInput } from './money';
 
 export interface VaultApi {
   app: {
@@ -69,6 +72,13 @@ export interface VaultApi {
     copyText(text: string): Promise<Result<{ seconds: number }>>;
     saveCategory(input: CategoryInput): Promise<Result<CategoryDef>>;
     deleteCategory(id: string): Promise<Result<void>>;
+    /** Add (no id) or update an expense / income record. */
+    saveTransaction(input: TransactionInput): Promise<Result<Transaction>>;
+    deleteTransaction(id: string): Promise<Result<void>>;
+    /** Add (no id) or update a money account (Cash, GCash…). */
+    saveAccount(input: { id?: string; name: string; kind: AccountKind; opening: number }): Promise<Result<MoneyAccount>>;
+    /** Remove an account; its records are kept without an account. */
+    deleteAccount(id: string): Promise<Result<void>>;
     updateSettings(patch: Partial<VaultSettings>): Promise<Result<VaultSettings>>;
     databaseInfo(): Promise<Result<DatabaseInfo>>;
     showVaultFolder(): Promise<void>;
@@ -123,6 +133,27 @@ export interface VaultApi {
     unlockBiometric(mode?: 'biometric' | 'credential'): Promise<Result<void>>;
     unlockPin(pin: string): Promise<Result<void>>;
   };
+  /**
+   * Quick add an expense ("lunch 150"), also while the vault is LOCKED: the entry is
+   * encrypted to the inbox public key and added on the next unlock (core/inbox.ts).
+   */
+  inbox: {
+    status(): Promise<Result<InboxStatus>>;
+    /** day: the local YYYY-MM-DD the entry belongs to. */
+    add(text: string, day: string): Promise<Result<{ queued: boolean }>>;
+    /** What the last unlock picked up (returned once). */
+    takeReport(): Promise<Result<InboxReport | null>>;
+    /** Android: ongoing notification with an "Add expense" reply field. */
+    notification(): Promise<'on' | 'off' | 'unsupported'>;
+    setNotification(on: boolean): Promise<Result<void>>;
+    /** Android: double tap on the back of the phone opens the add-expense pop-up. */
+    knock(): Promise<KnockInfo>;
+    setKnock(on: boolean, sensitivity: number): Promise<Result<void>>;
+    /** Android: open the add-expense pop-up now ("Try it"). */
+    openPopup(): Promise<Result<void>>;
+    /** Android: the phone's permission screens the pop-up needs. */
+    openPermissions(which: 'overlay' | 'fullscreen' | 'app'): Promise<void>;
+  };
   events: {
     /** Commands triggered from the tray / OS (e.g. "show settings"). */
     onCommand(cb: (command: 'new-item' | 'search' | 'settings') => void): () => void;
@@ -139,6 +170,15 @@ export interface QuickUnlockStatus {
   deviceCredential: boolean;
   pin: boolean;
   pinAttemptsLeft: number;
+}
+
+export interface KnockInfo {
+  supported: boolean;
+  on: boolean;
+  sensitivity: number;
+  canPopUp: boolean;
+  fullScreen: boolean;
+  xiaomi: boolean;
 }
 
 /** tap: light tick (long-press, swipe); success: copy / unlock; warning: delete. */

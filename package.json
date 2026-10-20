@@ -17,7 +17,8 @@
     "dist": "npm run build && electron-builder --win --publish never",
     "build:mobile": "vite build --config vite.mobile.config.mts",
     "android:sync": "npm run build:mobile && cap sync android",
-    "android:icons": "node scripts/make-android-icons.mjs"
+    "android:icons": "node scripts/make-android-icons.mjs",
+    "android:live": "node scripts/android-live.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

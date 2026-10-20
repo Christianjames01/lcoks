@@ -5,6 +5,7 @@ import { estimateStrength } from '../../shared/strength';
 import { Dialog } from '../components/Dialog';
 import { PasswordInput } from '../components/PasswordInput';
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
+import { QuickAddLocked } from './QuickAddLocked';
 import { QuickUnlockPanel } from './QuickUnlockPanel';
 
 function Logo() {
@@ -334,6 +335,7 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
           </div>
         )}
       </form>
+      <QuickAddLocked />
       {restoring && <RestoreLockedDialog vaultExists onClose={() => setRestoring(false)} onRestored={onUnlocked} />}
     </main>
   );

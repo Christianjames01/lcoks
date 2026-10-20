@@ -18,6 +18,8 @@
 
 import { BUILTIN_CATEGORIES } from '../shared/categories';
 import { detectCardNetwork } from '../shared/cards';
+import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, dayKey, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type Transaction } from '../shared/money';
+import { generateInboxKeys, openInbox, sealInbox, type InboxEntry } from './inbox';
 import { estimateStrength } from '../shared/strength';
 import {
   DEFAULT_SETTINGS,
@@ -31,6 +33,8 @@ import {
   type DuplicateGroup,
   type EntryView,
   type FieldComparison,
+  type InboxReport,
+  type InboxStatus,
   type SecretMeta,
   type StorageInfo,
   type TrashView,
@@ -60,6 +64,7 @@ import {
   type ParsedFile
 } from './crypto';
 import {
+  LIMITS,
   MAX_ATTACHMENTS_PER_ITEM,
   MAX_ATTACHMENT_BYTES,
   ValidationError,
@@ -68,9 +73,15 @@ import {
   validateEntryInput,
   validateNewMasterPassword,
   validatePayload,
-  validateSettings
+  isoOr,
+  validateSettings,
+  validateAccountInput,
+  validateTransactionInput
 } from './schema';
-import { VAULT_FILE, attachmentFile, pendingAttachmentFile, type VaultStorage } from './storage';
+import { INBOX_FILE, INBOX_META_FILE, INBOX_PUB_FILE, VAULT_FILE, attachmentFile, inboxFile, pendingAttachmentFile, type VaultStorage } from './storage';
+
+/** Entries that may wait in the quick-add inbox at once. */
+const MAX_INBOX = 500;
 
 export const UNLOCK_FAILED_MESSAGE = 'Unable to unlock vault. The password may be incorrect or the vault may be corrupted.';
 
@@ -191,7 +202,9 @@ export class VaultCore {
       customCategories: [],
       settings: { ...DEFAULT_SETTINGS },
       meta: { createdAt, lastBackupAt: null, lastBackupVerified: false, dismissedDuplicates: [] },
-      trash: []
+      trash: [],
+      transactions: [],
+      accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a }))
     };
     try {
       await this.write();
@@ -292,6 +305,121 @@ export class VaultCore {
     } catch {
       /* try again next unlock */
     }
+    try {
+      await this.syncInbox();
+    } catch {
+      /* boxes stay on disk; try again next unlock */
+    }
+  }
+
+  // ------------------------------------------------------------ quick add ----
+
+  private inboxReport: InboxReport | null = null;
+  private inboxRun: Promise<void> | null = null;
+
+  /** One inbox sync at a time; a caller arriving mid-sync waits for that one. */
+  private syncInbox(): Promise<void> {
+    this.inboxRun ??= this.syncInboxNow().finally(() => (this.inboxRun = null));
+    return this.inboxRun;
+  }
+
+  /**
+   * Make sure the inbox key pair exists and `inbox.pub` matches it, then move
+   * every entry added while locked into the expense records.
+   */
+  private async syncInboxNow(): Promise<void> {
+    if (!this.payload) return;
+    if (!this.payload.inboxKey) {
+      const keys = await generateInboxKeys();
+      await this.mutate((d) => {
+        d.inboxKey = keys;
+      });
+    }
+    const keys = this.payload.inboxKey!;
+    if ((await this.storage.read(INBOX_PUB_FILE)) !== keys.pub) await this.storage.writeAtomic(INBOX_PUB_FILE, keys.pub);
+    await this.writeInboxMeta();
+
+    const boxes = (await this.storage.list()).map((f) => INBOX_FILE.exec(f.name)).filter((m): m is RegExpExecArray => !!m);
+    if (!boxes.length) return;
+    const done: string[] = [];
+    const records: Transaction[] = [];
+    const unreadable: string[] = [];
+    const now = this.iso();
+    for (const m of boxes) {
+      const raw = await this.storage.read(m[0]);
+      if (raw === null) continue;
+      let entry: InboxEntry;
+      try {
+        entry = await openInbox(keys.priv, raw);
+      } catch {
+        // Made for another key (e.g. before a backup was restored) or damaged: unreadable for good.
+        done.push(m[0]);
+        continue;
+      }
+      done.push(m[0]);
+      const day = isDayKey(entry.day) ? parseDay(entry.day) : this.now();
+      const p =
+        entry.k && entry.a
+          ? { kind: entry.k, amount: entry.a, category: entry.c ?? '', note: entry.t, date: dayKey(day), accountId: entry.acc }
+          : parseQuick(entry.t, day, this.payload.accounts);
+      if (!p) {
+        unreadable.push(entry.t);
+        continue;
+      }
+      try {
+        const t = validateTransactionInput({ ...p, id: m[1] });
+        if (t.accountId && !this.payload.accounts.some((a) => a.id === t.accountId)) delete t.accountId;
+        records.push({ ...t, id: m[1]!, createdAt: isoOr(entry.at, now), updatedAt: now });
+      } catch {
+        unreadable.push(entry.t);
+      }
+    }
+    // Save first, delete after: a crash in between only re-reads boxes whose ids are already present.
+    await this.mutate((d) => {
+      const have = new Set(d.transactions.map((t) => t.id));
+      for (const r of records) if (!have.has(r.id) && d.transactions.length < LIMITS.transactions) d.transactions.push(r);
+    });
+    for (const name of done) await this.storage.remove(name).catch(() => undefined);
+    if (records.length || unreadable.length) {
+      this.inboxReport = { added: (this.inboxReport?.added ?? 0) + records.length, unreadable: [...(this.inboxReport?.unreadable ?? []), ...unreadable].slice(0, 50) };
+    }
+  }
+
+  /**
+   * Pick up anything added while the app was in the background (if unlocked), then
+   * return what the inbox delivered since the last call — once.
+   */
+  async takeInboxReport(): Promise<InboxReport | null> {
+    if (this.isUnlocked) await this.syncInbox().catch(() => undefined);
+    const r = this.inboxReport;
+    this.inboxReport = null;
+    return r;
+  }
+
+  async inboxStatus(): Promise<InboxStatus> {
+    const files = await this.storage.list();
+    return { enabled: files.some((f) => f.name === INBOX_PUB_FILE), pending: files.filter((f) => INBOX_FILE.test(f.name)).length };
+  }
+
+  /**
+   * Quick add, e.g. "lunch 150". Works while LOCKED: the entry is encrypted to the
+   * inbox public key and picked up on the next unlock. While unlocked it is saved directly.
+   */
+  async quickAdd(text: unknown, day: unknown): Promise<{ queued: boolean }> {
+    if (typeof text !== 'string' || !text.trim() || text.length > 200) throw new ValidationError('text', 'Type an expense, e.g. "lunch 150".');
+    if (!isDayKey(day)) throw new ValidationError('day', 'Invalid date.');
+    if (!parseQuick(text, parseDay(day))) throw new ValidationError('text', 'Add an amount, e.g. "lunch 150".');
+    if (this.isUnlocked) {
+      const p = parseQuick(text, parseDay(day), this.payload!.accounts)!;
+      await this.saveTransaction(p);
+      return { queued: false };
+    }
+    const pub = await this.storage.read(INBOX_PUB_FILE);
+    if (!pub) throw new AppError('INBOX_OFF', 'Unlock VaultLocks once to turn on quick add.');
+    if ((await this.inboxStatus()).pending >= MAX_INBOX) throw new AppError('INBOX_FULL', 'Too many entries are waiting. Unlock VaultLocks to add them.');
+    const box = await sealInbox(pub, { t: text.trim(), day, at: this.iso() });
+    await this.storage.writeAtomic(inboxFile(globalThis.crypto.randomUUID()), box);
+    return { queued: true };
   }
 
   /** Drop the key and all decrypted data. */
@@ -437,6 +565,8 @@ export class VaultCore {
       .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
     return {
       entries,
+      transactions: payload.transactions.map((t) => ({ ...t })),
+      accounts: payload.accounts.map((a) => ({ ...a })),
       categories: this.categories(),
       settings: { ...payload.settings, generator: { ...payload.settings.generator } },
       meta: { ...payload.meta, dismissedDuplicates: [...payload.meta.dismissedDuplicates] },
@@ -822,12 +952,84 @@ export class VaultCore {
     });
   }
 
+  // -------------------------------------------------------------- expenses ----
+
+  async saveTransaction(input: unknown): Promise<Transaction> {
+    const t = validateTransactionInput(input);
+    const now = this.iso();
+    return this.mutate((d) => {
+      const accountId = t.accountId && d.accounts.some((a) => a.id === t.accountId) ? t.accountId : undefined;
+      if (t.id) {
+        const existing = d.transactions.find((x) => x.id === t.id);
+        if (!existing) throw new AppError('NOT_FOUND', 'Record not found.');
+        Object.assign(existing, { kind: t.kind, amount: t.amount, category: t.category, note: t.note, date: t.date, updatedAt: now });
+        if (accountId) existing.accountId = accountId;
+        else delete existing.accountId;
+        return { ...existing };
+      }
+      if (d.transactions.length >= LIMITS.transactions) throw new AppError('LIMIT', 'Too many records.');
+      const rec: Transaction = { id: globalThis.crypto.randomUUID(), kind: t.kind, amount: t.amount, category: t.category, note: t.note, date: t.date, ...(accountId ? { accountId } : {}), createdAt: now, updatedAt: now };
+      d.transactions.push(rec);
+      return { ...rec };
+    });
+  }
+
+  /** Add (no id) or update a money account. */
+  async saveAccount(input: unknown): Promise<MoneyAccount> {
+    const a = validateAccountInput(input);
+    const acc = await this.mutate((d) => {
+      if (a.id) {
+        const existing = d.accounts.find((x) => x.id === a.id);
+        if (!existing) throw new AppError('NOT_FOUND', 'Account not found.');
+        Object.assign(existing, { name: a.name, kind: a.kind, opening: a.opening });
+        return { ...existing };
+      }
+      if (d.accounts.length >= MAX_ACCOUNTS) throw new AppError('LIMIT', `At most ${MAX_ACCOUNTS} accounts.`);
+      const rec: MoneyAccount = { id: globalThis.crypto.randomUUID(), name: a.name, kind: a.kind, opening: a.opening };
+      d.accounts.push(rec);
+      return { ...rec };
+    });
+    await this.writeInboxMeta().catch(() => undefined);
+    return acc;
+  }
+
+  /** Remove an account; its records stay (without an account). */
+  async deleteAccount(id: unknown): Promise<void> {
+    const { payload } = this.requireUnlocked();
+    if (typeof id !== 'string' || !payload.accounts.some((a) => a.id === id)) throw new AppError('NOT_FOUND', 'Account not found.');
+    await this.mutate((d) => {
+      d.accounts = d.accounts.filter((a) => a.id !== id);
+      for (const t of d.transactions) if (t.accountId === id) delete t.accountId;
+    });
+    await this.writeInboxMeta().catch(() => undefined);
+  }
+
+  /**
+   * Account NAMES for the locked quick-add pop-up (no balances, no records). This is
+   * the only vault content stored outside the encryption, and only while quick add is set up.
+   */
+  private async writeInboxMeta(): Promise<void> {
+    const { payload } = this.requireUnlocked();
+    if (!payload.inboxKey) return;
+    const meta = JSON.stringify({ v: 1, currency: payload.settings.currency, accounts: payload.accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind })) });
+    if ((await this.storage.read(INBOX_META_FILE)) !== meta) await this.storage.writeAtomic(INBOX_META_FILE, meta);
+  }
+
+  async deleteTransaction(id: unknown): Promise<void> {
+    const { payload } = this.requireUnlocked();
+    if (typeof id !== 'string' || !payload.transactions.some((t) => t.id === id)) throw new AppError('NOT_FOUND', 'Record not found.');
+    await this.mutate((d) => {
+      d.transactions = d.transactions.filter((t) => t.id !== id);
+    });
+  }
+
   async updateSettings(patch: unknown): Promise<VaultSettings> {
     const { payload } = this.requireUnlocked();
     const merged = validateSettings({ ...payload.settings, ...(patch && typeof patch === 'object' ? patch : {}) }, payload.settings);
     await this.mutate((d) => {
       d.settings = merged;
     });
+    if (merged.currency !== payload.settings.currency) await this.writeInboxMeta().catch(() => undefined);
     return structuredClone(merged);
   }
 
@@ -1179,6 +1381,13 @@ export class VaultCore {
       }
       const now = this.iso();
       await this.mutateNow((d) => {
+        // Expense records are always merged by id (never dropped); in "replace" the backup's version wins.
+        const accs = new Map(d.accounts.map((a) => [a.id, a]));
+        for (const a of backup.payload.accounts) if (mode === 'replace' || !accs.has(a.id)) accs.set(a.id, { ...a });
+        d.accounts = [...accs.values()].slice(0, MAX_ACCOUNTS);
+        const txs = new Map(d.transactions.map((t) => [t.id, t]));
+        for (const t of backup.payload.transactions) if (mode === 'replace' || !txs.has(t.id)) txs.set(t.id, { ...t });
+        d.transactions = [...txs.values()];
         if (mode === 'replace') {
           const incomingById = new Map(incoming.map((e) => [e.id, e]));
           for (const e of d.entries) {
@@ -1255,7 +1464,15 @@ export class VaultCore {
           favorite: e.favorite,
           attachments: (e.attachments ?? []).map((a) => a.name)
         };
-      })
+      }),
+      transactions: payload.transactions.map((t) => ({
+        date: t.date,
+        type: t.kind,
+        amount: t.amount / 100,
+        currency: payload.settings.currency,
+        category: moneyCategory(t.category).name,
+        note: t.note
+      }))
     };
   }
 }

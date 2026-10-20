@@ -2,7 +2,7 @@
 
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { assertStorageName, type StoredFile, type VaultStorage } from '../../core/storage';
+import { VAULT_FILE_NAMES, assertStorageName, type StoredFile, type VaultStorage } from '../../core/storage';
 import { cleanupTempFiles, writeFileAtomic } from '../storage/atomicFile';
 
 export class NodeStorage implements VaultStorage {
@@ -56,7 +56,7 @@ export class NodeStorage implements VaultStorage {
     }
     const out: StoredFile[] = [];
     for (const name of names) {
-      if (!/^(vault\.vault|att-[A-Za-z0-9-]{8,64}\.(att|new))$/.test(name)) continue;
+      if (!VAULT_FILE_NAMES.test(name)) continue;
       const s = await fs.stat(path.join(this.dir, name)).catch(() => null);
       if (s?.isFile()) out.push({ name, size: s.size });
     }

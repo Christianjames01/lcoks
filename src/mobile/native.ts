@@ -43,6 +43,26 @@ export interface NativeVault {
   takeSharedText(): Promise<string | null>;
   /** Delete temporary (unencrypted) camera photos. */
   purgeCaptures(): Promise<void>;
+  /** Ongoing "Add expense" notification (encrypts replies to inbox.pub natively, see QuickAdd.java). */
+  quickAddNotification(): Promise<boolean>;
+  setQuickAddNotification(on: boolean): Promise<void>;
+  /** Double tap on the back of the phone → add-expense pop-up (KnockService.java). */
+  knockStatus(): Promise<KnockStatus>;
+  setKnock(on: boolean, sensitivity: number): Promise<void>;
+  /** Open the add-expense pop-up now. */
+  openQuickAdd(): Promise<void>;
+  openQuickAddPermissions(which: 'overlay' | 'fullscreen' | 'app'): Promise<void>;
+}
+
+export interface KnockStatus {
+  on: boolean;
+  /** 0 low · 1 normal · 2 high */
+  sensitivity: number;
+  /** "Display over other apps" granted: the pop-up can open straight away. */
+  canPopUp: boolean;
+  /** Android 14+: full-screen notifications allowed (pop-up on the lock screen without overlay permission). */
+  fullScreen: boolean;
+  xiaomi: boolean;
 }
 
 interface VaultNativePlugin {
@@ -70,6 +90,12 @@ interface VaultNativePlugin {
   readClipboard(): Promise<{ text: string }>;
   takeSharedText(): Promise<{ text: string | null }>;
   purgeCaptures(): Promise<void>;
+  quickAddNotification(): Promise<{ on: boolean }>;
+  setQuickAddNotification(o: { on: boolean }): Promise<void>;
+  knockStatus(): Promise<KnockStatus>;
+  setKnock(o: { on: boolean; sensitivity: number }): Promise<void>;
+  openQuickAdd(): Promise<void>;
+  openQuickAddPermissions(o: { which: string }): Promise<void>;
 }
 
 const Plugin = registerPlugin<VaultNativePlugin>('VaultNative');
@@ -107,5 +133,11 @@ export const capacitorNative: NativeVault = {
   resetKey: (kind) => Plugin.resetKey({ kind }),
   readClipboard: async () => (await Plugin.readClipboard()).text ?? '',
   takeSharedText: async () => (await Plugin.takeSharedText()).text ?? null,
-  purgeCaptures: () => Plugin.purgeCaptures()
+  purgeCaptures: () => Plugin.purgeCaptures(),
+  quickAddNotification: async () => (await Plugin.quickAddNotification()).on === true,
+  setQuickAddNotification: (on) => Plugin.setQuickAddNotification({ on }),
+  knockStatus: () => Plugin.knockStatus(),
+  setKnock: (on, sensitivity) => Plugin.setKnock({ on, sensitivity }),
+  openQuickAdd: () => Plugin.openQuickAdd(),
+  openQuickAddPermissions: (which) => Plugin.openQuickAddPermissions({ which })
 };
