@@ -17,7 +17,6 @@ import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
@@ -43,13 +42,7 @@ public class KnockService extends Service implements SensorEventListener {
     private SensorManager sensors;
     private Sensor accel;
     private boolean listening = false;
-    private final float[] gravity = new float[3];
-    private boolean primed = false;
-    private long firstKnock = 0;
-    private long lastPeak = 0;
-    private long cooldownUntil = 0;
-    private float stillness = 0;
-    private float threshold = 2.6f;
+    private TapDetector detector = new TapDetector(3.5f);
 
     private final BroadcastReceiver screen = new BroadcastReceiver() {
         @Override
@@ -98,7 +91,8 @@ public class KnockService extends Service implements SensorEventListener {
         super.onCreate();
         sensors = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         accel = sensors == null ? null : sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        threshold = new float[] { 3.6f, 2.6f, 1.8f }[sensitivity(this)];
+        // Minimum knock strength (m/s²) for Firm / Normal / Light.
+        detector = new TapDetector(new float[] { 5.0f, 3.5f, 2.5f }[sensitivity(this)]);
         IntentFilter f = new IntentFilter();
         f.addAction(Intent.ACTION_SCREEN_ON);
         f.addAction(Intent.ACTION_SCREEN_OFF);
@@ -134,8 +128,7 @@ public class KnockService extends Service implements SensorEventListener {
     private void listen(boolean on) {
         if (accel == null || on == listening) return;
         listening = on;
-        primed = false;
-        firstKnock = 0;
+        detector.reset();
         if (on) sensors.registerListener(this, accel, SensorManager.SENSOR_DELAY_FASTEST);
         else sensors.unregisterListener(this);
     }
@@ -167,34 +160,8 @@ public class KnockService extends Service implements SensorEventListener {
 
     @Override
     public void onSensorChanged(SensorEvent e) {
-        long now = SystemClock.elapsedRealtime();
-        // Split gravity (slow) from movement (fast).
-        final float a = 0.9f;
-        if (!primed) {
-            System.arraycopy(e.values, 0, gravity, 0, 3);
-            primed = true;
-            return;
-        }
-        for (int i = 0; i < 3; i++) gravity[i] = a * gravity[i] + (1 - a) * e.values[i];
-        float x = e.values[0] - gravity[0];
-        float y = e.values[1] - gravity[1];
-        float z = e.values[2] - gravity[2];
-        float side = (float) Math.sqrt(x * x + y * y);
-        // Slowly decaying measure of how much the phone is moving (walking, shaking).
-        stillness = 0.95f * stillness + 0.05f * (Math.abs(z) + side);
-
-        if (now < cooldownUntil) return;
-        boolean knock = Math.abs(z) > threshold && Math.abs(z) > side * 1.6f && stillness < threshold * 0.9f;
-        if (!knock || now - lastPeak < 90) return; // one knock rings for a few samples
-        lastPeak = now;
-
-        if (firstKnock != 0 && now - firstKnock >= 120 && now - firstKnock <= 550) {
-            firstKnock = 0;
-            cooldownUntil = now + 2000;
-            onDoubleTap();
-        } else {
-            firstKnock = now;
-        }
+        // Strict two-knock recognition (see TapDetector): anything else never opens the pop-up.
+        if (detector.feed(e.timestamp / 1_000_000L, e.values[0], e.values[1], e.values[2])) onDoubleTap();
     }
 
     @Override

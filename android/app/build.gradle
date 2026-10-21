@@ -2,6 +2,9 @@ apply plugin: 'com.android.application'
 
 android {
     namespace = "com.vaultlocks.app"
+    buildFeatures {
+        buildConfig = true
+    }
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.vaultlocks.app"

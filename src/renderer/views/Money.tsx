@@ -157,6 +157,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   const [managing, setManaging] = useState(false);
   const [viewingAccount, setViewingAccount] = useState<string | null>(null);
   const delTx = useDeleteTx(onChanged);
+  const delAccount = useDeleteAccount(onChanged, snap.transactions);
 
   const goMonth = (delta: number) => {
     const next = addMonths(month, delta);
@@ -393,6 +394,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
           money={money}
           onOpen={setViewingAccount}
           onAdd={() => setManaging(true)}
+          onDelete={delAccount.ask}
         />
       </div>
 
@@ -448,6 +450,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
         />
       )}
       {delTx.dialog}
+      {delAccount.dialog}
       {setup && <MoneySetup currency={currency} budget={monthlyBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
     </div>
   );
@@ -1174,10 +1177,10 @@ function AccountsDialog({
       )}
       {removing && (
         <ConfirmDialog
-          title={`Remove ${removing.name}?`}
+          title={`Delete ${removing.name}?`}
           danger
-          confirmLabel="Remove account"
-          message="Its records stay in your expenses, just without an account."
+          confirmLabel="Delete account"
+          message="The account and its balance are removed. Its expenses and cash-ins stay in your history, just without an account."
           onCancel={() => setRemoving(null)}
           onConfirm={async () => {
             try {
@@ -1349,6 +1352,9 @@ function AccountPage({
           <button type="button" className="btn" onClick={() => setEditingAccount(true)} aria-label={`Edit ${account.name}`}>
             <Settings2 size={15} aria-hidden /> Edit
           </button>
+          <button type="button" className="btn danger" onClick={() => setRemoving(true)} aria-label={`Delete ${account.name}`}>
+            <Trash size={15} aria-hidden /> Delete
+          </button>
         </div>
 
         <div className="section-title" style={{ marginTop: 18 }}>
@@ -1384,16 +1390,16 @@ function AccountPage({
       )}
       {removing && (
         <ConfirmDialog
-          title={`Remove ${account.name}?`}
+          title={`Delete ${account.name}?`}
           danger
-          confirmLabel="Remove account"
-          message="Its records stay in your expenses, just without an account."
+          confirmLabel="Delete account"
+          message={`${account.name} and its balance are removed. Its ${transactions.length} record${transactions.length === 1 ? '' : 's'} stay in your history, just without an account.`}
           onCancel={() => setRemoving(false)}
           onConfirm={async () => {
             try {
               await unwrap(api.vault.deleteAccount(account.id));
               await onChanged();
-              toast('Account removed.');
+              toast(`${account.name} deleted.`);
               onClose();
             } catch (err) {
               toast(errorMessage(err), 'error');
@@ -1432,13 +1438,15 @@ function WalletsSection({
   balances: bal,
   money,
   onOpen,
-  onAdd
+  onAdd,
+  onDelete
 }: {
   accounts: MoneyAccount[];
   balances: Map<string, number>;
   money: (v: number, o?: { sign?: boolean; compact?: boolean }) => string;
   onOpen: (id: string) => void;
   onAdd: () => void;
+  onDelete: (a: MoneyAccount) => void;
 }) {
   const [filter, setFilter] = useState<AccountKind | 'all'>('all');
   const [q, setQ] = useState('');
@@ -1507,7 +1515,8 @@ function WalletsSection({
                 {group.map((a) => {
                   const b = bal.get(a.id) ?? 0;
                   return (
-                    <button key={a.id} type="button" className="wallet-card" style={cardStyle(a)} onClick={() => onOpen(a.id)} aria-label={`${a.name}, balance ${money(b)}`}>
+                    <div key={a.id} className="wallet-cell">
+                    <button type="button" className="wallet-card" style={cardStyle(a)} onClick={() => onOpen(a.id)} aria-label={`${a.name}, balance ${money(b)}`}>
                       <span className="wc-top">
                         <span className="wc-badge">{initials(a.name)}</span>
                         <span className="wc-name">{a.name}</span>
@@ -1516,6 +1525,10 @@ function WalletsSection({
                       <span className="wc-label">{a.kind === 'credit' ? 'Balance owed' : 'Balance'}</span>
                       <span className="wc-amount">{a.kind === 'credit' ? money(Math.abs(b)) : money(b)}</span>
                     </button>
+                    <button type="button" className="wc-delete" onClick={() => onDelete(a)} aria-label={`Delete ${a.name}`} title={`Delete ${a.name}`}>
+                      <Trash size={14} />
+                    </button>
+                    </div>
                   );
                 })}
                 {gi === groups.length - 1 && (
@@ -1531,4 +1544,32 @@ function WalletsSection({
       )}
     </section>
   );
+}
+
+/** Confirm, then delete an account (e-wallet, bank, card). Its records are kept without an account. */
+function useDeleteAccount(onChanged: () => Promise<void>, transactions: Transaction[]) {
+  const [target, setTarget] = useState<MoneyAccount | null>(null);
+  const toast = useToast();
+  const count = target ? transactions.filter((t) => t.accountId === target.id).length : 0;
+  const dialog = target && (
+    <ConfirmDialog
+      title={`Delete ${target.name}?`}
+      danger
+      confirmLabel="Delete account"
+      message={`${target.name} and its balance are removed.${count ? ` Its ${count} record${count === 1 ? '' : 's'} stay in your history, just without an account.` : ''}`}
+      onCancel={() => setTarget(null)}
+      onConfirm={async () => {
+        try {
+          await unwrap(api.vault.deleteAccount(target.id));
+          api.app.haptic('warning');
+          await onChanged();
+          toast(`${target.name} deleted.`);
+          setTarget(null);
+        } catch (err) {
+          toast(errorMessage(err), 'error');
+        }
+      }}
+    />
+  );
+  return { ask: setTarget, dialog };
 }
