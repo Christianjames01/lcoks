@@ -88,6 +88,9 @@ const api: VaultApi = {
       const r = (await ipcRenderer.invoke('notifications.status')) as { ok: boolean; value?: 'granted' | 'unsupported' };
       return r?.ok && r.value ? r.value : 'unsupported';
     },
+    // The desktop checks every few seconds, so there is no inexact mode to worry about.
+    exactStatus: async () => 'unsupported' as const,
+    requestExact: async () => 'unsupported' as const,
     schedule: call('notifications.schedule') as VaultApi['notifications']['schedule'],
     test: call('notifications.test') as VaultApi['notifications']['test']
   },

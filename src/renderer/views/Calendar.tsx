@@ -54,7 +54,7 @@ import {
   type Scope
 } from '../../shared/calendar';
 import { addMonths, dayKey, monthOf, parseDay } from '../../shared/money';
-import type { NotificationPermission } from '../../shared/api';
+import type { ExactAlarmStatus, NotificationPermission } from '../../shared/api';
 import { completeTask, describeDue, isTaskOverdue, priorityName, uncompleteTask, type Task } from '../../shared/tasks';
 import type { VaultSettings, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
@@ -1495,8 +1495,10 @@ function EventEditor({
 function ReminderSettings({ settings, onClose, onChanged }: { settings: VaultSettings; onClose: () => void; onChanged: () => Promise<void> }) {
   const toast = useToast();
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  const [exact, setExact] = useState<ExactAlarmStatus | null>(null);
   useEffect(() => {
     void api.notifications.status().then(setPermission);
+    void api.notifications.exactStatus().then(setExact);
   }, []);
   const update = async (patch: Partial<VaultSettings>) => {
     try {
@@ -1582,6 +1584,33 @@ function ReminderSettings({ settings, onClose, onChanged }: { settings: VaultSet
             </button>
           ) : null}
         </Row>
+        {exact && exact !== 'unsupported' && (
+          <Row
+            title="Exact timing"
+            desc={
+              exact === 'granted'
+                ? 'On. Reminders ring at the exact minute, even when the phone is saving battery.'
+                : 'Off. Android may ring reminders a few minutes late to save battery. Allow “Alarms & reminders” for VaultLocks to get exact times.'
+            }
+          >
+            {exact === 'denied' && (
+              <button
+                type="button"
+                className="btn sm primary"
+                onClick={async () => {
+                  const s = await api.notifications.requestExact();
+                  setExact(s);
+                  if (s === 'granted') {
+                    await onChanged(); // reschedules everything as exact alarms
+                    toast('Reminders now ring at the exact time.');
+                  }
+                }}
+              >
+                Allow
+              </button>
+            )}
+          </Row>
+        )}
       </div>
     </Dialog>
   );

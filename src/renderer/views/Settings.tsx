@@ -29,7 +29,7 @@ import {
   X
 } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { PLAINTEXT_CONFIRM_PHRASE, type NotificationPermission } from '../../shared/api';
+import { PLAINTEXT_CONFIRM_PHRASE, type ExactAlarmStatus, type NotificationPermission } from '../../shared/api';
 import { buildReminders, trackedDates } from '../../shared/expiry';
 import { estimateStrength } from '../../shared/strength';
 import { MAX_LENGTH, MIN_LENGTH } from '../../shared/generator';
@@ -541,9 +541,11 @@ function AppearanceTab({ settings, update }: { settings: VaultSettings; update: 
 function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Partial<VaultSettings>) => Promise<void> }) {
   const { settings } = snap;
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  const [exact, setExact] = useState<ExactAlarmStatus | null>(null);
   const toast = useToast();
   useEffect(() => {
     void api.notifications.status().then(setPermission);
+    void api.notifications.exactStatus().then(setExact);
   }, []);
   const upcoming = buildReminders(snap.entries, snap.categories, { daysBefore: settings.reminderDaysBefore }).slice(0, 8);
   const tracked = trackedDates(snap.entries, snap.categories).filter((u) => u.days >= 0).length;
@@ -613,6 +615,33 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
             </button>
           )}
         </Setting>
+        {exact && exact !== 'unsupported' && (
+          <Setting
+            title="Exact timing"
+            desc={
+              exact === 'granted'
+                ? 'On. Reminders ring at the exact minute, even when the phone is saving battery.'
+                : 'Off. Android may ring reminders a few minutes late to save battery. Allow “Alarms & reminders” for VaultLocks to get exact times.'
+            }
+          >
+            {exact === 'denied' && (
+              <button
+                type="button"
+                className="btn sm primary"
+                onClick={async () => {
+                  const s = await api.notifications.requestExact();
+                  setExact(s);
+                  if (s === 'granted') {
+                    await update({ reminders: settings.reminders }); // refresh: reminders are rescheduled as exact alarms
+                    toast('Reminders now ring at the exact time.');
+                  }
+                }}
+              >
+                Allow
+              </button>
+            )}
+          </Setting>
+        )}
       </Group>
       <Group icon={<CalendarClock size={15} strokeWidth={1.8} aria-hidden />} title={`Next reminders (${tracked} tracked date${tracked === 1 ? '' : 's'})`}>
         {!settings.reminders ? (

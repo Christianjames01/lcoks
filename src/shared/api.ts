@@ -110,6 +110,10 @@ export interface VaultApi {
     status(): Promise<NotificationPermission>;
     /** Ask Android for permission to show notifications. */
     request(): Promise<NotificationPermission>;
+    /** Android 12+: may reminders ring at the exact minute ("Alarms & reminders")? Elsewhere always on time: "unsupported". */
+    exactStatus(): Promise<ExactAlarmStatus>;
+    /** Open the "Alarms & reminders" settings page once; returns the new status. */
+    requestExact(): Promise<ExactAlarmStatus>;
     /** Replace all scheduled reminders. */
     schedule(items: ScheduledReminder[]): Promise<Result<number>>;
     /** Show a sample reminder in a few seconds. */
@@ -191,6 +195,8 @@ export interface KnockInfo {
 export type HapticKind = 'tap' | 'success' | 'warning';
 
 export type NotificationPermission = 'granted' | 'denied' | 'prompt' | 'unsupported';
+
+export type ExactAlarmStatus = 'granted' | 'denied' | 'unsupported';
 
 export interface ScheduledReminder {
   id: number;

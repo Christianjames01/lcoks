@@ -9,7 +9,7 @@ import { AppLauncher } from '@capacitor/app-launcher';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
-import { PLAINTEXT_CONFIRM_PHRASE, type QuickUnlockStatus, type VaultApi } from '../shared/api';
+import { PLAINTEXT_CONFIRM_PHRASE, type ExactAlarmStatus, type QuickUnlockStatus, type VaultApi } from '../shared/api';
 import type { BackupSummary, Result } from '../shared/types';
 import { ValidationError, validateMasterPassword } from '../core/schema';
 import { AppError, VaultCore, type OpenedBackup } from '../core/vault';
@@ -47,6 +47,15 @@ async function ensureChannel(): Promise<void> {
   await LocalNotifications.createChannel({ id: CALENDAR_CHANNEL, name: 'Calendar alarms', description: 'Event reminders', importance: 5, visibility: 0, vibration: true });
   await LocalNotifications.createChannel({ id: CALENDAR_SILENT_CHANNEL, name: 'Calendar alarms (silent)', description: 'Event reminders without sound', importance: 2, visibility: 0, vibration: false });
   channelReady = true;
+}
+
+async function exactAlarmStatus(): Promise<ExactAlarmStatus> {
+  if (Capacitor.getPlatform() !== 'android') return 'unsupported';
+  try {
+    return (await LocalNotifications.checkExactNotificationSetting()).exact_alarm === 'granted' ? 'granted' : 'denied';
+  } catch {
+    return 'unsupported';
+  }
 }
 
 function nativeCode(e: unknown): string {
@@ -383,6 +392,17 @@ export function createMobileApi(native: NativeVault): VaultApi {
           return 'unsupported';
         }
       },
+      exactStatus: () => exactAlarmStatus(),
+      requestExact: async () => {
+        if (Capacitor.getPlatform() !== 'android') return 'unsupported';
+        try {
+          // The settings page backgrounds the app: don't lock for that.
+          const r = await withExternalUi(() => LocalNotifications.changeExactNotificationSetting());
+          return r.exact_alarm === 'granted' ? 'granted' : 'denied';
+        } catch {
+          return exactAlarmStatus();
+        }
+      },
       schedule: (items) =>
         wrap(async () => {
           requireUnlocked();
@@ -391,6 +411,9 @@ export function createMobileApi(native: NativeVault): VaultApi {
           const pending = await LocalNotifications.getPending();
           if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
           if ((await LocalNotifications.checkPermissions()).display !== 'granted') return 0;
+          // Without "Alarms & reminders" the plugin would open that settings page on every
+          // reschedule: ask for exact alarms only when they are allowed (else Android may ring a few minutes late).
+          const exact = (await exactAlarmStatus()) !== 'denied';
           const now = Date.now();
           const list = items
             .filter((r) => Number.isInteger(r.id) && r.id > 0 && r.id < 2 ** 31 && Number.isFinite(r.at) && r.at > now)
@@ -401,7 +424,8 @@ export function createMobileApi(native: NativeVault): VaultApi {
               channelId: r.kind === 'calendar' ? (r.silent ? CALENDAR_SILENT_CHANNEL : CALENDAR_CHANNEL) : REMINDER_CHANNEL,
               smallIcon: 'ic_stat_vault',
               iconColor: '#0A84FF',
-              schedule: { at: new Date(r.at), allowWhileIdle: true }
+              schedule: { at: new Date(r.at), allowWhileIdle: true },
+              isExactNotification: exact
             }));
           if (list.length) await LocalNotifications.schedule({ notifications: list });
           return list.length;
@@ -421,7 +445,8 @@ export function createMobileApi(native: NativeVault): VaultApi {
                 channelId: REMINDER_CHANNEL,
                 smallIcon: 'ic_stat_vault',
                 iconColor: '#0A84FF',
-                schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true }
+                schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true },
+                isExactNotification: (await exactAlarmStatus()) !== 'denied'
               }
             ]
           });
