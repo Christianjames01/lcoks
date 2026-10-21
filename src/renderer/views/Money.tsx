@@ -16,6 +16,7 @@ import {
   Gift,
   HeartPulse,
   House,
+  Pencil,
   PiggyBank,
   Plus,
   Settings2,
@@ -58,6 +59,7 @@ import type { KnockInfo } from '../../shared/api';
 import type { VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
+import { HoldArea } from '../components/HoldActions';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
 
@@ -202,36 +204,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   return (
     <div className="page money">
       <div className="page-narrow">
-        <header className="money-head">
-          {!mobile && <h1 className="h1 grow">Expenses</h1>}
-          <div className="month-switch" role="group" aria-label="Month">
-            <button type="button" className="icon-btn" onClick={() => goMonth(-1)} aria-label="Previous month">
-              <ChevronLeft size={18} />
-            </button>
-            <span className="month-label" aria-live="polite">
-              {monthLabel(month)}
-            </span>
-            <button type="button" className="icon-btn" onClick={() => goMonth(1)} aria-label="Next month">
-              <ChevronRight size={18} />
-            </button>
-          </div>
-          {!isCurrent && (
-            <button
-              type="button"
-              className="btn sm"
-              onClick={() => {
-                setMonth(monthOf(today));
-                setSelected(today);
-              }}
-            >
-              Today
-            </button>
-          )}
-          <button type="button" className="icon-btn" onClick={() => setSetup(true)} aria-label="Budget and currency" title="Budget and currency">
-            <Settings2 size={18} />
-          </button>
-        </header>
-
+        {!mobile && <h1 className="h1 money-title">Expenses</h1>}
         <section className="money-summary" aria-label={`Summary for ${monthLabel(month)}`}>
           <div className="ms-card spent">
             <span className="ms-label">
@@ -322,6 +295,36 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
           )}
         </form>
 
+        <header className="money-head">
+          <div className="month-switch" role="group" aria-label="Month">
+            <button type="button" className="icon-btn" onClick={() => goMonth(-1)} aria-label="Previous month">
+              <ChevronLeft size={18} />
+            </button>
+            <span className="month-label" aria-live="polite">
+              {monthLabel(month)}
+            </span>
+            <button type="button" className="icon-btn" onClick={() => goMonth(1)} aria-label="Next month">
+              <ChevronRight size={18} />
+            </button>
+          </div>
+          {!isCurrent && (
+            <button
+              type="button"
+              className="btn sm"
+              onClick={() => {
+                setMonth(monthOf(today));
+                setSelected(today);
+              }}
+            >
+              Today
+            </button>
+          )}
+          <button type="button" className="icon-btn" onClick={() => setSetup(true)} aria-label="Budget and currency" title="Budget and currency">
+            <Settings2 size={18} />
+          </button>
+        </header>
+
+
         <div className="money-grid">
           <section className="card cal" aria-label={`Calendar, ${monthLabel(month)}`}>
             <Calendar month={month} today={today} selected={selected} byDay={byDay} maxDay={maxDay} money={money} onSelect={setSelected} />
@@ -350,6 +353,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
                 <span>Nothing recorded on this day.</span>
               </div>
             ) : (
+              <>
               <ul className="tx-list">
                 {dayList.map((t) => (
                   <li key={t.id}>
@@ -357,6 +361,8 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
                   </li>
                 ))}
               </ul>
+              <p className="hold-hint">Swipe right, or press and hold, to edit or delete.</p>
+              </>
             )}
           </section>
         </div>
@@ -564,13 +570,14 @@ function TxRow({
     </button>
   );
   if (!onDelete) return row;
+  const actions = [
+    { key: 'edit', label: 'Edit', icon: <Pencil size={16} aria-hidden />, run: onOpen },
+    { key: 'delete', label: 'Delete', icon: <Trash size={16} aria-hidden />, danger: true, run: () => onDelete(tx) }
+  ];
   return (
-    <div className="tx-line">
+    <HoldArea className="tx-line" title={tx.note || cat.name} items={actions} swipe={actions} onDelete={() => onDelete(tx)}>
       {row}
-      <button type="button" className="icon-btn tx-del" onClick={() => onDelete(tx)} aria-label={`Delete ${tx.note || cat.name}`} title="Delete">
-        <Trash size={15} />
-      </button>
-    </div>
+    </HoldArea>
   );
 }
 
@@ -1497,6 +1504,7 @@ function WalletsSection({
             </button>
           ))}
         </div>
+        {accounts.length > 0 && <p className="hold-hint">Press and hold a card to remove it.</p>}
       </div>
 
       {shown.length === 0 ? (
@@ -1515,20 +1523,26 @@ function WalletsSection({
                 {group.map((a) => {
                   const b = bal.get(a.id) ?? 0;
                   return (
-                    <div key={a.id} className="wallet-cell">
-                    <button type="button" className="wallet-card" style={cardStyle(a)} onClick={() => onOpen(a.id)} aria-label={`${a.name}, balance ${money(b)}`}>
+                    <HoldArea
+                      key={a.id}
+                      className="wallet-cell"
+                      title={a.name}
+                      onDelete={() => onDelete(a)}
+                      items={[
+                        { key: 'open', label: `Open ${a.name}`, icon: <Wallet size={16} aria-hidden />, run: () => onOpen(a.id) },
+                        { key: 'remove', label: 'Remove card', icon: <Trash size={16} aria-hidden />, danger: true, run: () => onDelete(a) }
+                      ]}
+                    >
+                    <button type="button" className="wallet-card" style={cardStyle(a)} onClick={() => onOpen(a.id)} aria-label={`${a.name}, balance ${money(b)}. Press and hold for more.`}>
                       <span className="wc-top">
                         <span className="wc-badge">{initials(a.name)}</span>
                         <span className="wc-name">{a.name}</span>
                       </span>
-                      <span className="wc-kind">{a.kind === 'credit' ? 'Credit card · owed' : ACCOUNT_KIND_NAMES.find(([x]) => x === a.kind)?.[1]}</span>
+                      <span className="wc-kind">{a.kind === 'credit' ? 'Credit card · owed' : a.kind === 'cash' ? 'On hand' : ACCOUNT_KIND_NAMES.find(([x]) => x === a.kind)?.[1]}</span>
                       <span className="wc-label">{a.kind === 'credit' ? 'Balance owed' : 'Balance'}</span>
                       <span className="wc-amount">{a.kind === 'credit' ? money(Math.abs(b)) : money(b)}</span>
                     </button>
-                    <button type="button" className="wc-delete" onClick={() => onDelete(a)} aria-label={`Delete ${a.name}`} title={`Delete ${a.name}`}>
-                      <Trash size={14} />
-                    </button>
-                    </div>
+                    </HoldArea>
                   );
                 })}
                 {gi === groups.length - 1 && (

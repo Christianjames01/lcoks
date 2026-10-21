@@ -1,24 +1,29 @@
 package com.vaultlocks.app;
 
 /**
- * Recognises exactly TWO deliberate taps on the back of the phone from raw
- * accelerometer samples. Deliberately strict, so that walking, typing, putting the
- * phone down, a bump in a pocket or a single tap never counts:
+ * Recognises a deliberate double tap on the back of the phone from raw
+ * accelerometer samples.
  *
- *   1. the phone was still just before the first tap;
- *   2. each tap is a short, sharp knock mostly along Z (through the phone), not sideways;
- *   3. the second knock comes 140–500 ms after the first, in the same direction and of
- *      similar strength;
- *   4. nothing else happens for 250 ms afterwards (a third knock or shaking cancels).
+ *   1. the phone was reasonably still just before the first tap;
+ *   2. each tap is a short, sharp knock mostly along Z (through the phone). Its
+ *      direction and strength come from the biggest sample of the knock, not the first;
+ *   3. the second knock comes 100–480 ms after the first, in the same direction and
+ *      of similar strength;
+ *   4. it fires shortly after the second knock. Extra taps (people often tap 3–4 times
+ *      when unsure) don't cancel it — they fall into the cooldown afterwards.
+ *
+ * Walking, typing, putting the phone down or shaking still never count (motion
+ * before the tap, wrong rhythm, opposite directions or very different strengths).
  *
  * Plain Java (no Android APIs) so it can be tested on a desktop JVM.
  */
 final class TapDetector {
-    private static final long MIN_GAP_MS = 140;
-    private static final long MAX_GAP_MS = 500;
-    private static final long CONFIRM_MS = 250;
-    private static final long RING_MS = 80; // one knock "rings" for a few samples
-    private static final float MAX_KNOCK = 25f; // above this it is a drop or a hard bump
+    private static final long MIN_GAP_MS = 100;
+    private static final long MAX_GAP_MS = 480; // footsteps are ~450–650 ms apart
+    private static final long CONFIRM_MS = 120;
+    private static final long PEAK_WINDOW_MS = 40; // a knock rings; take its biggest sample
+    private static final long RING_MS = 70;
+    private static final float MAX_KNOCK = 30f; // above this it is a drop or a hard bump
 
     private final float threshold;
     private final float[] gravity = new float[3];
@@ -27,11 +32,17 @@ final class TapDetector {
     /** Background movement (walking, shaking), m/s². */
     private float energy = 0;
 
+    // Knock being measured.
+    private long peakStart = 0;
+    private float peakZ = 0;
+    private float peakSide = 0;
+    private boolean peakQuiet = false;
+
     private long firstAt = 0;
     private int firstSign = 0;
     private float firstMag = 0;
     private long secondAt = 0;
-    private long lastPeak = -1000;
+    private long lastKnockEnd = -1000;
     private long cooldownUntil = 0;
 
     /** threshold: minimum knock strength in m/s² (higher = firmer taps needed). */
@@ -42,6 +53,7 @@ final class TapDetector {
     void reset() {
         primed = false;
         energy = 0;
+        peakStart = 0;
         firstAt = 0;
         secondAt = 0;
     }
@@ -54,6 +66,8 @@ final class TapDetector {
             gravity[2] = az;
             primed = true;
             lastT = t;
+            // Let the gravity filter settle (screen just turned on, phone maybe moving).
+            cooldownUntil = t + 400;
             return false;
         }
         float dt = Math.max(1, Math.min(100, t - lastT)) / 1000f;
@@ -69,56 +83,64 @@ final class TapDetector {
         float side = (float) Math.sqrt(x * x + y * y);
         float mag = Math.abs(z);
 
-        boolean quietBefore = energy < threshold * 0.3f;
-        // Background movement, time constant 0.25 s.
-        float b = dt / (0.25f + dt);
-        energy = (1 - b) * energy + b * (mag + side);
+        boolean quiet = energy < threshold * 0.45f;
+        // Background movement, time constant 0.3 s. Knock samples count only a little
+        // (they are short), so tapping several times doesn't make the phone look "moving".
+        float b = dt / (0.3f + dt);
+        energy = (1 - b) * energy + b * Math.min(mag + side, threshold * 0.6f + 0.25f * (mag + side));
 
-        if (t < cooldownUntil) return false;
-
-        // Confirm: second knock happened and nothing followed.
+        // Confirm a double tap shortly after its second knock.
         if (secondAt != 0 && t - secondAt >= CONFIRM_MS) {
             secondAt = 0;
             firstAt = 0;
-            cooldownUntil = t + 1500;
+            cooldownUntil = t + 1200;
             return true;
         }
+        if (t < cooldownUntil) return false;
 
-        boolean knock = mag > threshold && mag > side * 2f && mag < MAX_KNOCK && t - lastPeak > RING_MS;
-        if (knock) {
-            lastPeak = t;
-            int sign = z > 0 ? 1 : -1;
-            if (secondAt != 0) {
-                // A third knock: not a double tap (drumming, shaking, a bump).
-                secondAt = 0;
-                firstAt = 0;
-                cooldownUntil = t + 600;
-                return false;
+        // Measuring a knock: keep its strongest sample for PEAK_WINDOW_MS.
+        if (peakStart != 0) {
+            if (mag > Math.abs(peakZ)) {
+                peakZ = z;
+                peakSide = side;
             }
-            if (firstAt == 0) {
-                if (quietBefore) {
-                    firstAt = t;
-                    firstSign = sign;
-                    firstMag = mag;
-                }
-                return false;
-            }
-            long gap = t - firstAt;
-            float ratio = mag / firstMag;
-            if (gap >= MIN_GAP_MS && gap <= MAX_GAP_MS && sign == firstSign && ratio > 0.4f && ratio < 2.5f) {
-                secondAt = t;
-            } else {
-                firstAt = 0; // wrong rhythm / direction / strength: start over
-            }
+            if (t - peakStart < PEAK_WINDOW_MS) return false;
+            long at = peakStart;
+            peakStart = 0;
+            lastKnockEnd = t;
+            float pm = Math.abs(peakZ);
+            if (pm >= MAX_KNOCK || pm < peakSide * 1.4f) return false; // a bump, not a tap
+            onKnock(at, peakZ > 0 ? 1 : -1, pm, peakQuiet);
             return false;
         }
 
-        // Waiting for the second knock: give up after the window, or if the phone starts moving.
-        if (firstAt != 0 && secondAt == 0 && (t - firstAt > MAX_GAP_MS || energy > threshold * 0.8f)) firstAt = 0;
-        if (secondAt != 0 && energy > threshold * 0.8f) {
-            secondAt = 0;
-            firstAt = 0;
+        if (mag > threshold && t - lastKnockEnd > RING_MS - PEAK_WINDOW_MS) {
+            peakStart = t;
+            peakZ = z;
+            peakSide = side;
+            peakQuiet = quiet;
+            return false;
         }
+
+        // Waiting for the second knock: give up after the window, or if the phone is moving.
+        if (firstAt != 0 && secondAt == 0 && (t - firstAt > MAX_GAP_MS + PEAK_WINDOW_MS || energy > threshold * 0.75f)) firstAt = 0;
         return false;
+    }
+
+    private void onKnock(long at, int sign, float mag, boolean quietBefore) {
+        if (secondAt != 0) return; // already have two: extra taps just wait for the confirmation
+        if (firstAt != 0) {
+            long gap = at - firstAt;
+            float ratio = mag / firstMag;
+            if (gap >= MIN_GAP_MS && gap <= MAX_GAP_MS && sign == firstSign && ratio > 0.33f && ratio < 3f) {
+                secondAt = at;
+                return;
+            }
+            if (gap < MIN_GAP_MS) return; // same knock ringing on
+        }
+        // Start a new attempt (this knock may be the first of the next pair).
+        firstAt = quietBefore ? at : 0;
+        firstSign = sign;
+        firstMag = mag;
     }
 }

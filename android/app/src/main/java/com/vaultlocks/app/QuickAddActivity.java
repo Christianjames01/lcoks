@@ -54,22 +54,22 @@ public class QuickAddActivity extends Activity {
     private static final int RED = Color.parseColor("#FF453A");
     private static final int GREEN = Color.parseColor("#30D158");
 
-    /** id, label, icon, kind — ids match src/shared/money.ts. */
+    /** id, label, icon, kind, badge colour — ids match src/shared/money.ts. */
     private static final Object[][] CATEGORIES = {
-        { "food", "Food", R.drawable.qa_food, "expense" },
-        { "transport", "Fare", R.drawable.qa_fare, "expense" },
-        { "groceries", "Groceries", R.drawable.qa_groceries, "expense" },
-        { "bills", "Bills", R.drawable.qa_bills, "expense" },
-        { "shopping", "Shopping", R.drawable.qa_shopping, "expense" },
-        { "health", "Health", R.drawable.qa_health, "expense" },
-        { "education", "School", R.drawable.qa_school, "expense" },
-        { "entertainment", "Fun", R.drawable.qa_fun, "expense" },
-        { "family", "Family", R.drawable.qa_family, "expense" },
-        { "other", "Other", R.drawable.qa_other, "expense" },
-        { "topup", "Cash in", R.drawable.qa_topup, "income" },
-        { "salary", "Salary", R.drawable.qa_salary, "income" },
-        { "gifts", "Allowance", R.drawable.qa_gift, "income" },
-        { "other-income", "Other", R.drawable.qa_income, "income" }
+        { "food", "Food", R.drawable.qa_food, "expense", 0xFFFF9F0A },
+        { "transport", "Fare", R.drawable.qa_fare, "expense", 0xFF0A84FF },
+        { "groceries", "Groceries", R.drawable.qa_groceries, "expense", 0xFF30D158 },
+        { "bills", "Bills", R.drawable.qa_bills, "expense", 0xFFFFCC00 },
+        { "shopping", "Shopping", R.drawable.qa_shopping, "expense", 0xFFFF375F },
+        { "health", "Health", R.drawable.qa_health, "expense", 0xFFFF453A },
+        { "education", "School", R.drawable.qa_school, "expense", 0xFF5E5CE6 },
+        { "entertainment", "Fun", R.drawable.qa_fun, "expense", 0xFFBF5AF2 },
+        { "family", "Family", R.drawable.qa_family, "expense", 0xFF32ADE6 },
+        { "other", "Other", R.drawable.qa_other, "expense", 0xFF8E8E93 },
+        { "topup", "Cash in", R.drawable.qa_topup, "income", 0xFF30D158 },
+        { "salary", "Salary", R.drawable.qa_salary, "income", 0xFF00C7BE },
+        { "gifts", "Allowance", R.drawable.qa_gift, "income", 0xFFFF9F0A },
+        { "other-income", "Other", R.drawable.qa_income, "income", 0xFF8E8E93 }
     };
 
     private static final String PREF_DELTA = "pendingDelta.";
@@ -262,6 +262,15 @@ public class QuickAddActivity extends Activity {
         if (id == null) return null;
         for (JSONObject a : accounts) if (id.equals(a.optString("id"))) return a;
         return null;
+    }
+
+    private static int kindIcon(String kind) {
+        switch (kind) {
+            case "cash": return R.drawable.qa_cash;
+            case "ewallet": return R.drawable.qa_ewallet;
+            case "credit": return R.drawable.qa_credit;
+            default: return R.drawable.qa_bank;
+        }
     }
 
     private static String kindName(String kind) {
@@ -472,18 +481,26 @@ public class QuickAddActivity extends Activity {
         return block;
     }
 
-    /** Category tile: icon over a short label. */
+    /** Category tile: a coloured icon badge over a short label. */
     private View tile(Object[] c) {
+        int color = (Integer) c[4];
         LinearLayout t = new LinearLayout(this);
         t.setOrientation(LinearLayout.VERTICAL);
         t.setGravity(Gravity.CENTER);
         t.setTag(c[0]);
         t.setOnClickListener(v -> setCategory((String) v.getTag()));
-        t.addView(icon((Integer) c[2], 22, fg));
+        FrameLayout badge = new FrameLayout(this);
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] { lighten(color), color });
+        bg.setCornerRadius(dp(11));
+        badge.setBackground(bg);
+        // Dark glyph on the light yellow badge, white elsewhere.
+        int glyph = color == 0xFFFFCC00 ? 0xFF3A2E00 : Color.WHITE;
+        badge.addView(icon((Integer) c[2], 19, glyph), new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
+        t.addView(badge, new LinearLayout.LayoutParams(dp(36), dp(36)));
         TextView label = text((String) c[1], 11.5f, fg, 600);
         label.setPadding(0, dp(6), 0, 0);
         t.addView(label);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(68), dp(64));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(70), dp(74));
         lp.setMarginEnd(dp(8));
         t.setLayoutParams(lp);
         return t;
@@ -525,9 +542,14 @@ public class QuickAddActivity extends Activity {
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(dp(12), dp(9), dp(28), dp(9));
         boolean credit = "credit".equals(a.optString("kind"));
+        LinearLayout nameRow = new LinearLayout(this);
+        nameRow.setGravity(Gravity.CENTER_VERTICAL);
+        nameRow.addView(icon(kindIcon(a.optString("kind")), 14, Color.WHITE));
         TextView name = text(a.optString("name", "Account"), 13, Color.WHITE, 700);
         name.setSingleLine(true);
-        col.addView(name);
+        name.setPadding(dp(6), 0, 0, 0);
+        nameRow.addView(name);
+        col.addView(nameRow);
         Long bal = balanceOf(a);
         String subText = bal != null ? money(credit ? Math.abs(bal) : bal) + (credit ? " owed" : "") : kindName(a.optString("kind"));
         TextView sub = text(subText, 11.5f, 0xD9FFFFFF, bal != null ? 700 : 400);
@@ -572,19 +594,28 @@ public class QuickAddActivity extends Activity {
             if (first == null) first = (String) c[0];
             categoryRow.addView(tile(c));
         }
+        tileColors.clear();
+        for (Object[] c : CATEGORIES) tileColors.put((String) c[0], (Integer) c[4]);
         setCategory(first);
         setAccount(account);
     }
 
+    private final java.util.Map<String, Integer> tileColors = new java.util.HashMap<>();
+
+    /** Chosen tile: tinted with its own colour and outlined; the others stay neutral. */
     private void setCategory(String id) {
         category = id;
         for (int i = 0; i < categoryRow.getChildCount(); i++) {
             LinearLayout t = (LinearLayout) categoryRow.getChildAt(i);
             boolean on = id != null && id.equals(t.getTag());
-            t.setBackground(round(on ? accent() : tile, 18));
-            int c = on ? onAccent() : fg;
-            ((ImageView) t.getChildAt(0)).setImageTintList(ColorStateList.valueOf(c));
-            ((TextView) t.getChildAt(1)).setTextColor(c);
+            Integer color = tileColors.get((String) t.getTag());
+            int c = color == null ? accent() : color;
+            GradientDrawable d = round(on ? ((c & 0x00FFFFFF) | (dark ? 0x38000000 : 0x26000000)) : tile, 18);
+            if (on) d.setStroke(dp(2), c);
+            t.setBackground(d);
+            TextView label = (TextView) t.getChildAt(1);
+            label.setTextColor(on ? fg : muted);
+            label.setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.create("sans-serif-medium", Typeface.NORMAL));
         }
     }
 

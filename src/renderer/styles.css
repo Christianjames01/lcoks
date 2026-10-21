@@ -6176,44 +6176,6 @@ input[type='date'] {
   min-width: 0;
 }
 
-/* Delete an account straight from its wallet card */
-.wallet-cell {
-  position: relative;
-  display: flex;
-  min-width: 0;
-}
-.wallet-cell > .wallet-card {
-  flex: 1;
-  min-width: 0;
-}
-.wc-delete {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.22);
-  color: #fff;
-  cursor: pointer;
-  opacity: 0.85;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  transition: background var(--dur) var(--ease), opacity var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
-}
-.wc-delete:hover {
-  background: var(--money-out);
-  opacity: 1;
-}
-.wc-delete:active {
-  transform: scale(0.92);
-}
-.wallet-cell .wc-name {
-  padding-right: 30px;
-}
 .acct-actions {
   grid-template-columns: 1fr 1fr auto auto;
 }
@@ -6221,4 +6183,273 @@ input[type='date'] {
   .acct-actions {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+/* ===================================================================== */
+/* v1.4 — every pop-up window drops in from the TOP, like a notification */
+/* (the phone keyboard opens below it, so forms are never covered).       */
+/* ===================================================================== */
+.backdrop {
+  place-items: start center;
+  padding: calc(18px + var(--safe-top, 0px)) 16px 16px;
+  overflow-y: auto;
+}
+.dialog,
+.dialog.wide,
+.dialog.narrow {
+  animation: lg-drop 260ms var(--ease) both;
+  max-height: calc(100vh - 36px - var(--safe-top, 0px));
+}
+@keyframes lg-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.98);
+  }
+}
+.menu-backdrop.sheet {
+  align-items: flex-start;
+}
+.action-sheet {
+  border-radius: 0 0 var(--lg-radius-pop) var(--lg-radius-pop) !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid var(--lg-border-strong) !important;
+  padding-top: calc(10px + var(--safe-top, 0px)) !important;
+  animation: lg-drop 240ms var(--ease) both !important;
+}
+@media (max-width: 720px) {
+  .backdrop {
+    padding: 0;
+    place-items: start stretch;
+  }
+  .dialog,
+  .dialog.wide,
+  .dialog.narrow {
+    width: 100%;
+    border-radius: 0 0 var(--lg-radius-pop) var(--lg-radius-pop);
+    border-top: 0;
+    border-bottom: 1px solid var(--lg-border-strong);
+    padding-top: var(--safe-top, 0px);
+    padding-bottom: 0;
+    max-height: calc(100vh - 24px);
+    animation: lg-drop 260ms var(--ease) both;
+  }
+  .dialog-foot {
+    border-radius: 0 0 var(--lg-radius-pop) var(--lg-radius-pop);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dialog,
+  .action-sheet {
+    animation: none !important;
+  }
+}
+
+/* ---------------------------------------------- press-and-hold / swipe */
+.hold-area {
+  position: relative;
+  min-width: 0;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.hold-area.swipeable {
+  overflow: hidden;
+  border-radius: var(--radius);
+  touch-action: pan-y;
+}
+.hold-content {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  background: inherit;
+  transition: transform 220ms var(--ease);
+}
+.hold-content > * {
+  flex: 1;
+  min-width: 0;
+}
+.hold-content.dragging {
+  transition: none;
+}
+.hold-area.holding .hold-content {
+  transform: scale(0.975);
+  transition: transform var(--hold-ms, 2000ms) var(--ease);
+}
+.hold-ring {
+  position: absolute !important;
+  left: 14px;
+  right: 14px;
+  bottom: 6px;
+  flex: none !important;
+  height: 3px;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+}
+.wallet-cell .hold-ring {
+  color: #fff;
+  bottom: 9px;
+}
+.hold-area.holding .hold-ring {
+  opacity: 0.85;
+  transform: scaleX(1);
+  transition: transform var(--hold-ms, 2000ms) linear, opacity 120ms;
+}
+.swipe-behind {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: flex;
+}
+.swipe-act {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 0;
+  background: var(--lg-card-hover);
+  color: var(--fg);
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.swipe-act.danger {
+  background: var(--money-out);
+  color: #fff;
+}
+/* While swiped, the row covers the actions behind it. */
+.hold-area.swiped .hold-content {
+  background: var(--surface-solid);
+  border-radius: var(--radius);
+}
+.hold-hint {
+  margin: 6px 2px 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* Press-and-hold menu: centred glass card */
+.hold-menu-backdrop {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.hold-menu {
+  position: relative;
+  width: min(340px, 100%);
+  padding: 8px;
+  border-radius: 24px;
+  background: var(--lg-sheen), var(--lg-float);
+  -webkit-backdrop-filter: var(--lg-blur-strong);
+  backdrop-filter: var(--lg-blur-strong);
+  border: 1px solid var(--lg-border-strong);
+  box-shadow: var(--lg-edge), var(--lg-shadow);
+  color: var(--fg);
+  animation: lg-center-pop 200ms var(--ease) both;
+}
+.hold-menu .sheet-title {
+  padding: 12px 12px 10px;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  border-bottom: 1px solid var(--lg-border);
+  margin-bottom: 6px;
+}
+.hold-menu .menu-item {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  font-size: 15px;
+}
+.hold-menu .menu-item.cancel {
+  justify-content: center;
+  margin-top: 6px;
+  border-top: 1px solid var(--lg-border);
+  border-radius: 0 0 16px 16px;
+  font-weight: 650;
+}
+@keyframes lg-center-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hold-menu {
+    animation: none;
+  }
+}
+
+/* ===================================================================== */
+/* v1.4 — exact fit on every phone: the layout follows the real visible  */
+/* screen and the phone's own safe areas (notch, gesture bar, 3-button   */
+/* navigation), so the bottom bar always sits at the bottom.             */
+/* ===================================================================== */
+html,
+body,
+#root {
+  height: 100%;
+  height: 100dvh;
+}
+@media (max-width: 720px) {
+  :root {
+    /* Space the bottom bar needs: its height + a small gap + the phone's own bottom area. */
+    --nav-gap: max(8px, var(--safe-bottom));
+    --bottomnav-h: calc(64px + 8px + var(--nav-gap));
+  }
+  .bottom-nav {
+    bottom: var(--nav-gap);
+    left: calc(10px + var(--safe-left));
+    right: calc(10px + var(--safe-right));
+  }
+  .shell,
+  .shell.collapsed {
+    bottom: 0;
+  }
+  .page,
+  .detail-inner,
+  .list {
+    padding-bottom: calc(var(--bottomnav-h) + 16px) !important;
+  }
+  .toasts {
+    bottom: calc(var(--bottomnav-h) + 6px);
+  }
+  /* Very small phones (≤ 360 px): slightly tighter bar and content. */
+}
+@media (max-width: 360px) {
+  .bottom-nav {
+    height: 60px;
+    border-radius: 22px;
+  }
+  .tab-btn {
+    font-size: 10px;
+  }
+  .fab {
+    width: 46px;
+    height: 46px;
+  }
+  .page {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+@media (max-width: 720px) and (max-height: 640px) {
+  /* Short screens (older 16:9 phones): less vertical spacing. */
+  .vault-card {
+    padding: 14px;
+  }
+  .section-title {
+    margin-top: 18px;
+  }
+}
+
+/* Month row sits under the quick-entry box; the options button stays on the right. */
+.money-title {
+  margin-bottom: 18px;
+}
+.money-head > .icon-btn:last-child {
+  margin-left: auto;
 }
