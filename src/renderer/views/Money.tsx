@@ -1131,6 +1131,7 @@ function AccountsDialog({
   return (
     <>
       <Dialog
+        placement="center"
         title="Accounts"
         subtitle="Cash, e-wallets and banks"
         size="narrow"
@@ -1186,6 +1187,7 @@ function AccountsDialog({
       )}
       {removing && (
         <ConfirmDialog
+          placement="center"
           title={`Delete ${removing.name}?`}
           danger
           confirmLabel="Delete account"
@@ -1245,6 +1247,7 @@ function AccountEditor({
 
   return (
     <Dialog
+      placement="center"
       title={account ? 'Edit account' : 'Add account'}
       size="narrow"
       onClose={onClose}
@@ -1399,6 +1402,7 @@ function AccountPage({
       )}
       {removing && (
         <ConfirmDialog
+          placement="center"
           title={`Delete ${account.name}?`}
           danger
           confirmLabel="Delete account"
@@ -1569,6 +1573,7 @@ function useDeleteAccount(onChanged: () => Promise<void>, transactions: Transact
   const count = target ? transactions.filter((t) => t.accountId === target.id).length : 0;
   const dialog = target && (
     <ConfirmDialog
+      placement="center"
       title={`Delete ${target.name}?`}
       danger
       confirmLabel="Delete account"

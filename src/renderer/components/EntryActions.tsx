@@ -53,7 +53,7 @@ export function EntryMenu({
 }: {
   entry: EntryView;
   at: { x: number; y: number };
-  /** Phone: bottom sheet instead of a pop-up at the pointer. */
+  /** Phone: a centred menu card instead of a pop-up at the pointer. */
   sheet: boolean;
   actions: EntryActions;
   onClose: () => void;
@@ -138,7 +138,7 @@ export function EntryMenu({
 
   return createPortal(
     <div
-      className={`menu-backdrop ${sheet ? 'sheet' : ''}`}
+      className={`menu-backdrop ${sheet ? 'hold-menu-backdrop' : ''}`}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -147,7 +147,7 @@ export function EntryMenu({
     >
       <div
         ref={ref}
-        className={sheet ? 'action-sheet' : 'context-menu'}
+        className={sheet ? 'hold-menu' : 'context-menu'}
         role="menu"
         aria-label={`Actions for ${entry.title}`}
         onKeyDown={onKey}

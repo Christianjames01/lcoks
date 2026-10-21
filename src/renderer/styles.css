@@ -7669,3 +7669,11 @@ body,
     min-height: 40px;
   }
 }
+
+/* Vault screen: search sits at the very top on the phone. */
+.search-trigger.dash-search-top {
+  margin: 0 0 12px;
+}
+.dash-all-items {
+  margin-top: 10px;
+}

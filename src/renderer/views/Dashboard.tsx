@@ -42,6 +42,9 @@ type Health = 'ok' | 'warn' | 'bad';
 export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, onImport, onLock }: Props) {
   const used = useRecentlyUsed();
   const [dupCount, setDupCount] = useState<number | null>(null);
+  // "View all" shows the whole list right here; "Show less" folds it back.
+  const [expanded, setExpanded] = useState<{ cats?: boolean; used?: boolean; updated?: boolean }>({});
+  const toggle = (k: 'cats' | 'used' | 'updated') => setExpanded((x) => ({ ...x, [k]: !x[k] }));
   const { settings, meta, stats } = snap;
 
   // Duplicate check only reads the vault; nothing is changed.
@@ -53,13 +56,12 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
     };
   }, [snap]);
 
-  const recent = useMemo(() => [...snap.entries].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6), [snap.entries]);
+  const recent = useMemo(() => [...snap.entries].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [snap.entries]);
   const recentlyUsed = useMemo(
     () =>
       snap.entries
         .filter((e) => used[e.id])
-        .sort((a, b) => used[b.id]! - used[a.id]!)
-        .slice(0, 5),
+        .sort((a, b) => used[b.id]! - used[a.id]!),
     [snap.entries, used]
   );
   const report = useMemo(() => securityReport(snap.entries, meta, settings.backupReminderDays), [snap.entries, meta, settings.backupReminderDays]);
@@ -128,16 +130,18 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
     </li>
   );
 
-  const sectionHead = (label: string, onAll?: () => void) => (
+  const sectionHead = (label: string, onAll?: () => void, open?: boolean, total?: number) => (
     <div className="section-title">
       <span className="label">{label}</span>
       {onAll && (
-        <button type="button" className="linkish" onClick={onAll}>
-          View all
+        <button type="button" className="linkish" onClick={onAll} aria-expanded={open}>
+          {open ? 'Show less' : total ? `View all (${total})` : 'View all'}
         </button>
       )}
     </div>
   );
+  const RECENT = 6;
+  const USED = 5;
 
   return (
     <div className="page dashboard">
@@ -153,6 +157,13 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
               <SettingsIcon size={18} />
             </button>
           </header>
+        )}
+
+        {mobile && (
+          <button type="button" className="search-trigger dash-search-top" onClick={onSearch} aria-label="Search vault">
+            <Search size={16} aria-hidden />
+            <span>Search vault</span>
+          </button>
         )}
 
         <div className="dash-top">
@@ -186,13 +197,6 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
           <StorageUsageCard refreshKey={snap} onOpen={() => onNavigate({ view: 'settings', tab: 'vault' })} />
         </div>
 
-        {mobile && (
-          <button type="button" className="search-trigger" onClick={onSearch} aria-label="Search vault">
-            <Search size={16} aria-hidden />
-            <span>Search vault</span>
-          </button>
-        )}
-
         {sectionHead('Quick actions')}
         <div className="qa-grid" role="group" aria-label="Quick actions">
           {QUICK_ADD.filter(([id]) => snap.categories.some((c) => c.id === id)).map(([id, label]) => (
@@ -221,9 +225,9 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
           />
         ) : (
           <>
-            {sectionHead('Categories', categories.length > CATEGORY_CARDS ? () => onNavigate({ view: 'items', filter: 'all' }) : undefined)}
+            {sectionHead('Categories', categories.length > CATEGORY_CARDS ? () => toggle('cats') : undefined, expanded.cats, categories.length)}
             <div className="cat-cards">
-              {categories.slice(0, CATEGORY_CARDS).map(({ c, n }) => (
+              {(expanded.cats ? categories : categories.slice(0, CATEGORY_CARDS)).map(({ c, n }) => (
                 <CategoryCard key={c.id} category={c} count={n} onClick={() => onNavigate({ view: 'items', filter: `cat:${c.id}` })} />
               ))}
             </div>
@@ -280,15 +284,18 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
 
         {recentlyUsed.length > 0 && (
           <>
-            {sectionHead('Recently used')}
-            <ul className="list card recent-list">{recentlyUsed.map((e) => row(e, 'used'))}</ul>
+            {sectionHead('Recently used', recentlyUsed.length > USED ? () => toggle('used') : undefined, expanded.used, recentlyUsed.length)}
+            <ul className="list card recent-list">{(expanded.used ? recentlyUsed : recentlyUsed.slice(0, USED)).map((e) => row(e, 'used'))}</ul>
           </>
         )}
 
         {recent.length > 0 && (
           <>
-            {sectionHead('Recently updated', () => onNavigate({ view: 'items', filter: 'all' }))}
-            <ul className="list card recent-list">{recent.map((e) => row(e))}</ul>
+            {sectionHead('Recently updated', recent.length > RECENT ? () => toggle('updated') : undefined, expanded.updated, recent.length)}
+            <ul className="list card recent-list">{(expanded.updated ? recent : recent.slice(0, RECENT)).map((e) => row(e))}</ul>
+            <button type="button" className="btn block dash-all-items" onClick={() => onNavigate({ view: 'items', filter: 'all' })}>
+              See all {stats.total} items
+            </button>
           </>
         )}
 
