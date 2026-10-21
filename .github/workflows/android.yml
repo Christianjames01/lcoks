@@ -135,6 +135,14 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      # The iPhone "Add expense" Shortcut encrypts entries in Swift: compile that code
+      # and check that the vault's own decryption opens what it writes.
+      - name: Check iPhone quick-add encryption
+        run: |
+          mkdir -p build/sealcheck
+          swiftc -O ios/App/App/QuickAddCrypto.swift ios/tools/sealcheck/main.swift -o build/sealcheck/sealcheck
+          IOS_SEAL_BIN="$PWD/build/sealcheck/sealcheck" npx vitest run tests/iosInbox.test.ts
+
       - name: Build mobile web bundle and sync Capacitor
         run: |
           npm run build:mobile

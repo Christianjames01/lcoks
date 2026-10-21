@@ -62,6 +62,7 @@ import { EmptyState } from '../components/EmptyState';
 import { HoldArea } from '../components/HoldActions';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
+import { isIOS } from '../lib/platform';
 
 const ICONS: Record<MoneyIcon, LucideIcon> = {
   food: UtensilsCrossed,
@@ -1070,9 +1071,26 @@ function QuickAddSettings({ balancesOn, onSaved }: { balancesOn: boolean; onSave
           )}
         </>
       )}
+      {isIOS() && (
+        <div className="qas-block">
+          <div className="title">Double tap the back of the iPhone (iOS 17 or newer)</div>
+          <ol className="qas-steps">
+            <li>
+              Open <strong>Settings → Accessibility → Touch → Back Tap → Double Tap</strong>.
+            </li>
+            <li>
+              Under Shortcuts, choose <strong>“Add expense”</strong> (VaultLocks). For money coming in, set <strong>Triple Tap</strong> to <strong>“Add cash”</strong>.
+            </li>
+            <li>Double tap the back, even on the lock screen: the iPhone asks how much, the category and the account, and saves it encrypted.</li>
+          </ol>
+          <p className="help-text" style={{ margin: '6px 0 0' }}>
+            The same actions are in the Shortcuts app and Siri (“Add expense in VaultLocks”). After restarting the iPhone, unlock it once before using them.
+          </p>
+        </div>
+      )}
       <p className="help-text" style={{ margin: '8px 0 0' }}>
-        The lock screen also has an “Add expense” button. Entries added while locked are encrypted and appear here after you unlock. Only your account names (not balances or
-        records) are readable while locked, so the pop-up can list them.
+        {isIOS() ? '' : 'The lock screen also has an “Add expense” button. '}Entries added while locked are encrypted and appear here after you unlock. Only your account names
+        (not balances or records) are readable while locked, so {isIOS() ? 'the iPhone can list them' : 'the pop-up can list them'}.
       </p>
     </div>
   );
