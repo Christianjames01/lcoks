@@ -11,6 +11,7 @@ import android.graphics.Outline;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
@@ -44,32 +45,30 @@ import org.json.JSONObject;
 /**
  * "Add expense / Add cash" pop-up: a frosted-glass card at the TOP of the screen,
  * over the lock screen or any app (Back Tap, double tap on the back, or the
- * notification). Big centred amount, icon tiles for the category, coloured account
- * cards, and one Save button that says what will happen.
+ * notification). Black & white glass: big centred amount, icon tiles for the category,
+ * account cards, and one Save button that says what will happen. Selected things
+ * turn solid (white on dark, black on light); there are no other colours.
  *
  * The entry is encrypted to the vault's inbox public key; nothing from the vault is
  * shown except account names — and balances, only if the user turned that on.
  */
 public class QuickAddActivity extends Activity {
-    private static final int RED = Color.parseColor("#FF453A");
-    private static final int GREEN = Color.parseColor("#30D158");
-
-    /** id, label, icon, kind, badge colour — ids match src/shared/money.ts. */
+    /** id, label, icon, kind — ids match src/shared/money.ts. */
     private static final Object[][] CATEGORIES = {
-        { "food", "Food", R.drawable.qa_food, "expense", 0xFFFF9F0A },
-        { "transport", "Fare", R.drawable.qa_fare, "expense", 0xFF0A84FF },
-        { "groceries", "Groceries", R.drawable.qa_groceries, "expense", 0xFF30D158 },
-        { "bills", "Bills", R.drawable.qa_bills, "expense", 0xFFFFCC00 },
-        { "shopping", "Shopping", R.drawable.qa_shopping, "expense", 0xFFFF375F },
-        { "health", "Health", R.drawable.qa_health, "expense", 0xFFFF453A },
-        { "education", "School", R.drawable.qa_school, "expense", 0xFF5E5CE6 },
-        { "entertainment", "Fun", R.drawable.qa_fun, "expense", 0xFFBF5AF2 },
-        { "family", "Family", R.drawable.qa_family, "expense", 0xFF32ADE6 },
-        { "other", "Other", R.drawable.qa_other, "expense", 0xFF8E8E93 },
-        { "topup", "Cash in", R.drawable.qa_topup, "income", 0xFF30D158 },
-        { "salary", "Salary", R.drawable.qa_salary, "income", 0xFF00C7BE },
-        { "gifts", "Allowance", R.drawable.qa_gift, "income", 0xFFFF9F0A },
-        { "other-income", "Other", R.drawable.qa_income, "income", 0xFF8E8E93 }
+        { "food", "Food", R.drawable.qa_food, "expense" },
+        { "transport", "Fare", R.drawable.qa_fare, "expense" },
+        { "groceries", "Groceries", R.drawable.qa_groceries, "expense" },
+        { "bills", "Bills", R.drawable.qa_bills, "expense" },
+        { "shopping", "Shopping", R.drawable.qa_shopping, "expense" },
+        { "health", "Health", R.drawable.qa_health, "expense" },
+        { "education", "School", R.drawable.qa_school, "expense" },
+        { "entertainment", "Fun", R.drawable.qa_fun, "expense" },
+        { "family", "Family", R.drawable.qa_family, "expense" },
+        { "other", "Other", R.drawable.qa_other, "expense" },
+        { "topup", "Cash in", R.drawable.qa_topup, "income" },
+        { "salary", "Salary", R.drawable.qa_salary, "income" },
+        { "gifts", "Allowance", R.drawable.qa_gift, "income" },
+        { "other-income", "Other", R.drawable.qa_income, "income" }
     };
 
     private static final String PREF_DELTA = "pendingDelta.";
@@ -78,7 +77,7 @@ public class QuickAddActivity extends Activity {
     // Palette (dark or light, following the phone).
     private boolean dark = true;
     private boolean blurred = false;
-    private int cardTop, cardBottom, fg, muted, tile, border;
+    private int cardTop, cardBottom, fg, muted, tile, border, edge, solidBg;
 
     private String kind = "expense";
     private String category = "food";
@@ -146,19 +145,23 @@ public class QuickAddActivity extends Activity {
     private void palette() {
         dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) != Configuration.UI_MODE_NIGHT_NO;
         if (dark) {
-            cardTop = blurred ? 0xE62C2C30 : 0xFA2C2C30;
-            cardBottom = blurred ? 0xE61A1A1D : 0xFA1A1A1D;
-            fg = 0xFFF5F5F7;
-            muted = 0xFF98989F;
-            tile = 0x1FFFFFFF;
-            border = 0x29FFFFFF;
+            cardTop = blurred ? 0xB8262628 : 0xF2262628;
+            cardBottom = blurred ? 0xC70A0A0B : 0xF70A0A0B;
+            fg = 0xFFFFFFFF;
+            muted = 0xFF9A9A9F;
+            tile = 0x1AFFFFFF;
+            border = 0x2EFFFFFF;
+            edge = 0x40FFFFFF;
+            solidBg = 0xFF0A0A0B;
         } else {
-            cardTop = blurred ? 0xEBFFFFFF : 0xFAFFFFFF;
-            cardBottom = blurred ? 0xE6F2F2F6 : 0xFAF2F2F6;
-            fg = 0xFF1C1C1E;
+            cardTop = blurred ? 0xC7FFFFFF : 0xF7FFFFFF;
+            cardBottom = blurred ? 0xBFF0F0F2 : 0xF5F0F0F2;
+            fg = 0xFF0A0A0B;
             muted = 0xFF6C6C72;
-            tile = 0x14000000;
-            border = 0x1A000000;
+            tile = 0x0F000000;
+            border = 0x1F000000;
+            edge = 0x26000000;
+            solidBg = 0xFFFFFFFF;
         }
     }
 
@@ -194,13 +197,21 @@ public class QuickAddActivity extends Activity {
         return v;
     }
 
+    /** Selected / primary things are solid: white on dark glass, black on light glass. */
     private int accent() {
-        return "income".equals(kind) ? GREEN : RED;
+        return fg;
     }
 
-    /** Readable text on the accent colour. */
+    /** Text and icons on a solid (selected) surface. */
     private int onAccent() {
-        return "income".equals(kind) ? 0xFF04210D : Color.WHITE;
+        return solidBg;
+    }
+
+    /** A see-through glass tile with a hairline edge. */
+    private GradientDrawable glassTile(float radiusDp) {
+        GradientDrawable d = round(tile, radiusDp);
+        d.setStroke(dp(1), border);
+        return d;
     }
 
     private HorizontalScrollView scrollRow(LinearLayout row) {
@@ -300,25 +311,30 @@ public class QuickAddActivity extends Activity {
 
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(14), dp(16), dp(16));
+        card.setPadding(dp(12), dp(10), dp(12), dp(12));
         GradientDrawable glass = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] { cardTop, cardBottom });
-        glass.setCornerRadius(dp(28));
-        glass.setStroke(dp(1), border);
-        card.setBackground(glass);
+        glass.setCornerRadius(dp(22));
+        glass.setStroke(dp(1), edge);
+        // Sheen: a soft highlight across the top that fades out, like light on glass.
+        GradientDrawable sheen = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] { dark ? 0x17FFFFFF : 0x73FFFFFF, 0x00FFFFFF });
+        sheen.setCornerRadius(dp(22));
+        LayerDrawable layered = new LayerDrawable(new Drawable[] { glass, sheen });
+        layered.setLayerInset(1, dp(1), dp(1), dp(1), dp(110));
+        card.setBackground(layered);
         card.setElevation(dp(18));
         card.setClickable(true); // taps inside don't close it
-        int width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(20), dp(420));
+        int width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(340));
         holder.addView(card, new FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL));
         scroll.addView(holder);
         root.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         card.addView(header());
-        card.addView(segmented(), fullWidth(14));
-        card.addView(amountBlock(), fullWidth(12));
+        card.addView(segmented(), fullWidth(10));
+        card.addView(amountBlock(), fullWidth(6));
 
         categoryRow = new LinearLayout(this);
         categoryRow.setPadding(0, 0, dp(4), 0);
-        card.addView(scrollRow(categoryRow), fullWidth(12));
+        card.addView(scrollRow(categoryRow), fullWidth(8));
 
         JSONObject meta = QuickAdd.meta(this);
         JSONArray list = meta == null ? null : meta.optJSONArray("accounts");
@@ -332,29 +348,29 @@ public class QuickAddActivity extends Activity {
                 accounts.add(a);
                 accRow.addView(accountCard(a));
             }
-            card.addView(scrollRow(accRow), fullWidth(10));
+            card.addView(scrollRow(accRow), fullWidth(8));
         }
 
         note = new EditText(this);
         note.setHint("Add a note (optional)");
         note.setHintTextColor(muted);
         note.setTextColor(fg);
-        note.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        note.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         note.setSingleLine(true);
-        note.setPadding(dp(14), dp(11), dp(14), dp(11));
-        note.setBackground(round(tile, 14));
+        note.setPadding(dp(12), dp(8), dp(12), dp(8));
+        note.setBackground(glassTile(12));
         note.setImeOptions(EditorInfo.IME_ACTION_DONE);
         note.setOnEditorActionListener((v, id, e) -> {
             save();
             return true;
         });
-        card.addView(note, fullWidth(12));
+        card.addView(note, fullWidth(8));
 
-        save = text("Save expense", 15, Color.WHITE, 700);
+        save = text("Save expense", 14, solidBg, 700);
         save.setGravity(Gravity.CENTER);
         save.setOnClickListener(v -> save());
-        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
-        slp.topMargin = dp(12);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42));
+        slp.topMargin = dp(8);
         card.addView(save, slp);
 
         amount.setOnEditorActionListener((v, id, e) -> {
@@ -386,47 +402,47 @@ public class QuickAddActivity extends Activity {
         logo.setOutlineProvider(new ViewOutlineProvider() {
             @Override
             public void getOutline(View view, Outline outline) {
-                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(8));
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(6));
             }
         });
         logo.setClipToOutline(true);
-        head.addView(logo, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        head.addView(logo, new LinearLayout.LayoutParams(dp(24), dp(24)));
 
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
-        titles.setPadding(dp(10), 0, 0, 0);
-        titles.addView(text("VaultLocks", 15, fg, 700));
+        titles.setPadding(dp(8), 0, 0, 0);
+        titles.addView(text("VaultLocks", 13.5f, fg, 700));
         LinearLayout sub = new LinearLayout(this);
         sub.setGravity(Gravity.CENTER_VERTICAL);
-        sub.setPadding(0, dp(3), 0, 0);
-        sub.addView(icon(R.drawable.qa_lock, 11, muted));
-        TextView subText = text("Quick add · stays encrypted", 11.5f, muted, 400);
+        sub.setPadding(0, dp(2), 0, 0);
+        sub.addView(icon(R.drawable.qa_lock, 10, muted));
+        TextView subText = text("Quick add · stays encrypted", 10.5f, muted, 400);
         subText.setPadding(dp(4), 0, 0, 0);
         sub.addView(subText);
         titles.addView(sub);
         head.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
         FrameLayout close = new FrameLayout(this);
-        close.setBackground(round(tile, 16));
+        close.setBackground(glassTile(14));
         close.setContentDescription("Close");
         close.setOnClickListener(v -> finish());
-        ImageView x = icon(R.drawable.qa_close, 16, muted);
-        close.addView(x, new FrameLayout.LayoutParams(dp(16), dp(16), Gravity.CENTER));
-        head.addView(close, new LinearLayout.LayoutParams(dp(32), dp(32)));
+        ImageView x = icon(R.drawable.qa_close, 14, muted);
+        close.addView(x, new FrameLayout.LayoutParams(dp(14), dp(14), Gravity.CENTER));
+        head.addView(close, new LinearLayout.LayoutParams(dp(28), dp(28)));
         return head;
     }
 
     private View segmented() {
         LinearLayout seg = new LinearLayout(this);
         seg.setPadding(dp(3), dp(3), dp(3), dp(3));
-        seg.setBackground(round(tile, 14));
+        seg.setBackground(glassTile(12));
         for (String[] k : new String[][] { { "expense", "−  Expense" }, { "income", "+  Add cash" } }) {
-            TextView b = text(k[1], 14, fg, 600);
+            TextView b = text(k[1], 13, fg, 600);
             b.setGravity(Gravity.CENTER);
             b.setTag(k[0]);
             b.setOnClickListener(v -> setKind((String) v.getTag()));
             kindButtons.add(b);
-            seg.addView(b, new LinearLayout.LayoutParams(0, dp(36), 1));
+            seg.addView(b, new LinearLayout.LayoutParams(0, dp(30), 1));
         }
         return seg;
     }
@@ -446,17 +462,17 @@ public class QuickAddActivity extends Activity {
 
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER);
-        row.addView(text(symbol, 28, muted, 600));
+        row.addView(text(symbol, 20, muted, 600));
         amount = new EditText(this);
         amount.setHint("0");
         amount.setHintTextColor(dark ? 0x55FFFFFF : 0x40000000);
         amount.setTextColor(fg);
-        amount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 46);
+        amount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
         amount.setTypeface(Typeface.DEFAULT_BOLD);
         amount.setBackground(null);
         amount.setSingleLine(true);
         amount.setGravity(Gravity.CENTER);
-        amount.setMinWidth(dp(60));
+        amount.setMinWidth(dp(44));
         amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         amount.setImeOptions(EditorInfo.IME_ACTION_DONE);
         amount.setPadding(dp(4), 0, dp(4), 0);
@@ -472,36 +488,31 @@ public class QuickAddActivity extends Activity {
         row.addView(amount, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         block.addView(row);
 
-        balanceLine = text("", 12.5f, muted, 600);
+        balanceLine = text("", 11.5f, muted, 600);
         balanceLine.setGravity(Gravity.CENTER);
         balanceLine.setVisibility(View.GONE);
         LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        blp.topMargin = dp(4);
+        blp.topMargin = dp(2);
         block.addView(balanceLine, blp);
         return block;
     }
 
-    /** Category tile: a coloured icon badge over a short label. */
+    /** Category tile: a glass icon badge over a short label. */
     private View tile(Object[] c) {
-        int color = (Integer) c[4];
         LinearLayout t = new LinearLayout(this);
         t.setOrientation(LinearLayout.VERTICAL);
         t.setGravity(Gravity.CENTER);
         t.setTag(c[0]);
         t.setOnClickListener(v -> setCategory((String) v.getTag()));
         FrameLayout badge = new FrameLayout(this);
-        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] { lighten(color), color });
-        bg.setCornerRadius(dp(11));
-        badge.setBackground(bg);
-        // Dark glyph on the light yellow badge, white elsewhere.
-        int glyph = color == 0xFFFFCC00 ? 0xFF3A2E00 : Color.WHITE;
-        badge.addView(icon((Integer) c[2], 19, glyph), new FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER));
-        t.addView(badge, new LinearLayout.LayoutParams(dp(36), dp(36)));
-        TextView label = text((String) c[1], 11.5f, fg, 600);
-        label.setPadding(0, dp(6), 0, 0);
+        badge.setBackground(glassTile(9));
+        badge.addView(icon((Integer) c[2], 16, fg), new FrameLayout.LayoutParams(dp(16), dp(16), Gravity.CENTER));
+        t.addView(badge, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        TextView label = text((String) c[1], 10.5f, fg, 600);
+        label.setPadding(0, dp(4), 0, 0);
         t.addView(label);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(70), dp(74));
-        lp.setMarginEnd(dp(8));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(56), dp(58));
+        lp.setMarginEnd(dp(6));
         t.setLayoutParams(lp);
         return t;
     }
@@ -511,71 +522,63 @@ public class QuickAddActivity extends Activity {
         c.setOrientation(LinearLayout.VERTICAL);
         c.setGravity(Gravity.CENTER);
         c.setTag(null);
-        c.addView(text("No", 13, fg, 700));
-        TextView l = text("account", 11, muted, 400);
-        l.setPadding(0, dp(3), 0, 0);
+        c.addView(text("No", 12, fg, 700));
+        TextView l = text("account", 10, muted, 400);
+        l.setPadding(0, dp(2), 0, 0);
         c.addView(l);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(72), dp(54));
-        lp.setMarginEnd(dp(8));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(58), dp(44));
+        lp.setMarginEnd(dp(6));
         c.setLayoutParams(lp);
         c.setOnClickListener(v -> setAccount(null));
         accountViews.add(c);
         return c;
     }
 
-    /** Account card in the account's colour: name, and balance (if shown) or type; a check when chosen. */
+    /** Glass account card: name, and balance (if shown) or type; solid with a check when chosen. */
     private View accountCard(JSONObject a) {
-        int color = Color.parseColor("#3A3A40");
-        try {
-            if (a.has("color")) color = Color.parseColor(a.getString("color"));
-        } catch (Exception ignored) {
-            // keep grey
-        }
         FrameLayout f = new FrameLayout(this);
-        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[] { lighten(color), color });
-        bg.setCornerRadius(dp(16));
-        f.setBackground(bg);
+        f.setBackground(glassTile(13));
         f.setTag(a.optString("id"));
         f.setOnClickListener(v -> setAccount((String) v.getTag()));
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(12), dp(9), dp(28), dp(9));
+        col.setPadding(dp(10), dp(7), dp(24), dp(7));
         boolean credit = "credit".equals(a.optString("kind"));
         LinearLayout nameRow = new LinearLayout(this);
         nameRow.setGravity(Gravity.CENTER_VERTICAL);
-        nameRow.addView(icon(kindIcon(a.optString("kind")), 14, Color.WHITE));
-        TextView name = text(a.optString("name", "Account"), 13, Color.WHITE, 700);
+        ImageView kindIcon = icon(kindIcon(a.optString("kind")), 12, fg);
+        kindIcon.setTag("kindIcon");
+        nameRow.addView(kindIcon);
+        TextView name = text(a.optString("name", "Account"), 12, fg, 700);
+        name.setTag("name");
         name.setSingleLine(true);
-        name.setPadding(dp(6), 0, 0, 0);
+        name.setPadding(dp(5), 0, 0, 0);
         nameRow.addView(name);
         col.addView(nameRow);
         Long bal = balanceOf(a);
         String subText = bal != null ? money(credit ? Math.abs(bal) : bal) + (credit ? " owed" : "") : kindName(a.optString("kind"));
-        TextView sub = text(subText, 11.5f, 0xD9FFFFFF, bal != null ? 700 : 400);
-        sub.setPadding(0, dp(4), 0, 0);
+        TextView sub = text(subText, 10.5f, muted, bal != null ? 700 : 400);
+        sub.setTag("sub");
+        sub.setPadding(0, dp(3), 0, 0);
         col.addView(sub);
         f.addView(col);
 
         FrameLayout check = new FrameLayout(this);
-        check.setBackground(round(Color.WHITE, 9));
-        check.addView(icon(R.drawable.qa_check, 12, color), new FrameLayout.LayoutParams(dp(12), dp(12), Gravity.CENTER));
+        check.setBackground(round(solidBg, 8));
+        check.addView(icon(R.drawable.qa_check, 10, fg), new FrameLayout.LayoutParams(dp(10), dp(10), Gravity.CENTER));
         check.setVisibility(View.GONE);
         check.setTag("check");
-        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.TOP | Gravity.END);
-        clp.setMargins(0, dp(7), dp(7), 0);
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(dp(16), dp(16), Gravity.TOP | Gravity.END);
+        clp.setMargins(0, dp(6), dp(6), 0);
         f.addView(check, clp);
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(54));
-        lp.setMarginEnd(dp(8));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44));
+        lp.setMarginEnd(dp(6));
         f.setLayoutParams(lp);
-        f.setMinimumWidth(dp(112));
+        f.setMinimumWidth(dp(92));
         accountViews.add(f);
         return f;
-    }
-
-    private static int lighten(int c) {
-        return Color.rgb(Math.min(255, Color.red(c) + 28), Math.min(255, Color.green(c) + 28), Math.min(255, Color.blue(c) + 28));
     }
 
     // --------------------------------------------------------------- state --
@@ -584,7 +587,7 @@ public class QuickAddActivity extends Activity {
         kind = k;
         for (TextView b : kindButtons) {
             boolean on = k.equals(b.getTag());
-            b.setBackground(on ? round(accent(), 11) : null);
+            b.setBackground(on ? round(accent(), 9) : null);
             b.setTextColor(on ? onAccent() : fg);
         }
         categoryRow.removeAllViews();
@@ -594,25 +597,20 @@ public class QuickAddActivity extends Activity {
             if (first == null) first = (String) c[0];
             categoryRow.addView(tile(c));
         }
-        tileColors.clear();
-        for (Object[] c : CATEGORIES) tileColors.put((String) c[0], (Integer) c[4]);
         setCategory(first);
         setAccount(account);
     }
 
-    private final java.util.Map<String, Integer> tileColors = new java.util.HashMap<>();
-
-    /** Chosen tile: tinted with its own colour and outlined; the others stay neutral. */
+    /** Chosen tile: its badge turns solid and the tile gets a soft glass panel; the others stay clear. */
     private void setCategory(String id) {
         category = id;
         for (int i = 0; i < categoryRow.getChildCount(); i++) {
             LinearLayout t = (LinearLayout) categoryRow.getChildAt(i);
             boolean on = id != null && id.equals(t.getTag());
-            Integer color = tileColors.get((String) t.getTag());
-            int c = color == null ? accent() : color;
-            GradientDrawable d = round(on ? ((c & 0x00FFFFFF) | (dark ? 0x38000000 : 0x26000000)) : tile, 18);
-            if (on) d.setStroke(dp(2), c);
-            t.setBackground(d);
+            t.setBackground(on ? glassTile(14) : null);
+            FrameLayout badge = (FrameLayout) t.getChildAt(0);
+            badge.setBackground(on ? round(accent(), 9) : glassTile(9));
+            ((ImageView) badge.getChildAt(0)).setImageTintList(ColorStateList.valueOf(on ? onAccent() : fg));
             TextView label = (TextView) t.getChildAt(1);
             label.setTextColor(on ? fg : muted);
             label.setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -625,14 +623,21 @@ public class QuickAddActivity extends Activity {
             Object tag = v.getTag();
             boolean on = id == null ? tag == null : id.equals(tag);
             if (tag == null) {
-                GradientDrawable d = round(tile, 16);
-                if (on) d.setStroke(dp(2), fg);
-                v.setBackground(d);
+                v.setBackground(on ? round(accent(), 13) : glassTile(13));
+                LinearLayout c = (LinearLayout) v;
+                ((TextView) c.getChildAt(0)).setTextColor(on ? onAccent() : fg);
+                ((TextView) c.getChildAt(1)).setTextColor(on ? onAccent() : muted);
                 continue;
             }
-            Drawable bg = v.getBackground();
-            if (bg instanceof GradientDrawable) ((GradientDrawable) bg).setStroke(on ? dp(2) : 0, Color.WHITE);
-            v.setAlpha(on || id == null ? 1f : 0.55f);
+            v.setBackground(on ? round(accent(), 13) : glassTile(13));
+            int text = on ? onAccent() : fg;
+            ImageView k = v.findViewWithTag("kindIcon");
+            if (k != null) k.setImageTintList(ColorStateList.valueOf(text));
+            TextView n = v.findViewWithTag("name");
+            if (n != null) n.setTextColor(text);
+            TextView sub = v.findViewWithTag("sub");
+            if (sub != null) sub.setTextColor(on ? (dark ? 0xB30A0A0B : 0xB3FFFFFF) : muted);
+            v.setAlpha(1f);
             View check = v.findViewWithTag("check");
             if (check != null) check.setVisibility(on ? View.VISIBLE : View.GONE);
         }
@@ -652,7 +657,7 @@ public class QuickAddActivity extends Activity {
         else label = v > 0 ? "Save " + money(v) + (name != null ? " · from " + name : " expense") : "Save expense";
         save.setText(label);
         save.setTextColor(onAccent());
-        save.setBackground(round(accent(), 16));
+        save.setBackground(round(accent(), 13));
         save.setAlpha(v > 0 ? 1f : 0.55f);
 
         Long bal = balanceOf(a);
@@ -666,7 +671,7 @@ public class QuickAddActivity extends Activity {
         } else {
             long after = cash ? bal + v : bal - v;
             balanceLine.setText(name + "  " + money(bal) + "  →  " + money(after) + (cash ? "" : " left"));
-            balanceLine.setTextColor(accent());
+            balanceLine.setTextColor(fg);
         }
         balanceLine.setVisibility(View.VISIBLE);
     }

@@ -2,6 +2,7 @@ import {
   AlarmClock,
   Bell,
   CalendarClock,
+  Circle,
   CircleAlert,
   CircleCheck,
   Flag,
@@ -19,7 +20,7 @@ import {
   X
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { formatDay, formatTime } from '../../shared/calendar';
+import { addDays, formatDay, formatTime } from '../../shared/calendar';
 import { dayKey } from '../../shared/money';
 import {
   PRIORITIES,
@@ -189,15 +190,68 @@ export function TasksView({
   };
 
   const filtered = query.trim() !== '' || group !== 'all' || priority !== 'all' || category !== 'all';
+  const today = dayKey(now);
+  // "All", sorted by date and not searching: grouped like the iPhone Reminders app.
+  const sections = useMemo(() => {
+    if (group !== 'all' || sort !== 'due' || query.trim()) return null;
+    const tomorrow = addDays(today, 1);
+    const defs: [string, string][] = [
+      ['overdue', 'Overdue'],
+      ['today', 'Today'],
+      ['tomorrow', 'Tomorrow'],
+      ['later', 'Later'],
+      ['nodate', 'No due date'],
+      ['completed', 'Completed']
+    ];
+    const bucket = (t: Task) =>
+      t.completed ? 'completed' : isTaskOverdue(t, now) ? 'overdue' : t.due === today ? 'today' : t.due === tomorrow ? 'tomorrow' : t.due ? 'later' : 'nodate';
+    return defs.map(([id, title]) => ({ id, title, items: ordered.filter((t) => bucket(t) === id) })).filter((x) => x.items.length);
+  }, [group, sort, query, ordered, today, now]);
+  // Today's progress: tasks due today, and repeating ones already completed for today.
+  const progress = useMemo(() => {
+    let total = 0;
+    let done = 0;
+    for (const t of tasks) {
+      if (t.due === today) {
+        total++;
+        if (t.completed) done++;
+      }
+      if (t.repeat && t.history.some((h) => h.due === today)) {
+        total++;
+        done++;
+      }
+    }
+    return { total, done };
+  }, [tasks, today]);
   const needsPermission = permission === 'prompt' && tasks.some((t) => !t.completed && t.reminder);
 
   return (
     <div className="page tasks-page">
       <div className="page-narrow">
-        <header className="tk-header">
+        <header className="tk-hero">
           <div className="grow">
             {!mobile && <h1 className="h1">Tasks</h1>}
-            <p className="tk-sub">Plan your day, one task at a time.</p>
+            <div className="tk-date">{now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+            <p className="tk-sub">
+              {progress.total === 0
+                ? 'Plan your day, one task at a time.'
+                : progress.done === progress.total
+                  ? `All ${progress.total} done for today. Nice work.`
+                  : `${progress.done} of ${progress.total} done today`}
+            </p>
+          </div>
+          <ProgressRing done={progress.done} total={progress.total} />
+        </header>
+
+        <div className="tk-actions">
+          <div className="evc-search-box tk-search" role="search">
+            <Search size={16} aria-hidden />
+            <input className="input" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks…" aria-label="Search tasks" autoComplete="off" maxLength={120} />
+            {query && (
+              <button type="button" className="icon-btn" onClick={() => setQuery('')} aria-label="Clear search">
+                <X size={14} />
+              </button>
+            )}
           </div>
           <button
             type="button"
@@ -210,35 +264,28 @@ export function TasksView({
             <Bell size={18} aria-hidden />
             {reminderCount > 0 && <span className="tk-bell-count">{reminderCount}</span>}
           </button>
-          <button type="button" className="btn primary tk-new" onClick={() => setEditor({ input: emptyTask() })}>
-            <Plus size={16} aria-hidden /> New Task
+          <button type="button" className="btn primary tk-new" onClick={() => setEditor({ input: emptyTask() })} aria-label="New Task">
+            <Plus size={16} aria-hidden /> <span className="tk-new-text">New Task</span>
           </button>
-        </header>
-
-        <div className="evc-search-box tk-search" role="search">
-          <Search size={16} aria-hidden />
-          <input className="input" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks…" aria-label="Search tasks" autoComplete="off" maxLength={120} />
-          {query && (
-            <button type="button" className="icon-btn" onClick={() => setQuery('')} aria-label="Clear search">
-              <X size={14} />
-            </button>
-          )}
         </div>
 
         <div className="tk-summary" role="group" aria-label="Task summary">
           {(
             [
-              ['today', 'Today', counts.today, <CalendarClock key="i" size={16} aria-hidden />],
-              ['upcoming', 'Upcoming', counts.upcoming, <ListTodo key="i" size={16} aria-hidden />],
-              ['completed', 'Completed', counts.completed, <CircleCheck key="i" size={16} aria-hidden />],
-              ['overdue', 'Overdue', counts.overdue, <CircleAlert key="i" size={16} aria-hidden />]
+              ['today', 'Today', counts.today, <CalendarClock key="i" size={17} aria-hidden />],
+              ['upcoming', 'Upcoming', counts.upcoming, <ListTodo key="i" size={17} aria-hidden />],
+              ['overdue', 'Overdue', counts.overdue, <CircleAlert key="i" size={17} aria-hidden />],
+              ['completed', 'Completed', counts.completed, <CircleCheck key="i" size={17} aria-hidden />]
             ] as [TaskGroup, string, number, ReactNode][]
           ).map(([g, label, n, icon]) => (
             <button key={g} type="button" className={`tk-stat ${g}`} aria-pressed={group === g} onClick={() => setGroup(group === g ? 'all' : g)} aria-label={`${label}: ${n}. Show these tasks`}>
-              <span className="tk-stat-label">
-                {icon} {label}
+              <span className="tk-stat-top">
+                <span className="tk-stat-icon" aria-hidden>
+                  {icon}
+                </span>
+                <span className="tk-stat-n">{n}</span>
               </span>
-              <span className="tk-stat-n">{n}</span>
+              <span className="tk-stat-label">{label}</span>
             </button>
           ))}
         </div>
@@ -310,7 +357,7 @@ export function TasksView({
           </div>
         )}
 
-        <section className="card tk-panel" aria-label="Tasks">
+        <section className={`tk-panel ${ordered.length ? "" : "card"}`} aria-label="Tasks">
           {ordered.length === 0 ? (
             <div className="tk-empty">
               <ListTodo size={28} aria-hidden />
@@ -342,11 +389,20 @@ export function TasksView({
               )}
             </div>
           ) : (
-            <ul className="tk-list">
-              {ordered.map((t) => (
-                <TaskRow key={t.id} task={t} now={now} custom={custom} onToggle={() => void toggle(t)} onOpen={() => setDetailId(t.id)} onMore={() => setMenuFor(t)} />
-              ))}
-            </ul>
+            (sections ?? [{ id: 'all', title: '', items: ordered }]).map((sec) => (
+              <div key={sec.id} className={`tk-section ${sec.id}`}>
+                {sec.title && (
+                  <h2 className="tk-section-title">
+                    {sec.title} <span className="tk-section-n">{sec.items.length}</span>
+                  </h2>
+                )}
+                <ul className="tk-list">
+                  {sec.items.map((t) => (
+                    <TaskRow key={t.id} task={t} now={now} custom={custom} onToggle={() => void toggle(t)} onOpen={() => setDetailId(t.id)} onMore={() => setMenuFor(t)} />
+                  ))}
+                </ul>
+              </div>
+            ))
           )}
         </section>
       </div>
@@ -437,6 +493,22 @@ export function TasksView({
   );
 }
 
+/** Today's progress as a small ring (empty ring when nothing is due today). */
+function ProgressRing({ done, total }: { done: number; total: number }) {
+  const r = 22;
+  const c = 2 * Math.PI * r;
+  const pct = total ? done / total : 0;
+  return (
+    <div className="tk-ring" role="img" aria-label={total ? `${done} of ${total} tasks done today` : 'Nothing due today'}>
+      <svg viewBox="0 0 56 56" width="56" height="56" aria-hidden>
+        <circle cx="28" cy="28" r={r} className="tk-ring-track" />
+        {pct > 0 && <circle cx="28" cy="28" r={r} className="tk-ring-fill" strokeDasharray={`${c * pct} ${c}`} transform="rotate(-90 28 28)" />}
+      </svg>
+      <span className="tk-ring-text">{total ? `${Math.round(pct * 100)}%` : '—'}</span>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------- row --
 
 function PriorityBadge({ p }: { p: TaskPriority }) {
@@ -453,7 +525,7 @@ function TaskRow({ task: t, now, custom, onToggle, onOpen, onMore }: { task: Tas
   return (
     <li className={`tk-row ${t.completed ? 'done' : ''}`}>
       <button type="button" className="tk-check" role="checkbox" aria-checked={t.completed} aria-label={t.completed ? `Mark “${t.title}” as not done` : `Complete “${t.title}”`} onClick={onToggle}>
-        {t.completed ? <SquareCheck size={22} aria-hidden /> : <Square size={22} aria-hidden />}
+        {t.completed ? <CircleCheck size={24} aria-hidden /> : <Circle size={24} aria-hidden />}
       </button>
       <button type="button" className="tk-main" onClick={onOpen}>
         <span className="tk-title">{t.title}</span>

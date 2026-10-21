@@ -20,12 +20,49 @@ function Logo() {
   );
 }
 
+/** Soft moving grey light behind the glass (purely decorative). */
+function Aura() {
+  return (
+    <div className="auth-aura" aria-hidden>
+      <i />
+      <i />
+      <i />
+    </div>
+  );
+}
+
+/** Big clock and date, like a phone lock screen. */
+function LockClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 10_000);
+    return () => clearInterval(t);
+  }, []);
+  const parts = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).formatToParts(now);
+  const time = parts
+    .filter((p) => p.type !== 'dayPeriod')
+    .map((p) => p.value)
+    .join('')
+    .trim();
+  const period = parts.find((p) => p.type === 'dayPeriod')?.value;
+  return (
+    <div className="lock-clock" aria-hidden>
+      <div className="lock-date">{now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+      <div className="lock-time">
+        {time}
+        {period && <span className="lock-period">{period}</span>}
+      </div>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ welcome --
 
 export function Welcome({ onCreate, onRestored }: { onCreate: () => void; onRestored: () => void }) {
   const [restoring, setRestoring] = useState(false);
   return (
     <main className="auth">
+      <Aura />
       <div className="auth-card">
         <Logo />
         <h1 className="auth-title">Welcome to VaultLocks</h1>
@@ -94,6 +131,7 @@ export function Setup({ onBack, onCreated }: { onBack: () => void; onCreated: ()
 
   return (
     <main className="auth">
+      <Aura />
       <form className="auth-card wide" onSubmit={submit} noValidate>
         <button type="button" className="btn ghost sm" style={{ alignSelf: 'flex-start', marginBottom: 12 }} onClick={onBack} disabled={busy}>
           <ArrowLeft size={14} aria-hidden /> Back
@@ -248,14 +286,18 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
   };
 
   return (
-    <main className="auth">
-      <form className="auth-card" onSubmit={submit}>
+    <main className="auth auth-lock">
+      <Aura />
+      <LockClock />
+      <form className="auth-card lock-card" onSubmit={submit}>
         <Logo />
-        <span className="status-pill locked" role="status">
-          <Lock size={11} strokeWidth={2.2} aria-hidden /> Locked
-        </span>
         <h1 className="auth-title">VaultLocks</h1>
-        <p className="auth-sub">Your data stays on this device.</p>
+        <p className="auth-sub">
+          <span className="status-pill locked" role="status">
+            <Lock size={11} strokeWidth={2.2} aria-hidden /> Locked
+          </span>
+          Your data stays on this device.
+        </p>
 
         {quick === null ? (
           <div className="row-flex" style={{ justifyContent: 'center' }}>
@@ -298,11 +340,11 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
         </>
         )}
 
-        <div className="row-flex" style={{ justifyContent: 'center', gap: 18, marginTop: 18 }}>
+        <div className="lock-links">
           {hasHint && (
             <button
               type="button"
-              className="linkish"
+              className="lock-link"
               onClick={async () => {
                 const r = await api.app.getHint();
                 setHint(r.ok ? (r.value ?? '(no hint)') : '(unavailable)');
@@ -311,10 +353,10 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
               Show hint
             </button>
           )}
-          <button type="button" className="linkish" onClick={() => setShowForgot((v) => !v)} aria-expanded={showForgot}>
-            Forgot your password?
+          <button type="button" className="lock-link" onClick={() => setShowForgot((v) => !v)} aria-expanded={showForgot}>
+            Forgot password?
           </button>
-          <button type="button" className="linkish" onClick={() => setRestoring(true)}>
+          <button type="button" className="lock-link" onClick={() => setRestoring(true)}>
             Restore backup
           </button>
         </div>

@@ -7677,3 +7677,339 @@ body,
 .dash-all-items {
   margin-top: 10px;
 }
+
+/* ===================================================================== */
+/* v1.7 — Lock screen: phone-style clock over black & white glass.        */
+/* ===================================================================== */
+.auth-aura {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.auth-aura i {
+  position: absolute;
+  width: 62vmax;
+  height: 62vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--fg) 20%, transparent), transparent 64%);
+  filter: blur(40px);
+  animation: aura-drift 18s ease-in-out infinite alternate;
+}
+.auth-aura i:nth-child(1) {
+  top: -22vmax;
+  left: -18vmax;
+}
+.auth-aura i:nth-child(2) {
+  right: -24vmax;
+  bottom: -26vmax;
+  opacity: 0.75;
+  animation-duration: 23s;
+}
+.auth-aura i:nth-child(3) {
+  top: 28%;
+  left: 38%;
+  width: 40vmax;
+  height: 40vmax;
+  opacity: 0.5;
+  animation-duration: 27s;
+}
+@keyframes aura-drift {
+  to {
+    transform: translate(7vmax, 5vmax) scale(1.12);
+  }
+}
+.auth > :not(.auth-aura) {
+  position: relative;
+  z-index: 1;
+}
+.auth-lock {
+  align-content: center;
+  row-gap: 18px;
+}
+.lock-clock {
+  width: min(420px, 100%);
+  text-align: center;
+  color: var(--fg);
+  user-select: none;
+}
+.lock-date {
+  font-size: 17px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.lock-time {
+  margin-top: 2px;
+  font-size: clamp(64px, 21vw, 92px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+}
+.lock-period {
+  margin-left: 6px;
+  font-size: 0.24em;
+  font-weight: 650;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+.lock-card {
+  padding: 22px 20px 18px;
+}
+.lock-card .auth-logo {
+  width: 52px;
+  height: 52px;
+  margin-bottom: 14px;
+}
+.lock-card .auth-sub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.lock-card .auth-sub .status-pill {
+  margin: 0;
+}
+.lock-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.lock-link {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--lg-border);
+  background: var(--lg-field);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lock-link:hover {
+  border-color: var(--lg-border-strong);
+}
+.auth-lock .locked-quick-open {
+  border-style: solid;
+  border-radius: 999px;
+  min-height: 48px;
+}
+@media (pointer: coarse) {
+  .lock-link {
+    min-height: 40px;
+  }
+}
+@media (max-height: 700px) {
+  .lock-time {
+    font-size: 56px;
+  }
+  .lock-card .auth-logo {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-aura i {
+    animation: none;
+  }
+}
+
+/* ===================================================================== */
+/* v1.7 — Tasks: iPhone Reminders-style layout, same glass.               */
+/* ===================================================================== */
+.tk-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.tk-hero .grow {
+  flex: 1;
+  min-width: 0;
+}
+.tk-date {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tk-hero .tk-sub {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+.tk-ring {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+.tk-ring-track {
+  fill: none;
+  stroke: color-mix(in srgb, var(--fg) 14%, transparent);
+  stroke-width: 5;
+}
+.tk-ring-fill {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 400ms var(--ease);
+}
+.tk-ring-text {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 750;
+}
+.tk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tk-actions .tk-search {
+  flex: 1;
+  min-width: 0;
+}
+.tk-actions .tk-new {
+  min-height: 46px;
+  border-radius: 16px;
+}
+.tasks-page .tk-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.tasks-page .tk-stat {
+  gap: 10px;
+  padding: 12px 14px;
+  min-height: 0;
+  border-radius: 18px;
+}
+.tk-stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tk-stat-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--fg);
+  color: var(--bg);
+}
+.tasks-page .tk-stat-n {
+  font-size: 26px;
+}
+.tasks-page .tk-stat-label {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.tasks-page .tk-stat[aria-pressed='true'] {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg);
+  box-shadow: var(--lg-shadow-sm);
+}
+.tasks-page .tk-stat[aria-pressed='true'] .tk-stat-icon {
+  background: var(--bg);
+  color: var(--fg);
+}
+.tasks-page .tk-stat[aria-pressed='true'] .tk-stat-label {
+  color: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+.tasks-page .tk-tools {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tasks-page .tk-tools::-webkit-scrollbar {
+  display: none;
+}
+.tasks-page .tk-tools .tk-select {
+  flex: none;
+}
+.tasks-page .tk-select .input {
+  width: auto;
+  height: 36px;
+  padding: 0 30px 0 14px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+.tk-panel:not(.card) {
+  display: grid;
+  gap: 18px;
+  padding: 0;
+}
+.tk-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 4px 8px;
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+.tk-section-n {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.tk-section.overdue .tk-section-title {
+  color: var(--danger);
+}
+.tk-panel:not(.card) .tk-list {
+  padding: 2px 6px;
+  border-radius: 20px;
+  border: 1px solid var(--lg-border);
+  background: var(--lg-sheen), var(--lg-card);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-edge);
+}
+.tk-section.completed .tk-list {
+  opacity: 0.85;
+}
+@media (max-width: 720px) {
+  .tasks-page .tk-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .tasks-page .tk-stat {
+    padding: 10px 12px;
+  }
+  .tasks-page .tk-stat-n {
+    font-size: 24px;
+  }
+  .tasks-page .tk-stat-label {
+    font-size: 13px;
+  }
+  .tasks-page .tk-tools .tk-select:first-child {
+    grid-column: auto;
+  }
+  .tk-hero .tk-sub {
+    font-size: 20px;
+  }
+}
+.tk-actions .tk-new {
+  flex: none;
+  padding: 0 16px;
+}
+@media (max-width: 340px) {
+  .tk-new-text {
+    display: none;
+  }
+}

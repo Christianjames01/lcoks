@@ -1355,7 +1355,7 @@ function AccountPage({
 
   return (
     <>
-      <Dialog title={account.name} subtitle={ACCOUNT_KIND_NAMES.find(([k]) => k === account.kind)?.[1]} onClose={onClose}>
+      <Dialog placement="center" title={account.name} subtitle={ACCOUNT_KIND_NAMES.find(([k]) => k === account.kind)?.[1]} onClose={onClose}>
         <div className={`money-card kind-${account.kind}`} style={cardStyle(account)}>
           <div className="mc-top">
             <span className="mc-icon">
