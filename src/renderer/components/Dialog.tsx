@@ -28,10 +28,19 @@ export function Dialog({ title, subtitle, onClose, children, footer, size = 'nor
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const el = ref.current!;
-    const first =
-      el.querySelector<HTMLElement>('[data-autofocus]') ??
-      el.querySelector<HTMLElement>('.dialog-body input, .dialog-body textarea, .dialog-body select, .dialog-body button');
-    first?.focus();
+    const explicit = el.querySelector<HTMLElement>('[data-autofocus]');
+    // Touch screens: don't pop the keyboard for a field the dialog didn't ask for —
+    // it resizes the screen and moves the buttons right as the user goes to tap.
+    const touch = window.matchMedia?.('(pointer: coarse)').matches === true;
+    const first = explicit ?? (touch ? null : el.querySelector<HTMLElement>('.dialog-body input, .dialog-body textarea, .dialog-body select, .dialog-body button'));
+    if (first) first.focus({ preventScroll: true });
+    else el.focus({ preventScroll: true });
+    // Keyboard opened (window got shorter): keep the field being typed in visible.
+    const onResize = () => {
+      const a = document.activeElement as HTMLElement | null;
+      if (a && el.contains(a) && a.matches('input, textarea, select')) requestAnimationFrame(() => a.scrollIntoView({ block: 'nearest' }));
+    };
+    window.addEventListener('resize', onResize);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -67,14 +76,15 @@ export function Dialog({ title, subtitle, onClose, children, footer, size = 'nor
     return () => {
       el.removeEventListener('keydown', onKey);
       window.removeEventListener('keydown', onWindowKey);
-      previous?.focus?.();
+      window.removeEventListener('resize', onResize);
+      previous?.focus?.({ preventScroll: true });
     };
   }, []);
 
   // Portal: above the title bar and bottom navigation wherever the dialog is opened.
   return createPortal(
     <div className={`backdrop ${placement === 'center' ? 'centered' : ''}`} onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div ref={ref} className={`dialog ${size === 'normal' ? '' : size}`} role={role} aria-modal="true" aria-labelledby={titleId}>
+      <div ref={ref} className={`dialog ${size === 'normal' ? '' : size}`} role={role} aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div className="dialog-head">
           <div className="grow">
             <h2 id={titleId} className="dialog-title">

@@ -7192,3 +7192,480 @@ body,
     transition: none;
   }
 }
+
+/* ===================================================================== */
+/* v1.6 — touch fixes (phones).                                           */
+/* ===================================================================== */
+/* Toasts only show text: they must never catch a tap meant for the       */
+/* button underneath (they sit right above the bottom bar / dialog foot). */
+.toasts .toast {
+  pointer-events: none;
+}
+/* One layer for every modal surface: the image viewer used to sit below  */
+/* dialogs (45 vs 50), so opening it from inside a dialog hid it behind.  */
+/* Same layer = the one opened last (later in the DOM) is on top.         */
+.viewer {
+  z-index: 50;
+}
+/* Scrolling inside a pop-up never scrolls the page behind it. */
+.backdrop,
+.menu-backdrop,
+.dialog-body {
+  overscroll-behavior: contain;
+}
+.dialog:focus {
+  outline: none;
+}
+/* Bigger tap areas without changing how anything looks: an invisible    */
+/* hit area around small icon buttons (only on touch screens).            */
+@media (pointer: coarse) {
+  :where(.icon-btn) {
+    position: relative;
+  }
+  .icon-btn::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
+  .menu-item {
+    min-height: 46px;
+  }
+  .evc-chip {
+    min-height: 40px;
+  }
+  .evc-check {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ===================================================================== */
+/* v1.6 — Tasks. Monochrome Liquid Glass like the rest of the app; all   */
+/* selectors are scoped to tk-* (and the calendar's task markers).        */
+/* ===================================================================== */
+.tasks-page .page-narrow > * + * {
+  margin-top: 12px;
+}
+.tk-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tk-header .grow {
+  flex: 1;
+  min-width: 0;
+}
+.tk-header .h1 {
+  margin-bottom: 2px;
+}
+.tk-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.tk-new {
+  flex: none;
+  min-height: 44px;
+}
+.tk-bell {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--lg-border);
+  background: var(--lg-field);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  color: var(--fg);
+  cursor: pointer;
+}
+.tk-bell.on {
+  background: var(--fg);
+  color: var(--bg);
+}
+.tk-bell-count {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--fg);
+  color: var(--bg);
+  border: 2px solid var(--bg);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+.tk-bell.on .tk-bell-count {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.tk-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.tk-stat {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  min-height: 72px;
+  border-radius: 18px;
+  border: 1px solid var(--lg-border);
+  background: var(--lg-sheen), var(--lg-card);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-edge);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.tk-stat:active {
+  transform: scale(0.98);
+}
+.tk-stat[aria-pressed='true'] {
+  border-color: var(--fg);
+  box-shadow: var(--lg-edge), inset 0 0 0 1px var(--fg);
+}
+.tk-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.tk-stat-n {
+  font-size: 24px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.tk-tools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.tk-select .input {
+  height: 42px;
+  border-radius: 14px;
+  font-size: 13.5px;
+}
+.tk-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--lg-border);
+  background: var(--lg-field);
+  font-size: 13.5px;
+}
+.tk-banner .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.tk-panel {
+  padding: 6px;
+}
+.tk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tk-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 4px 4px 4px 2px;
+  border-radius: 14px;
+  transition: opacity 220ms var(--ease), background var(--dur) var(--ease);
+}
+.tk-row + .tk-row {
+  border-top: 1px solid var(--lg-border);
+}
+.tk-row:hover {
+  background: var(--lg-card-hover);
+}
+.tk-check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--fg);
+  cursor: pointer;
+}
+.tk-check:focus-visible,
+.tk-main:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: -2px;
+}
+.tk-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 10px 2px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px;
+}
+.tk-title {
+  font-size: 15px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.tk-desc {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+.tk-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tk-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tk-overdue {
+  color: var(--danger);
+  font-weight: 650;
+}
+.tk-prio {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--lg-border);
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.tk-prio.medium {
+  color: var(--fg);
+}
+.tk-prio.high {
+  color: var(--bg);
+  background: var(--fg);
+  border-color: var(--fg);
+}
+.tk-more {
+  flex: none;
+  margin-top: 6px;
+}
+.tk-row.done .tk-title {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.tk-row.done .tk-main,
+.tk-row.done .tk-more {
+  opacity: 0.7;
+}
+.tk-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--muted);
+}
+.tk-empty p {
+  margin: 0;
+  max-width: 320px;
+}
+.tk-del-title {
+  margin: 0 0 10px;
+  color: var(--fg);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.tk-done-title {
+  text-decoration: line-through;
+}
+
+/* detail */
+.tk-dl {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px 12px;
+  margin: 0;
+}
+.tk-dl dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+.tk-dl dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tk-pre {
+  white-space: pre-wrap;
+}
+
+/* editor */
+.tk-date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tk-date-row .input {
+  flex: 1;
+  min-width: 0;
+}
+.tk-prio-pick {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr);
+}
+.tk-prio-pick button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+}
+.tk-manage {
+  border-style: dashed !important;
+}
+.tk-custom-at {
+  margin-top: 8px;
+}
+.tk-cats {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.tk-cat,
+.tk-cat-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tk-cat .input,
+.tk-cat-add .input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* tasks in the calendar: square markers, distinct from round event dots */
+.evc-dots i.task {
+  border-radius: 1.5px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--fg);
+}
+.evc-dots i.task.done {
+  background: var(--fg);
+}
+.evc-task-chip {
+  --ev: var(--fg);
+  background: transparent;
+  border: 1px dashed var(--lg-border-strong);
+  border-left: 1px dashed var(--lg-border-strong);
+}
+.evc-tasks {
+  margin-top: 12px;
+}
+.evc-tasks-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.evc-item.evc-task {
+  --ev: var(--fg);
+  border-left-style: dashed;
+}
+.evc-item.evc-task .evc-check {
+  border-radius: 10px;
+}
+
+@media (max-width: 720px) {
+  .tk-header {
+    flex-wrap: wrap;
+  }
+  .tk-header .grow {
+    flex-basis: 100%;
+    order: -1;
+  }
+  .tk-new {
+    flex: 1;
+    justify-content: center;
+  }
+  .tk-summary {
+    gap: 6px;
+  }
+  .tk-stat {
+    min-height: 0;
+    gap: 2px;
+    padding: 9px 8px;
+    border-radius: 16px;
+  }
+  .tk-stat-label {
+    font-size: 11px;
+  }
+  .tk-stat-label svg {
+    display: none;
+  }
+  .tk-stat-n {
+    font-size: 20px;
+  }
+  .tk-tools {
+    grid-template-columns: 1fr 1fr;
+  }
+  .tk-tools .tk-select:first-child {
+    grid-column: 1 / -1;
+  }
+  .tk-dl {
+    grid-template-columns: 84px minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tk-row,
+  .tk-stat {
+    transition: none;
+  }
+}
+
+/* Category chips in the task / event forms: comfortable finger size (Expenses chips untouched). */
+.evc-form .cat-chip {
+  min-height: 40px;
+}
+
+/* Touch screens in the wide layout (phone turned sideways, tablets): finger-sized rows and buttons. */
+@media (pointer: coarse) and (min-width: 721px) {
+  .sidebar .nav-item {
+    min-height: 40px;
+  }
+  .titlebar .btn.sm {
+    min-height: 40px;
+  }
+}

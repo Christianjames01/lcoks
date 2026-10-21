@@ -19,6 +19,7 @@ import {
   type Repeat
 } from '../shared/calendar';
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../shared/categories';
+import { MAX_TASK_CATEGORIES, TASK_CATEGORY_IDS, type Task, type TaskCategory, type TaskInput, type TaskReminder } from '../shared/tasks';
 import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MONEY_CATEGORY_IDS, defaultCategory, isDayKey, moneyCategory, type AccountKind, type MoneyAccount, type Transaction, type TransactionInput } from '../shared/money';
 import {
   ACCENT_COLORS,
@@ -65,6 +66,7 @@ export const LIMITS = {
   masterPasswordMin: 8,
   transactions: 200_000,
   events: 20_000,
+  tasks: 20_000,
   eventNotes: 4000
 } as const;
 
@@ -229,6 +231,7 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
       : base.calendarDefaultReminders,
     calendarPreview: typeof s.calendarPreview === 'boolean' ? s.calendarPreview : base.calendarPreview,
     calendarSnooze: SNOOZE_CHOICES.includes(s.calendarSnooze as number) ? (s.calendarSnooze as number) : base.calendarSnooze,
+    taskCategories: Array.isArray(s.taskCategories) ? validateTaskCategories(s.taskCategories) : base.taskCategories,
     generator: validateGeneratorDefaults(s.generator, base.generator)
   };
 }
@@ -352,6 +355,20 @@ export function validatePayload(v: unknown): VaultPayload {
     }
   }
 
+  // Tasks: same rule — a damaged task is skipped.
+  const tasks: Task[] = [];
+  const taskIds = new Set<string>();
+  for (const raw of Array.isArray(p.tasks) ? p.tasks.slice(0, LIMITS.tasks) : []) {
+    try {
+      const t = validateTaskInput(raw);
+      const id = t.id && !taskIds.has(t.id) ? t.id : randomUUID();
+      taskIds.add(id);
+      tasks.push({ ...t, id, createdAt: isoOr(raw.createdAt, now), updatedAt: isoOr(raw.updatedAt, now) });
+    } catch {
+      /* skip */
+    }
+  }
+
   const m = p.meta && typeof p.meta === 'object' ? p.meta : {};
   return {
     schema: 1,
@@ -370,6 +387,7 @@ export function validatePayload(v: unknown): VaultPayload {
     transactions,
     accounts,
     events,
+    tasks,
     ...(validInboxKey(p.inboxKey) ? { inboxKey: { priv: { ...p.inboxKey.priv }, pub: p.inboxKey.pub } } : {})
   };
 }
@@ -490,6 +508,71 @@ export function validateEventInput(input: unknown): CalendarEventInput {
     done: days(i.done, 1000),
     acks,
     snoozes
+  };
+}
+
+/** The user's own task categories: unique ids that don't clash with the built-in ones. */
+export function validateTaskCategories(v: unknown[]): TaskCategory[] {
+  const out: TaskCategory[] = [];
+  for (const c of v.slice(0, MAX_TASK_CATEGORIES * 2)) {
+    if (!c || typeof c !== 'object') continue;
+    const { id, name } = c as Record<string, unknown>;
+    if (typeof id !== 'string' || !ID_RE.test(id) || TASK_CATEGORY_IDS.has(id) || out.some((x) => x.id === id)) continue;
+    if (typeof name !== 'string' || !name.trim() || name.length > 30) continue;
+    out.push({ id, name: name.trim() });
+    if (out.length >= MAX_TASK_CATEGORIES) break;
+  }
+  return out;
+}
+
+/** One task from the renderer or the decrypted payload. `id` is optional for a new one. */
+export function validateTaskInput(input: unknown): TaskInput {
+  if (!input || typeof input !== 'object') throw new ValidationError('form', 'Invalid task.');
+  const i = input as Record<string, unknown>;
+  const id = i.id === undefined || i.id === null ? undefined : str(i.id, 'id', 64);
+  if (id !== undefined && !ID_RE.test(id)) throw new ValidationError('id', 'Invalid task.');
+  const title = str(i.title, 'title', LIMITS.title, true).trim();
+  const description = str(i.description, 'description', LIMITS.eventNotes);
+  const notes = str(i.notes, 'notes', LIMITS.eventNotes);
+  const due = i.due === '' || i.due === undefined || i.due === null ? '' : i.due;
+  if (due !== '' && !isDayKey(due)) throw new ValidationError('due', 'Choose a valid due date.');
+  const dueTime = due && isTime(i.dueTime) ? i.dueTime : '';
+  if (due === '' && isTime(i.dueTime)) throw new ValidationError('due', 'Choose a due date for the time.');
+  const priority = i.priority === 'low' || i.priority === 'high' ? i.priority : 'medium';
+  const category = typeof i.category === 'string' && ID_RE.test(i.category) ? i.category : 'other';
+  let reminder: TaskReminder | null = null;
+  const r = i.reminder as Record<string, unknown> | null | undefined;
+  if (r && typeof r === 'object') {
+    if (r.type === 'before' && Number.isInteger(r.minutes) && (r.minutes as number) >= 0 && (r.minutes as number) <= 60 * 24 * 60) {
+      if (!due) throw new ValidationError('reminder', 'Set a due date for this reminder, or pick a custom date and time.');
+      reminder = { type: 'before', minutes: r.minutes as number };
+    } else if (r.type === 'at' && isLocalDateTime(r.at)) reminder = { type: 'at', at: r.at };
+  }
+  const repeat = i.repeat === 'daily' || i.repeat === 'weekly' || i.repeat === 'monthly' || i.repeat === 'yearly' ? i.repeat : null;
+  if (repeat && !due) throw new ValidationError('repeat', 'A repeating task needs a due date.');
+  const completed = i.completed === true;
+  const history = Array.isArray(i.history)
+    ? i.history
+        .filter((h): h is { due: string; at: string } => !!h && typeof h === 'object' && isDayKey((h as any).due) && typeof (h as any).at === 'string')
+        .map((h) => ({ due: h.due, at: isoOr(h.at, new Date().toISOString()) }))
+        .slice(-100)
+    : [];
+  const acks = Array.isArray(i.acks) ? [...new Set(i.acks.filter((k): k is string => typeof k === 'string' && k.length <= 120))].slice(-200) : [];
+  return {
+    id,
+    title,
+    description,
+    notes,
+    due,
+    dueTime,
+    priority,
+    category,
+    reminder,
+    repeat,
+    completed,
+    completedAt: completed ? isoOr(i.completedAt, new Date().toISOString()) : null,
+    history,
+    acks
   };
 }
 

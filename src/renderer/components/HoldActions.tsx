@@ -16,10 +16,12 @@ export interface ActionItem {
 /** Actions menu for press-and-hold: a small glass card in the centre of the screen. */
 export function ActionSheet({ title, items, onClose }: { title: string; items: ActionItem[]; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Opened by a long press: the lifting finger must not "click" the item under it.
+  const pressed = useRef(false);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-    return () => previous?.focus?.();
+    return () => previous?.focus?.({ preventScroll: true });
   }, []);
   const onKey = (e: KeyboardEvent) => {
     const list = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
@@ -35,7 +37,7 @@ export function ActionSheet({ title, items, onClose }: { title: string; items: A
   };
   return createPortal(
     <div className="menu-backdrop hold-menu-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={ref} className="hold-menu" role="menu" aria-label={title} onKeyDown={onKey}>
+      <div ref={ref} className="hold-menu" role="menu" aria-label={title} onKeyDown={onKey} onPointerDown={() => (pressed.current = true)}>
         <div className="sheet-title">{title}</div>
         {items.map((it) => (
           <button
@@ -43,7 +45,8 @@ export function ActionSheet({ title, items, onClose }: { title: string; items: A
             type="button"
             role="menuitem"
             className={`menu-item ${it.danger ? 'danger' : ''}`}
-            onClick={() => {
+            onClick={(e) => {
+              if (e.detail !== 0 && !pressed.current) return;
               onClose();
               it.run();
             }}
@@ -52,7 +55,7 @@ export function ActionSheet({ title, items, onClose }: { title: string; items: A
             <span>{it.label}</span>
           </button>
         ))}
-        <button type="button" role="menuitem" className="menu-item cancel" onClick={onClose}>
+        <button type="button" role="menuitem" className="menu-item cancel" onClick={(e) => (e.detail === 0 || pressed.current) && onClose()}>
           Cancel
         </button>
       </div>

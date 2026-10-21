@@ -18,6 +18,7 @@
 
 import { eventCategory, type CalendarEvent } from '../shared/calendar';
 import { BUILTIN_CATEGORIES } from '../shared/categories';
+import { categoryName, type Task } from '../shared/tasks';
 import { detectCardNetwork } from '../shared/cards';
 import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, accountColor, balances, dayKey, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type Transaction } from '../shared/money';
 import { generateInboxKeys, openInbox, sealInbox, type InboxEntry } from './inbox';
@@ -78,7 +79,8 @@ import {
   validateSettings,
   validateAccountInput,
   validateTransactionInput,
-  validateEventInput
+  validateEventInput,
+  validateTaskInput
 } from './schema';
 import { INBOX_FILE, INBOX_META_FILE, INBOX_PUB_FILE, VAULT_FILE, attachmentFile, inboxFile, pendingAttachmentFile, type VaultStorage } from './storage';
 
@@ -207,7 +209,8 @@ export class VaultCore {
       trash: [],
       transactions: [],
       accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })),
-      events: []
+      events: [],
+      tasks: []
     };
     try {
       await this.write();
@@ -572,6 +575,7 @@ export class VaultCore {
       transactions: payload.transactions.map((t) => ({ ...t })),
       accounts: payload.accounts.map((a) => ({ ...a })),
       events: payload.events.map(cloneEvent),
+      tasks: payload.tasks.map(cloneTask),
       categories: this.categories(),
       settings: { ...payload.settings, generator: { ...payload.settings.generator } },
       meta: { ...payload.meta, dismissedDuplicates: [...payload.meta.dismissedDuplicates] },
@@ -1072,6 +1076,35 @@ export class VaultCore {
     });
   }
 
+  // ----------------------------------------------------------------- tasks ----
+
+  /** Save and delete tasks in one write (e.g. reassigning tasks of a removed category). */
+  async saveTasks(save: unknown, remove: unknown): Promise<Task[]> {
+    if (!Array.isArray(save) || save.length > 500 || !Array.isArray(remove) || remove.length > 50) throw new AppError('INVALID', 'Invalid change.');
+    const inputs = save.map((x) => validateTaskInput(x));
+    const removeIds = remove.filter((x): x is string => typeof x === 'string');
+    const now = this.iso();
+    return this.mutate((d) => {
+      for (const id of removeIds) if (!d.tasks.some((t) => t.id === id)) throw new AppError('NOT_FOUND', 'Task not found.');
+      d.tasks = d.tasks.filter((t) => !removeIds.includes(t.id));
+      const saved: Task[] = [];
+      for (const t of inputs) {
+        if (t.id) {
+          const existing = d.tasks.find((x) => x.id === t.id);
+          if (!existing) throw new AppError('NOT_FOUND', 'Task not found.');
+          Object.assign(existing, { ...t, id: existing.id, updatedAt: now });
+          saved.push(cloneTask(existing));
+        } else {
+          if (d.tasks.length >= LIMITS.tasks) throw new AppError('LIMIT', 'Too many tasks.');
+          const rec: Task = { ...t, id: globalThis.crypto.randomUUID(), createdAt: now, updatedAt: now };
+          d.tasks.push(rec);
+          saved.push(cloneTask(rec));
+        }
+      }
+      return saved;
+    });
+  }
+
   async updateSettings(patch: unknown): Promise<VaultSettings> {
     const { payload } = this.requireUnlocked();
     const merged = validateSettings({ ...payload.settings, ...(patch && typeof patch === 'object' ? patch : {}) }, payload.settings);
@@ -1440,6 +1473,9 @@ export class VaultCore {
         const evs = new Map(d.events.map((e) => [e.id, e]));
         for (const e of backup.payload.events) if (mode === 'replace' || !evs.has(e.id)) evs.set(e.id, cloneEvent(e));
         d.events = [...evs.values()].slice(0, LIMITS.events);
+        const tks = new Map(d.tasks.map((t) => [t.id, t]));
+        for (const t of backup.payload.tasks) if (mode === 'replace' || !tks.has(t.id)) tks.set(t.id, cloneTask(t));
+        d.tasks = [...tks.values()].slice(0, LIMITS.tasks);
         if (mode === 'replace') {
           const incomingById = new Map(incoming.map((e) => [e.id, e]));
           for (const e of d.entries) {
@@ -1534,6 +1570,16 @@ export class VaultCore {
         location: e.location,
         notes: e.notes,
         repeat: e.repeat ? { ...e.repeat } : null
+      })),
+      tasks: payload.tasks.map((t) => ({
+        title: t.title,
+        description: t.description,
+        due: t.due ? `${t.due}${t.dueTime ? ` ${t.dueTime}` : ''}` : null,
+        priority: t.priority,
+        category: categoryName(t.category, payload.settings.taskCategories),
+        repeat: t.repeat,
+        completed: t.completed,
+        notes: t.notes
       }))
     };
   }
@@ -1549,6 +1595,10 @@ function cloneEvent(e: CalendarEvent): CalendarEvent {
     acks: [...e.acks],
     snoozes: e.snoozes.map((s) => ({ ...s }))
   };
+}
+
+function cloneTask(t: Task): Task {
+  return { ...t, reminder: t.reminder ? { ...t.reminder } : null, history: t.history.map((h) => ({ ...h })), acks: [...t.acks] };
 }
 
 function nextFavoriteOrder(p: VaultPayload): number {

@@ -23,6 +23,7 @@ import type {
   VaultSnapshot
 } from './types';
 import type { CalendarEvent, CalendarEventInput } from './calendar';
+import type { Task, TaskInput } from './tasks';
 import type { AccountKind, MoneyAccount, Transaction, TransactionInput } from './money';
 
 export interface VaultApi {
@@ -78,6 +79,8 @@ export interface VaultApi {
     deleteTransaction(id: string): Promise<Result<void>>;
     /** Calendar: save and delete events in one write. */
     saveEvents(save: CalendarEventInput[], remove: string[]): Promise<Result<CalendarEvent[]>>;
+    /** Tasks: save and delete in one write. */
+    saveTasks(save: TaskInput[], remove: string[]): Promise<Result<Task[]>>;
     /** Add (no id) or update a money account (Cash, GCash…). */
     saveAccount(input: { id?: string; name: string; kind: AccountKind; opening: number }): Promise<Result<MoneyAccount>>;
     /** Remove an account; its records are kept without an account. */

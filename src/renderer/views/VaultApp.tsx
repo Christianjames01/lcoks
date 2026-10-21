@@ -1,6 +1,7 @@
-import { CalendarDays, CopyCheck, House, Layers, Lock, Wallet, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
+import { CalendarDays, CopyCheck, ListTodo, House, Layers, Lock, Wallet, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarNotifications } from '../../shared/calendar';
+import { taskNotifications } from '../../shared/tasks';
 import { buildReminders } from '../../shared/expiry';
 import { searchEntries } from '../../shared/search';
 import { isOld, isReused } from '../../shared/security';
@@ -27,6 +28,7 @@ import { ItemsView } from './Items';
 import { MoneyView } from './Money';
 import { SearchView } from './SearchView';
 import { SettingsView } from './Settings';
+import { TaskAlerts, TasksView, type TaskFocus } from './Tasks';
 import { TitleBar } from './TitleBar';
 import { TrashView } from './Trash';
 
@@ -37,6 +39,7 @@ export type Route =
   | { view: 'search' }
   | { view: 'money' }
   | { view: 'calendar' }
+  | { view: 'tasks' }
   | { view: 'security' }
   | { view: 'settings'; tab?: string }
   | { view: 'duplicates' }
@@ -44,11 +47,12 @@ export type Route =
 
 export type EditorState = { mode: 'new'; categoryId?: string } | { mode: 'edit'; id: string } | null;
 
-type Tab = 'vault' | 'money' | 'calendar' | 'search' | 'settings';
+type Tab = 'vault' | 'money' | 'calendar' | 'tasks' | 'search' | 'settings';
 
 function tabOf(r: Route): Tab {
   if (r.view === 'money') return 'money';
   if (r.view === 'calendar') return 'calendar';
+  if (r.view === 'tasks') return 'tasks';
   if (r.view === 'search') return 'search';
   if (r.view === 'settings' || r.view === 'duplicates' || r.view === 'trash') return 'settings';
   return 'vault';
@@ -69,6 +73,8 @@ export function VaultApp({ version }: { version: string }) {
   const requestAdd = (kind: 'expense' | 'income' = 'expense') => setMoneyAdd({ id: Date.now(), kind });
   // Calendar: open an event (reminder pop-up) or the add form (+ button).
   const [calendarFocus, setCalendarFocus] = useState<CalendarFocus | null>(null);
+  // Tasks: open a task (calendar, reminder pop-up) or the new-task form (+ button).
+  const [taskFocus, setTaskFocus] = useState<TaskFocus | null>(null);
   const [sharedText, setSharedText] = useState<string | undefined>(undefined);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
@@ -179,7 +185,8 @@ export function VaultApp({ version }: { version: string }) {
             .map((r) => ({ id: r.id, at: r.at.getTime(), title: r.title, body: r.body }))
         : [];
       const calendar = calendarReminders ? calendarNotifications(snap.events, Date.now(), { preview: calendarPreview, sound: calendarSound }) : [];
-      const list = [...expiry, ...calendar].sort((a, b) => a.at - b.at).slice(0, 100);
+      const tasks = calendarReminders ? taskNotifications(snap.tasks, Date.now(), { preview: calendarPreview, sound: calendarSound }) : [];
+      const list = [...expiry, ...calendar, ...tasks].sort((a, b) => a.at - b.at).slice(0, 100);
       await api.notifications.schedule(list);
     }, 800);
     return () => clearTimeout(t);
@@ -207,7 +214,7 @@ export function VaultApp({ version }: { version: string }) {
     setQuery('');
     setSelectedId(null);
     setRoute(
-      t === 'money' ? { view: 'money' } : t === 'calendar' ? { view: 'calendar' } : t === 'search' ? { view: 'search' } : t === 'settings' ? { view: 'settings' } : { view: 'dashboard' }
+      t === 'money' ? { view: 'money' } : t === 'calendar' ? { view: 'calendar' } : t === 'tasks' ? { view: 'tasks' } : t === 'search' ? { view: 'search' } : t === 'settings' ? { view: 'settings' } : { view: 'dashboard' }
     );
   };
   /** What Back would do right now, or null when there is nowhere to go back to. */
@@ -407,6 +414,7 @@ export function VaultApp({ version }: { version: string }) {
     if (r.view === 'search') return 'Search';
     if (r.view === 'money') return 'Expenses';
     if (r.view === 'calendar') return 'Calendar';
+    if (r.view === 'tasks') return 'Tasks';
     if (r.view === 'settings') return 'Settings';
     if (r.view === 'duplicates') return 'Duplicates';
     if (r.view === 'trash') return 'Recently Deleted';
@@ -440,6 +448,9 @@ export function VaultApp({ version }: { version: string }) {
             <h1 className="screen-title">{screenTitle}</h1>
             <button type="button" className="icon-btn" onClick={() => go({ view: 'search' })} aria-label="Search vault" title="Search vault" aria-current={route.view === 'search' ? 'page' : undefined}>
               <Search size={19} />
+            </button>
+            <button type="button" className="icon-btn" onClick={() => go({ view: 'settings' })} aria-label="Settings" title="Settings" aria-current={route.view === 'settings' ? 'page' : undefined}>
+              <SettingsIcon size={19} />
             </button>
             <button type="button" className="icon-btn" onClick={lock} aria-label="Lock vault" title="Lock vault">
               <Lock size={19} />
@@ -497,6 +508,10 @@ export function VaultApp({ version }: { version: string }) {
               <button type="button" className="btn sm primary" onClick={() => requestAdd()} aria-label="Add expense">
                 <Plus size={14} aria-hidden /> <span className="btn-text">Add expense</span>
               </button>
+            ) : route.view === 'tasks' && !searching ? (
+              <button type="button" className="btn sm primary" onClick={() => setTaskFocus({ id: Date.now(), add: true })} aria-label="New task">
+                <Plus size={14} aria-hidden /> <span className="btn-text">New task</span>
+              </button>
             ) : route.view === 'calendar' && !searching ? (
               <button type="button" className="btn sm primary" onClick={() => setCalendarFocus({ id: Date.now(), add: true })} aria-label="Add event">
                 <Plus size={14} aria-hidden /> <span className="btn-text">Add event</span>
@@ -521,6 +536,7 @@ export function VaultApp({ version }: { version: string }) {
             {filterNav('favorites', 'Favorites', <Star size={16} strokeWidth={1.75} aria-hidden />, snap.stats.favorites)}
             {navItem('money', 'Expenses', <Wallet size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'money', () => go({ view: 'money' }))}
             {navItem('calendar', 'Calendar', <CalendarDays size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'calendar', () => go({ view: 'calendar' }))}
+            {navItem('tasks', 'Tasks', <ListTodo size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'tasks', () => go({ view: 'tasks' }))}
             <div className="nav-section label">Vault</div>
             {filterNav('all', 'All Items', <Layers size={16} strokeWidth={1.75} aria-hidden />, snap.entries.length)}
             {categoryNav.map((c) => filterNav(`cat:${c.id}`, c.name, <CategoryIcon icon={c.icon} />, counts.get(c.id) ?? 0))}
@@ -578,7 +594,20 @@ export function VaultApp({ version }: { version: string }) {
             />
           )}
           {shownRoute.view === 'search' && <SearchView snap={snap} onOpen={openEntry} />}
-          {shownRoute.view === 'calendar' && <CalendarView snap={snap} mobile={mobile} onChanged={refresh} focus={calendarFocus} onFocusHandled={() => setCalendarFocus(null)} />}
+          {shownRoute.view === 'calendar' && (
+            <CalendarView
+              snap={snap}
+              mobile={mobile}
+              onChanged={refresh}
+              focus={calendarFocus}
+              onFocusHandled={() => setCalendarFocus(null)}
+              onOpenTask={(taskId) => {
+                go({ view: 'tasks' });
+                setTaskFocus({ id: Date.now(), taskId });
+              }}
+            />
+          )}
+          {shownRoute.view === 'tasks' && <TasksView snap={snap} mobile={mobile} onChanged={refresh} focus={taskFocus} onFocusHandled={() => setTaskFocus(null)} />}
           {shownRoute.view === 'money' && <MoneyView snap={snap} mobile={mobile} onChanged={refresh} addRequest={moneyAdd} onAddHandled={() => setMoneyAdd(null)} />}
           {shownRoute.view === 'security' && <SecurityView snap={snap} onOpen={openEntry} onNavigate={go} />}
           {shownRoute.view === 'duplicates' && <DuplicatesView snap={snap} onChanged={refresh} onOpen={openEntry} />}
@@ -605,31 +634,46 @@ export function VaultApp({ version }: { version: string }) {
             <House size={22} strokeWidth={1.9} aria-hidden />
             Vault
           </button>
-          <button type="button" className="tab-btn" aria-current={tab === 'money' ? 'page' : undefined} onClick={() => switchTab('money')}>
-            <Wallet size={22} strokeWidth={1.9} aria-hidden />
-            Expenses
+          <button type="button" className="tab-btn" aria-current={tab === 'calendar' ? 'page' : undefined} onClick={() => switchTab('calendar')}>
+            <CalendarDays size={22} strokeWidth={1.9} aria-hidden />
+            Calendar
           </button>
           <button
             type="button"
             className="fab"
             onClick={() =>
-              route.view === 'money' ? requestAdd() : route.view === 'calendar' ? setCalendarFocus({ id: Date.now(), add: true }) : newItem(currentCategory(route))
+              route.view === 'money'
+                ? requestAdd()
+                : route.view === 'calendar'
+                  ? setCalendarFocus({ id: Date.now(), add: true })
+                  : route.view === 'tasks'
+                    ? setTaskFocus({ id: Date.now(), add: true })
+                    : newItem(currentCategory(route))
             }
-            aria-label={route.view === 'money' ? 'Add expense' : route.view === 'calendar' ? 'Add event' : 'Add item'}
+            aria-label={route.view === 'money' ? 'Add expense' : route.view === 'calendar' ? 'Add event' : route.view === 'tasks' ? 'New task' : 'Add item'}
           >
             <Plus size={28} strokeWidth={2.2} aria-hidden />
           </button>
-          <button type="button" className="tab-btn" aria-current={tab === 'calendar' ? 'page' : undefined} onClick={() => switchTab('calendar')}>
-            <CalendarDays size={22} strokeWidth={1.9} aria-hidden />
-            Calendar
+          <button type="button" className="tab-btn" aria-current={tab === 'money' ? 'page' : undefined} onClick={() => switchTab('money')}>
+            <Wallet size={22} strokeWidth={1.9} aria-hidden />
+            Expenses
           </button>
-          <button type="button" className="tab-btn" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => switchTab('settings')}>
-            <SettingsIcon size={22} strokeWidth={1.9} aria-hidden />
-            Settings
+          <button type="button" className="tab-btn" aria-current={tab === 'tasks' ? 'page' : undefined} onClick={() => switchTab('tasks')}>
+            <ListTodo size={22} strokeWidth={1.9} aria-hidden />
+            Tasks
           </button>
         </nav>
       )}
 
+      <TaskAlerts
+        snap={snap}
+        onChanged={refresh}
+        onView={(taskId) => {
+          setEditor(null);
+          go({ view: 'tasks' });
+          setTaskFocus({ id: Date.now(), taskId });
+        }}
+      />
       <ReminderAlerts
         snap={snap}
         onChanged={refresh}

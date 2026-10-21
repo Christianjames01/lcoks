@@ -60,6 +60,10 @@ export function EntryMenu({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  // The finger that long-pressed to open this menu is still down: when it lifts, the
+  // browser may send a click to whatever item is now under it. Only a press that
+  // starts on the menu counts (keyboard activation has detail 0 and always counts).
+  const pressed = useRef(false);
   const user = usernameOf(entry);
   const secretKey = passwordKeyOf(entry);
   const site = websiteOf(entry);
@@ -90,7 +94,15 @@ export function EntryMenu({
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-    const onResize = () => onClose();
+    // Desktop: a positioned menu would be misplaced after the window changes size.
+    // Phones: the keyboard closing (focus moves into the menu) also resizes the
+    // window — that must not close the sheet the moment it opens.
+    const startWidth = window.innerWidth;
+    const onResize = (e: Event) => {
+      if (sheet) return;
+      if (e.type === 'resize' && window.innerWidth === startWidth) return;
+      onClose();
+    };
     // Escape closes the menu even when focus is not inside it.
     const onWindowKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape' || ref.current?.contains(document.activeElement)) return;
@@ -104,9 +116,9 @@ export function EntryMenu({
       window.removeEventListener('resize', onResize);
       window.removeEventListener('blur', onResize);
       window.removeEventListener('keydown', onWindowKey);
-      previous?.focus?.();
+      previous?.focus?.({ preventScroll: true });
     };
-  }, [onClose]);
+  }, [onClose, sheet]);
 
   const onKey = (e: KeyboardEvent) => {
     const list = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
@@ -139,6 +151,7 @@ export function EntryMenu({
         role="menu"
         aria-label={`Actions for ${entry.title}`}
         onKeyDown={onKey}
+        onPointerDown={() => (pressed.current = true)}
         style={sheet ? undefined : { left: pos?.left ?? at.x, top: pos?.top ?? at.y, visibility: pos ? 'visible' : 'hidden' }}
       >
         {sheet && <div className="sheet-title">{entry.title}</div>}
@@ -148,7 +161,8 @@ export function EntryMenu({
             type="button"
             role="menuitem"
             className={`menu-item ${it.danger ? 'danger' : ''}`}
-            onClick={() => {
+            onClick={(e) => {
+              if (e.detail !== 0 && !pressed.current) return;
               onClose();
               it.run();
             }}
@@ -158,7 +172,7 @@ export function EntryMenu({
           </button>
         ))}
         {sheet && (
-          <button type="button" className="menu-item cancel" onClick={onClose}>
+          <button type="button" className="menu-item cancel" onClick={(e) => (e.detail === 0 || pressed.current) && onClose()}>
             Cancel
           </button>
         )}

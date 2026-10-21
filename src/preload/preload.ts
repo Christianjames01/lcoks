@@ -50,6 +50,7 @@ const api: VaultApi = {
     saveTransaction: call('vault.saveTransaction') as VaultApi['vault']['saveTransaction'],
     deleteTransaction: call('vault.deleteTransaction') as VaultApi['vault']['deleteTransaction'],
     saveEvents: call('vault.saveEvents') as VaultApi['vault']['saveEvents'],
+    saveTasks: call('vault.saveTasks') as VaultApi['vault']['saveTasks'],
     saveAccount: call('vault.saveAccount') as VaultApi['vault']['saveAccount'],
     deleteAccount: call('vault.deleteAccount') as VaultApi['vault']['deleteAccount'],
     updateSettings: call('vault.updateSettings') as VaultApi['vault']['updateSettings'],

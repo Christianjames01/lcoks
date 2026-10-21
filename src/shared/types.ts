@@ -2,6 +2,7 @@
 
 import type { CalendarEvent } from './calendar';
 import type { MoneyAccount, Transaction } from './money';
+import type { Task, TaskCategory } from './tasks';
 
 export type FieldType =
   | 'text'
@@ -213,6 +214,8 @@ export interface VaultSettings {
   calendarPreview: boolean;
   /** Calendar: "Remind me later" length in minutes. */
   calendarSnooze: number;
+  /** Tasks: the user's own categories (besides the built-in ones). */
+  taskCategories: TaskCategory[];
 }
 
 export const DEFAULT_SETTINGS: VaultSettings = {
@@ -242,6 +245,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   calendarDefaultReminders: [30],
   calendarPreview: false,
   calendarSnooze: 10,
+  taskCategories: [],
   generator: { length: 20, upper: true, lower: true, digits: true, symbols: true, avoidAmbiguous: false }
 };
 
@@ -267,6 +271,8 @@ export interface VaultPayload {
   accounts: MoneyAccount[];
   /** Calendar events with their reminders. */
   events: CalendarEvent[];
+  /** To-dos. */
+  tasks: Task[];
   /** Quick-add inbox key pair (see core/inbox.ts); the private half never leaves the payload. */
   inboxKey?: { priv: JsonWebKey; pub: string };
 }
@@ -300,6 +306,7 @@ export interface VaultSnapshot {
   transactions: Transaction[];
   accounts: MoneyAccount[];
   events: CalendarEvent[];
+  tasks: Task[];
   categories: CategoryDef[];
   settings: VaultSettings;
   stats: VaultStats;

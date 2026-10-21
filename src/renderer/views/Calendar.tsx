@@ -14,6 +14,8 @@ import {
   Repeat as RepeatIcon,
   Search,
   Settings2,
+  Square,
+  SquareCheck,
   Trash2,
   X
 } from 'lucide-react';
@@ -53,6 +55,7 @@ import {
 } from '../../shared/calendar';
 import { addMonths, dayKey, monthOf, parseDay } from '../../shared/money';
 import type { NotificationPermission } from '../../shared/api';
+import { completeTask, describeDue, isTaskOverdue, priorityName, uncompleteTask, type Task } from '../../shared/tasks';
 import type { VaultSettings, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { useToast } from '../components/Toast';
@@ -90,13 +93,16 @@ export function CalendarView({
   mobile,
   onChanged,
   focus,
-  onFocusHandled
+  onFocusHandled,
+  onOpenTask
 }: {
   snap: VaultSnapshot;
   mobile: boolean;
   onChanged: () => Promise<void>;
   focus: CalendarFocus | null;
   onFocusHandled: () => void;
+  /** Tasks show on their due date; selecting one opens it in Tasks. */
+  onOpenTask: (taskId: string) => void;
 }) {
   const toast = useToast();
   const now = useNow();
@@ -126,6 +132,21 @@ export function CalendarView({
   const [confirmDelete, setConfirmDelete] = useState<{ occ: Occurrence } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const events = snap.events;
+  // One entry per task at its current due date (a repeating task has one stored due date — no copies).
+  const tasksByDay = useMemo(() => {
+    const m = new Map<string, Task[]>();
+    for (const t of snap.tasks) if (t.due) m.set(t.due, [...(m.get(t.due) ?? []), t]);
+    return m;
+  }, [snap.tasks]);
+  const toggleTask = async (t: Task) => {
+    try {
+      await unwrap(api.vault.saveTasks([t.completed ? uncompleteTask(t) : completeTask(t, new Date().toISOString())], []));
+      await onChanged();
+      toast(t.completed ? 'Task marked as not done.' : 'Task completed.');
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    }
+  };
 
   // Requests from outside: open an event, or the add form.
   useEffect(() => {
@@ -329,12 +350,15 @@ export function CalendarView({
             {view === 'month' && (
               <>
                 <section className="card evc-panel" aria-label={heading}>
-                  <MonthGrid month={monthOf(selected)} today={today} selected={selected} events={events} mobile={mobile} onSelect={setSelected} />
+                  <MonthGrid month={monthOf(selected)} today={today} selected={selected} events={events} tasksByDay={tasksByDay} mobile={mobile} onSelect={setSelected} />
                 </section>
                 <DayPanel
                   day={selected}
                   today={today}
                   events={events}
+                  tasks={tasksByDay.get(selected) ?? []}
+                  onOpenTask={onOpenTask}
+                  onToggleTask={toggleTask}
                   now={now}
                   onAdd={() => openNew(selected)}
                   onOpen={(o) => setDetail({ eventId: o.event.id, day: o.day })}
@@ -361,6 +385,9 @@ export function CalendarView({
                 day={selected}
                 today={today}
                 events={events}
+                tasks={tasksByDay.get(selected) ?? []}
+                onOpenTask={onOpenTask}
+                onToggleTask={toggleTask}
                 now={now}
                 large
                 onAdd={() => openNew(selected)}
@@ -480,6 +507,7 @@ function MonthGrid({
   today,
   selected,
   events,
+  tasksByDay,
   mobile,
   onSelect
 }: {
@@ -487,6 +515,7 @@ function MonthGrid({
   today: string;
   selected: string;
   events: CalendarEvent[];
+  tasksByDay: Map<string, Task[]>;
   mobile: boolean;
   onSelect: (day: string) => void;
 }) {
@@ -527,6 +556,7 @@ function MonthGrid({
       ))}
       {cells.map((day) => {
         const list = byDay.get(day) ?? [];
+        const dayTasks = tasksByDay.get(day) ?? [];
         const outside = monthOf(day) !== month;
         return (
           <button
@@ -537,16 +567,19 @@ function MonthGrid({
             data-day={day}
             aria-selected={day === selected}
             aria-current={day === today ? 'date' : undefined}
-            aria-label={`${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}${list.length ? `, ${list.length} event${list.length === 1 ? '' : 's'}` : ''}`}
+            aria-label={`${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}${list.length ? `, ${list.length} event${list.length === 1 ? '' : 's'}` : ''}${dayTasks.length ? `, ${dayTasks.length} task${dayTasks.length === 1 ? '' : 's'}` : ''}`}
             tabIndex={day === selected ? 0 : -1}
             onClick={() => onSelect(day)}
           >
             <span className="evc-num">{Number(day.slice(8))}</span>
             {mobile ? (
-              list.length > 0 && (
+              list.length + dayTasks.length > 0 && (
                 <span className="evc-dots" aria-hidden>
                   {list.slice(0, max).map((o) => (
                     <i key={o.key} style={{ background: eventCategory(o.event.category).color }} className={o.done ? 'done' : ''} />
+                  ))}
+                  {dayTasks.slice(0, Math.max(1, max - list.length)).map((t) => (
+                    <i key={t.id} className={`task ${t.completed ? 'done' : ''}`} />
                   ))}
                 </span>
               )
@@ -558,7 +591,12 @@ function MonthGrid({
                     {o.event.title}
                   </span>
                 ))}
-                {list.length > max && <span className="evc-more">+{list.length - max} more</span>}
+                {dayTasks.slice(0, Math.max(0, max - list.length)).map((t) => (
+                  <span key={t.id} className={`evc-label-chip evc-task-chip ${t.completed ? 'done' : ''}`}>
+                    {t.completed ? '☑' : '☐'} {t.title}
+                  </span>
+                ))}
+                {list.length + dayTasks.length > max && <span className="evc-more">+{list.length + dayTasks.length - max} more</span>}
               </span>
             )}
           </button>
@@ -574,6 +612,9 @@ function DayPanel({
   day,
   today,
   events,
+  tasks,
+  onOpenTask,
+  onToggleTask,
   now,
   large,
   onAdd,
@@ -585,6 +626,9 @@ function DayPanel({
   day: string;
   today: string;
   events: CalendarEvent[];
+  tasks: Task[];
+  onOpenTask: (taskId: string) => void;
+  onToggleTask: (t: Task) => void;
   now: Date;
   large?: boolean;
   onAdd: () => void;
@@ -606,7 +650,45 @@ function DayPanel({
           <Plus size={14} aria-hidden /> Add
         </button>
       </div>
-      <OccurrenceList items={list} now={now} onOpen={onOpen} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} empty="Nothing scheduled. Tap Add to plan something." />
+      <OccurrenceList
+        items={list}
+        now={now}
+        onOpen={onOpen}
+        onToggle={onToggle}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        empty={tasks.length ? 'No events.' : 'Nothing scheduled. Tap Add to plan something.'}
+      />
+      {tasks.length > 0 && (
+        <div className="evc-tasks">
+          <h3 className="evc-tasks-title">Tasks due</h3>
+          <ul className="evc-list">
+            {tasks.map((t) => (
+              <li key={t.id} className={`evc-item evc-task ${t.completed ? 'done' : ''}`}>
+                <button
+                  type="button"
+                  className="evc-check"
+                  role="checkbox"
+                  aria-checked={t.completed}
+                  aria-label={t.completed ? `Mark task ${t.title} as not done` : `Complete task ${t.title}`}
+                  onClick={() => onToggleTask(t)}
+                >
+                  {t.completed ? <SquareCheck size={22} aria-hidden /> : <Square size={22} aria-hidden />}
+                </button>
+                <button type="button" className="evc-item-main" onClick={() => onOpenTask(t.id)}>
+                  <span className="evc-item-title">{t.title}</span>
+                  <span className="evc-item-meta">
+                    <span>Task</span>
+                    <span>{t.dueTime ? formatTime(t.dueTime) : 'Any time'}</span>
+                    <span>{priorityName(t.priority)} priority</span>
+                    {isTaskOverdue(t, now) && <span className="evc-badge overdue">Overdue · {describeDue(t, now)}</span>}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
@@ -1428,8 +1510,8 @@ function ReminderSettings({ settings, onClose, onChanged }: { settings: VaultSet
   return (
     <Dialog placement="center" title="Reminder settings" onClose={onClose}>
       <div className="evc-settings">
-        <Row title="Event reminders" desc="Alarm pop-ups in the app, and notifications on this device.">
-          <input type="checkbox" className="switch" checked={settings.calendarReminders} onChange={(e) => update({ calendarReminders: e.target.checked })} aria-label="Event reminders" />
+        <Row title="Event & task reminders" desc="Alarm pop-ups in the app, and notifications on this device. Also used for task reminders.">
+          <input type="checkbox" className="switch" checked={settings.calendarReminders} onChange={(e) => update({ calendarReminders: e.target.checked })} aria-label="Event and task reminders" />
         </Row>
         <Row title="Sound" desc="Play a chime with reminders.">
           <input type="checkbox" className="switch" checked={settings.calendarSound} onChange={(e) => update({ calendarSound: e.target.checked })} aria-label="Reminder sound" />
