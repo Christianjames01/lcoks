@@ -49,6 +49,7 @@ const api: VaultApi = {
     deleteCategory: call('vault.deleteCategory') as VaultApi['vault']['deleteCategory'],
     saveTransaction: call('vault.saveTransaction') as VaultApi['vault']['saveTransaction'],
     deleteTransaction: call('vault.deleteTransaction') as VaultApi['vault']['deleteTransaction'],
+    saveEvents: call('vault.saveEvents') as VaultApi['vault']['saveEvents'],
     saveAccount: call('vault.saveAccount') as VaultApi['vault']['saveAccount'],
     deleteAccount: call('vault.deleteAccount') as VaultApi['vault']['deleteAccount'],
     updateSettings: call('vault.updateSettings') as VaultApi['vault']['updateSettings'],
@@ -76,13 +77,20 @@ const api: VaultApi = {
     restoreWhileLocked: call('backup.restoreWhileLocked') as VaultApi['backup']['restoreWhileLocked'],
     exportPlaintext: call('backup.exportPlaintext') as VaultApi['backup']['exportPlaintext']
   },
-  // Fingerprint / PIN unlock is Android-only; the desktop always uses the master password.
+  // Desktop notifications come from the main process while the app runs (no permission prompt).
   notifications: {
-    status: async () => 'unsupported' as const,
-    request: async () => 'unsupported' as const,
-    schedule: async () => ({ ok: true as const, value: 0 }),
-    test: async () => ({ ok: false as const, code: 'UNSUPPORTED', message: 'Reminders are available in the Android app.' })
+    status: async () => {
+      const r = (await ipcRenderer.invoke('notifications.status')) as { ok: boolean; value?: 'granted' | 'unsupported' };
+      return r?.ok && r.value ? r.value : 'unsupported';
+    },
+    request: async () => {
+      const r = (await ipcRenderer.invoke('notifications.status')) as { ok: boolean; value?: 'granted' | 'unsupported' };
+      return r?.ok && r.value ? r.value : 'unsupported';
+    },
+    schedule: call('notifications.schedule') as VaultApi['notifications']['schedule'],
+    test: call('notifications.test') as VaultApi['notifications']['test']
   },
+  // Fingerprint / PIN unlock is Android-only; the desktop always uses the master password.
   quick: {
     status: async () => ({ supported: false, biometricAvailable: false, deviceCredentialAvailable: false, biometric: false, deviceCredential: false, pin: false, pinAttemptsLeft: 0 }),
     enableBiometric: async () => unsupported,

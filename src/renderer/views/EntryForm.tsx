@@ -270,7 +270,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
   };
 
   return (
-    <Dialog
+    <Dialog placement="center"
       title={isEdit ? 'Edit item' : 'Add new item'}
       onClose={onClose}
       size="wide"
@@ -402,7 +402,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
       )}
       {addingFile && <AddAttachmentSheet onPick={(s) => void pickPending(s)} onClose={() => setAddingFile(false)} />}
       {confirmDuplicate && (
-        <ConfirmDialog
+        <ConfirmDialog placement="center"
           title="Possible duplicate"
           confirmLabel="Save anyway"
           message={

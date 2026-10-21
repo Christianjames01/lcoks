@@ -81,7 +81,7 @@ export function GeneratorDialog({ onClose, onUse, canCopy = true }: Props) {
   const toggle = (k: keyof Omit<PasswordOptions, 'length'>) => setPw((o) => ({ ...o, [k]: !o[k] }));
 
   return (
-    <Dialog
+    <Dialog placement="center"
       title="Password generator"
       subtitle="Generated locally with a cryptographically secure random number generator."
       onClose={onClose}

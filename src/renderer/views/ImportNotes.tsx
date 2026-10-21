@@ -89,7 +89,7 @@ export function ImportNotesDialog({
   };
 
   return (
-    <Dialog
+    <Dialog placement="center"
       title="Import notes"
       subtitle={rows ? `${selected.length} of ${rows.length} notes selected` : 'Paste all your notes at once — each one becomes its own encrypted item.'}
       onClose={close}

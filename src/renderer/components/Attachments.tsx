@@ -14,7 +14,7 @@ import { useToast } from './Toast';
 /** "Add Attachment" choices: Take Photo / Choose from Gallery / Choose File. */
 export function AddAttachmentSheet({ onPick, onClose }: { onPick: (source: PickSource) => void; onClose: () => void }) {
   return (
-    <Dialog title="Add attachment" onClose={onClose} size="narrow">
+    <Dialog placement="center" title="Add attachment" onClose={onClose} size="narrow">
       <div className="action-list">
         <button type="button" className="btn" onClick={() => onPick('camera')} data-autofocus>
           <Camera size={20} aria-hidden /> Take photo
@@ -183,7 +183,7 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
       {adding && <AddAttachmentSheet onPick={(s) => void pick(s)} onClose={() => setAdding(false)} />}
 
       {dup && (
-        <Dialog
+        <Dialog placement="center"
           title="Possible duplicate"
           onClose={() => setDupQueue((q) => q.slice(1))}
           size="narrow"
@@ -370,7 +370,7 @@ function RenameDialog({ meta, onClose, onSave }: { meta: AttachmentMeta; onClose
     else setBusy(false);
   };
   return (
-    <Dialog
+    <Dialog placement="center"
       title="Rename attachment"
       onClose={onClose}
       size="narrow"
@@ -442,7 +442,7 @@ export function DocumentViewer({ entryId, meta, onClose, onChanged }: { entryId:
 
   return (
     <>
-      <Dialog
+      <Dialog placement="center"
         title={meta.name}
         subtitle={kindLabel(meta.mime)}
         onClose={onClose}
@@ -513,7 +513,7 @@ export function DocumentViewer({ entryId, meta, onClose, onChanged }: { entryId:
         )}
       </Dialog>
       {confirmDelete && (
-        <ConfirmDialog
+        <ConfirmDialog placement="center"
           title="Delete attachment?"
           danger
           confirmLabel="Delete attachment"
@@ -779,7 +779,7 @@ export function ImageViewer({
       </div>
 
       {confirmDelete && (
-        <ConfirmDialog
+        <ConfirmDialog placement="center"
           title="Delete image?"
           danger
           confirmLabel="Delete image"

@@ -16,6 +16,7 @@
 //   * Restoring a backup in "replace" mode moves current items to Recently Deleted.
 // ============================================================================
 
+import { eventCategory, type CalendarEvent } from '../shared/calendar';
 import { BUILTIN_CATEGORIES } from '../shared/categories';
 import { detectCardNetwork } from '../shared/cards';
 import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, accountColor, balances, dayKey, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type Transaction } from '../shared/money';
@@ -76,7 +77,8 @@ import {
   isoOr,
   validateSettings,
   validateAccountInput,
-  validateTransactionInput
+  validateTransactionInput,
+  validateEventInput
 } from './schema';
 import { INBOX_FILE, INBOX_META_FILE, INBOX_PUB_FILE, VAULT_FILE, attachmentFile, inboxFile, pendingAttachmentFile, type VaultStorage } from './storage';
 
@@ -204,7 +206,8 @@ export class VaultCore {
       meta: { createdAt, lastBackupAt: null, lastBackupVerified: false, dismissedDuplicates: [] },
       trash: [],
       transactions: [],
-      accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a }))
+      accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })),
+      events: []
     };
     try {
       await this.write();
@@ -568,6 +571,7 @@ export class VaultCore {
       entries,
       transactions: payload.transactions.map((t) => ({ ...t })),
       accounts: payload.accounts.map((a) => ({ ...a })),
+      events: payload.events.map(cloneEvent),
       categories: this.categories(),
       settings: { ...payload.settings, generator: { ...payload.settings.generator } },
       meta: { ...payload.meta, dismissedDuplicates: [...payload.meta.dismissedDuplicates] },
@@ -1036,6 +1040,38 @@ export class VaultCore {
     if (this.settings.quickAddBalances) await this.writeInboxMeta().catch(() => undefined);
   }
 
+  // -------------------------------------------------------------- calendar ----
+
+  /**
+   * Save and delete events in one write (editing one occurrence of a repeating
+   * event changes the series and adds a new event together).
+   */
+  async saveEvents(save: unknown, remove: unknown): Promise<CalendarEvent[]> {
+    if (!Array.isArray(save) || save.length > 20 || !Array.isArray(remove) || remove.length > 20) throw new AppError('INVALID', 'Invalid change.');
+    const inputs = save.map((x) => validateEventInput(x));
+    const removeIds = remove.filter((x): x is string => typeof x === 'string');
+    const now = this.iso();
+    return this.mutate((d) => {
+      for (const id of removeIds) if (!d.events.some((e) => e.id === id)) throw new AppError('NOT_FOUND', 'Event not found.');
+      d.events = d.events.filter((e) => !removeIds.includes(e.id));
+      const saved: CalendarEvent[] = [];
+      for (const e of inputs) {
+        if (e.id) {
+          const existing = d.events.find((x) => x.id === e.id);
+          if (!existing) throw new AppError('NOT_FOUND', 'Event not found.');
+          Object.assign(existing, { ...e, id: existing.id, updatedAt: now });
+          saved.push(cloneEvent(existing));
+        } else {
+          if (d.events.length >= LIMITS.events) throw new AppError('LIMIT', 'Too many events.');
+          const rec: CalendarEvent = { ...e, id: globalThis.crypto.randomUUID(), createdAt: now, updatedAt: now };
+          d.events.push(rec);
+          saved.push(cloneEvent(rec));
+        }
+      }
+      return saved;
+    });
+  }
+
   async updateSettings(patch: unknown): Promise<VaultSettings> {
     const { payload } = this.requireUnlocked();
     const merged = validateSettings({ ...payload.settings, ...(patch && typeof patch === 'object' ? patch : {}) }, payload.settings);
@@ -1401,6 +1437,9 @@ export class VaultCore {
         const txs = new Map(d.transactions.map((t) => [t.id, t]));
         for (const t of backup.payload.transactions) if (mode === 'replace' || !txs.has(t.id)) txs.set(t.id, { ...t });
         d.transactions = [...txs.values()];
+        const evs = new Map(d.events.map((e) => [e.id, e]));
+        for (const e of backup.payload.events) if (mode === 'replace' || !evs.has(e.id)) evs.set(e.id, cloneEvent(e));
+        d.events = [...evs.values()].slice(0, LIMITS.events);
         if (mode === 'replace') {
           const incomingById = new Map(incoming.map((e) => [e.id, e]));
           for (const e of d.entries) {
@@ -1485,9 +1524,31 @@ export class VaultCore {
         currency: payload.settings.currency,
         category: moneyCategory(t.category).name,
         note: t.note
+      })),
+      events: payload.events.map((e) => ({
+        title: e.title,
+        category: eventCategory(e.category).name,
+        start: e.allDay ? e.start : `${e.start} ${e.startTime}`,
+        end: e.allDay ? e.end : `${e.end} ${e.endTime}`,
+        allDay: e.allDay,
+        location: e.location,
+        notes: e.notes,
+        repeat: e.repeat ? { ...e.repeat } : null
       }))
     };
   }
+}
+
+function cloneEvent(e: CalendarEvent): CalendarEvent {
+  return {
+    ...e,
+    reminders: e.reminders.map((r) => ({ ...r })),
+    repeat: e.repeat ? { ...e.repeat, ...(e.repeat.weekdays ? { weekdays: [...e.repeat.weekdays] } : {}) } : null,
+    exdates: [...e.exdates],
+    done: [...e.done],
+    acks: [...e.acks],
+    snoozes: e.snoozes.map((s) => ({ ...s }))
+  };
 }
 
 function nextFavoriteOrder(p: VaultPayload): number {

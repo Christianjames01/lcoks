@@ -12,10 +12,12 @@ interface Props {
   /** Prevent closing via Escape/backdrop (e.g. while saving). */
   busy?: boolean;
   role?: 'dialog' | 'alertdialog';
+  /** "center": in the middle of the screen; "top": drops from the top like a notification. */
+  placement?: 'top' | 'center';
 }
 
 /** Accessible modal: focus trap, Escape to close, focus restored on close. */
-export function Dialog({ title, subtitle, onClose, children, footer, size = 'normal', busy, role = 'dialog' }: Props) {
+export function Dialog({ title, subtitle, onClose, children, footer, size = 'normal', busy, role = 'dialog', placement = 'top' }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const closeRef = useRef(onClose);
@@ -71,7 +73,7 @@ export function Dialog({ title, subtitle, onClose, children, footer, size = 'nor
 
   // Portal: above the title bar and bottom navigation wherever the dialog is opened.
   return createPortal(
-    <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+    <div className={`backdrop ${placement === 'center' ? 'centered' : ''}`} onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div ref={ref} className={`dialog ${size === 'normal' ? '' : size}`} role={role} aria-modal="true" aria-labelledby={titleId}>
         <div className="dialog-head">
           <div className="grow">
@@ -103,10 +105,11 @@ interface ConfirmProps {
   danger?: boolean;
   onConfirm: () => Promise<void> | void;
   onCancel: () => void;
+  placement?: Props['placement'];
 }
 
 /** Confirmation for destructive / significant actions. Cancel is focused by default. */
-export function ConfirmDialog({ title, message, confirmLabel, danger, onConfirm, onCancel }: ConfirmProps) {
+export function ConfirmDialog({ title, message, confirmLabel, danger, onConfirm, onCancel, placement }: ConfirmProps) {
   const [busy, setBusy] = useState(false);
   const mounted = useRef(true);
   useEffect(
@@ -122,6 +125,7 @@ export function ConfirmDialog({ title, message, confirmLabel, danger, onConfirm,
       size="narrow"
       busy={busy}
       role="alertdialog"
+      placement={placement}
       footer={
         <>
           <button type="button" className="btn" onClick={onCancel} disabled={busy} data-autofocus>

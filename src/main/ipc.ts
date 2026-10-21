@@ -13,6 +13,7 @@ import type { AppState, Result } from '../shared/types';
 import { AutoLockTimer } from './services/autoLock';
 import { ClipboardManager } from './services/clipboard';
 import { log } from './services/logger';
+import { DesktopReminders } from './services/reminders';
 import { writeFileAtomic } from './storage/atomicFile';
 import { BackupService, backupFileName } from './vault/backupService';
 import { ValidationError, validateMasterPassword } from '../core/schema';
@@ -61,6 +62,19 @@ export function registerIpc(d: IpcDeps): void {
   };
 
   const settings = () => d.vault.settings;
+
+  // ------------------------------------------------------------ reminders ----
+  const reminders = new DesktopReminders(
+    () => d.getWindow(),
+    () => {
+      const win = d.getWindow();
+      return d.vault.isUnlocked && !!win && win.isVisible() && win.isFocused();
+    }
+  );
+  handle('notifications.status', () => (reminders.supported ? 'granted' : 'unsupported'));
+  // Only an unlocked vault replaces the list; while locked the last list keeps ringing.
+  handle('notifications.schedule', (items: unknown) => (d.vault.isUnlocked ? reminders.schedule(items) : 0));
+  handle('notifications.test', () => reminders.test());
 
   // ------------------------------------------------------------------ app ----
   ipcMain.handle('app.getState', async (event): Promise<AppState | null> => {
@@ -196,6 +210,7 @@ export function registerIpc(d: IpcDeps): void {
   handle('inbox.takeReport', () => d.vault.takeInboxReport());
   handle('vault.saveTransaction', (input: unknown) => d.vault.saveTransaction(input));
   handle('vault.deleteTransaction', (id: unknown) => d.vault.deleteTransaction(id));
+  handle('vault.saveEvents', (save: unknown, remove: unknown) => d.vault.saveEvents(save, remove));
   handle('vault.saveAccount', (input: unknown) => d.vault.saveAccount(input));
   handle('vault.deleteAccount', (id: unknown) => d.vault.deleteAccount(id));
   handle('vault.updateSettings', async (patch: unknown) => {

@@ -205,7 +205,7 @@ function DuplicateCard({
       </div>
 
       {confirm === 'merge' && (
-        <ConfirmDialog
+        <ConfirmDialog placement="center"
           title="Merge items?"
           confirmLabel="Merge"
           message={
@@ -231,7 +231,7 @@ function DuplicateCard({
         />
       )}
       {confirm && typeof confirm === 'object' && (
-        <ConfirmDialog
+        <ConfirmDialog placement="center"
           title="Delete the other item?"
           danger
           confirmLabel="Move to Recently Deleted"

@@ -1,5 +1,6 @@
 // Shared data model. Imported by main, preload (types only) and renderer.
 
+import type { CalendarEvent } from './calendar';
 import type { MoneyAccount, Transaction } from './money';
 
 export type FieldType =
@@ -202,6 +203,16 @@ export interface VaultSettings {
   monthlyBudget: number;
   /** Quick-add pop-up shows account balances while locked (stored unencrypted next to the vault). */
   quickAddBalances: boolean;
+  /** Calendar: alarms for event reminders (in the app and as phone / desktop notifications). */
+  calendarReminders: boolean;
+  /** Calendar: play a sound with in-app reminder pop-ups. */
+  calendarSound: boolean;
+  /** Calendar: reminders added to new events (minutes before the start). */
+  calendarDefaultReminders: number[];
+  /** Calendar: show event titles in notifications (off = only "you have an event at 10:00"). */
+  calendarPreview: boolean;
+  /** Calendar: "Remind me later" length in minutes. */
+  calendarSnooze: number;
 }
 
 export const DEFAULT_SETTINGS: VaultSettings = {
@@ -226,6 +237,11 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   currency: 'PHP',
   monthlyBudget: 0,
   quickAddBalances: false,
+  calendarReminders: true,
+  calendarSound: true,
+  calendarDefaultReminders: [30],
+  calendarPreview: false,
+  calendarSnooze: 10,
   generator: { length: 20, upper: true, lower: true, digits: true, symbols: true, avoidAmbiguous: false }
 };
 
@@ -249,6 +265,8 @@ export interface VaultPayload {
   transactions: Transaction[];
   /** Money accounts (Cash, GCash…). */
   accounts: MoneyAccount[];
+  /** Calendar events with their reminders. */
+  events: CalendarEvent[];
   /** Quick-add inbox key pair (see core/inbox.ts); the private half never leaves the payload. */
   inboxKey?: { priv: JsonWebKey; pub: string };
 }
@@ -281,6 +299,7 @@ export interface VaultSnapshot {
   entries: EntryView[];
   transactions: Transaction[];
   accounts: MoneyAccount[];
+  events: CalendarEvent[];
   categories: CategoryDef[];
   settings: VaultSettings;
   stats: VaultStats;

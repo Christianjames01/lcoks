@@ -587,6 +587,7 @@ function useDeleteTx(onChanged: () => Promise<void>) {
   const toast = useToast();
   const dialog = target && (
     <ConfirmDialog
+      placement="center"
       title={target.kind === 'income' ? 'Delete this cash in?' : 'Delete this expense?'}
       danger
       confirmLabel="Delete"
@@ -789,6 +790,7 @@ function TxEditor({
       </Dialog>
       {confirm && existing && (
         <ConfirmDialog
+          placement="center"
           title="Delete record?"
           danger
           confirmLabel="Delete"

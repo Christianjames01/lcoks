@@ -56,7 +56,7 @@ export function LargeReveal({
   const chars = [...value];
 
   return (
-    <Dialog
+    <Dialog placement="center"
       title={label}
       subtitle={`${chars.length} characters${seconds > 0 ? ` · hides in ${left}s` : ''}`}
       onClose={onClose}

@@ -1,5 +1,6 @@
-import { CopyCheck, House, Layers, Lock, Wallet, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
+import { CalendarDays, CopyCheck, House, Layers, Lock, Wallet, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { calendarNotifications } from '../../shared/calendar';
 import { buildReminders } from '../../shared/expiry';
 import { searchEntries } from '../../shared/search';
 import { isOld, isReused } from '../../shared/security';
@@ -7,6 +8,7 @@ import type { EntryView, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog } from '../components/Dialog';
 import { EntryActionsProvider, EntryMenu, passwordKeyOf, usernameOf, websiteOf, type EntryActions } from '../components/EntryActions';
 import { GeneratorDialog } from '../components/Generator';
+import { ReminderAlerts } from '../components/ReminderAlerts';
 import { CategoryIcon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { setAppearance, setGeneratorDefaults } from '../lib/appearance';
@@ -15,6 +17,7 @@ import { isEditingText, useActivityReporter, useHotkeys } from '../lib/hooks';
 import { morphClose, morphOpen } from '../lib/motion';
 import { MOBILE_QUERY, useMediaQuery } from '../lib/platform';
 import { markUsed, pruneUsed } from '../lib/recent';
+import { CalendarView, type CalendarFocus } from './Calendar';
 import { Dashboard } from './Dashboard';
 import { SecurityView } from './SecurityView';
 import { DuplicatesView } from './Duplicates';
@@ -33,6 +36,7 @@ export type Route =
   | { view: 'items'; filter: string; entry?: string }
   | { view: 'search' }
   | { view: 'money' }
+  | { view: 'calendar' }
   | { view: 'security' }
   | { view: 'settings'; tab?: string }
   | { view: 'duplicates' }
@@ -40,10 +44,11 @@ export type Route =
 
 export type EditorState = { mode: 'new'; categoryId?: string } | { mode: 'edit'; id: string } | null;
 
-type Tab = 'vault' | 'money' | 'search' | 'settings';
+type Tab = 'vault' | 'money' | 'calendar' | 'search' | 'settings';
 
 function tabOf(r: Route): Tab {
   if (r.view === 'money') return 'money';
+  if (r.view === 'calendar') return 'calendar';
   if (r.view === 'search') return 'search';
   if (r.view === 'settings' || r.view === 'duplicates' || r.view === 'trash') return 'settings';
   return 'vault';
@@ -62,6 +67,8 @@ export function VaultApp({ version }: { version: string }) {
   // "Open the add form" request for the Expenses screen (+ button, double tap on the back).
   const [moneyAdd, setMoneyAdd] = useState<{ id: number; kind: 'expense' | 'income' } | null>(null);
   const requestAdd = (kind: 'expense' | 'income' = 'expense') => setMoneyAdd({ id: Date.now(), kind });
+  // Calendar: open an event (reminder pop-up) or the add form (+ button).
+  const [calendarFocus, setCalendarFocus] = useState<CalendarFocus | null>(null);
   const [sharedText, setSharedText] = useState<string | undefined>(undefined);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
@@ -152,8 +159,8 @@ export function VaultApp({ version }: { version: string }) {
   useEffect(() => {
     if (!snap) return;
     const t = setTimeout(async () => {
-      const { reminders, reminderDaysBefore } = snap.settings;
-      if (reminders) {
+      const { reminders, reminderDaysBefore, calendarReminders, calendarPreview, calendarSound } = snap.settings;
+      if (reminders || calendarReminders) {
         let status = await api.notifications.status();
         if (status === 'unsupported') return;
         // Ask once; after that the user decides in Settings → Reminders.
@@ -166,9 +173,13 @@ export function VaultApp({ version }: { version: string }) {
         }
         if (status === 'prompt' && !asked) status = await api.notifications.request();
       }
-      const list = reminders
-        ? buildReminders(snap.entries, snap.categories, { daysBefore: reminderDaysBefore }).map((r) => ({ id: r.id, at: r.at.getTime(), title: r.title, body: r.body }))
+      const expiry = reminders
+        ? buildReminders(snap.entries, snap.categories, { daysBefore: reminderDaysBefore })
+            .slice(0, 40)
+            .map((r) => ({ id: r.id, at: r.at.getTime(), title: r.title, body: r.body }))
         : [];
+      const calendar = calendarReminders ? calendarNotifications(snap.events, Date.now(), { preview: calendarPreview, sound: calendarSound }) : [];
+      const list = [...expiry, ...calendar].sort((a, b) => a.at - b.at).slice(0, 100);
       await api.notifications.schedule(list);
     }, 800);
     return () => clearTimeout(t);
@@ -195,7 +206,9 @@ export function VaultApp({ version }: { version: string }) {
     setHistory([]);
     setQuery('');
     setSelectedId(null);
-    setRoute(t === 'money' ? { view: 'money' } : t === 'search' ? { view: 'search' } : t === 'settings' ? { view: 'settings' } : { view: 'dashboard' });
+    setRoute(
+      t === 'money' ? { view: 'money' } : t === 'calendar' ? { view: 'calendar' } : t === 'search' ? { view: 'search' } : t === 'settings' ? { view: 'settings' } : { view: 'dashboard' }
+    );
   };
   /** What Back would do right now, or null when there is nowhere to go back to. */
   const backAction = (): (() => void) | null => {
@@ -393,6 +406,7 @@ export function VaultApp({ version }: { version: string }) {
     if (r.view === 'dashboard') return 'Vault';
     if (r.view === 'search') return 'Search';
     if (r.view === 'money') return 'Expenses';
+    if (r.view === 'calendar') return 'Calendar';
     if (r.view === 'settings') return 'Settings';
     if (r.view === 'duplicates') return 'Duplicates';
     if (r.view === 'trash') return 'Recently Deleted';
@@ -424,6 +438,9 @@ export function VaultApp({ version }: { version: string }) {
               <Menu size={20} />
             </button>
             <h1 className="screen-title">{screenTitle}</h1>
+            <button type="button" className="icon-btn" onClick={() => go({ view: 'search' })} aria-label="Search vault" title="Search vault" aria-current={route.view === 'search' ? 'page' : undefined}>
+              <Search size={19} />
+            </button>
             <button type="button" className="icon-btn" onClick={lock} aria-label="Lock vault" title="Lock vault">
               <Lock size={19} />
             </button>
@@ -480,6 +497,10 @@ export function VaultApp({ version }: { version: string }) {
               <button type="button" className="btn sm primary" onClick={() => requestAdd()} aria-label="Add expense">
                 <Plus size={14} aria-hidden /> <span className="btn-text">Add expense</span>
               </button>
+            ) : route.view === 'calendar' && !searching ? (
+              <button type="button" className="btn sm primary" onClick={() => setCalendarFocus({ id: Date.now(), add: true })} aria-label="Add event">
+                <Plus size={14} aria-hidden /> <span className="btn-text">Add event</span>
+              </button>
             ) : (
               <button type="button" className="btn sm primary" onClick={() => newItem(currentCategory(route))} title="New item (Ctrl+N)" aria-label="New item">
                 <Plus size={14} aria-hidden /> <span className="btn-text">New item</span>
@@ -499,6 +520,7 @@ export function VaultApp({ version }: { version: string }) {
             {navItem('dashboard', 'Dashboard', <House size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'dashboard', () => go({ view: 'dashboard' }))}
             {filterNav('favorites', 'Favorites', <Star size={16} strokeWidth={1.75} aria-hidden />, snap.stats.favorites)}
             {navItem('money', 'Expenses', <Wallet size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'money', () => go({ view: 'money' }))}
+            {navItem('calendar', 'Calendar', <CalendarDays size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'calendar', () => go({ view: 'calendar' }))}
             <div className="nav-section label">Vault</div>
             {filterNav('all', 'All Items', <Layers size={16} strokeWidth={1.75} aria-hidden />, snap.entries.length)}
             {categoryNav.map((c) => filterNav(`cat:${c.id}`, c.name, <CategoryIcon icon={c.icon} />, counts.get(c.id) ?? 0))}
@@ -556,6 +578,7 @@ export function VaultApp({ version }: { version: string }) {
             />
           )}
           {shownRoute.view === 'search' && <SearchView snap={snap} onOpen={openEntry} />}
+          {shownRoute.view === 'calendar' && <CalendarView snap={snap} mobile={mobile} onChanged={refresh} focus={calendarFocus} onFocusHandled={() => setCalendarFocus(null)} />}
           {shownRoute.view === 'money' && <MoneyView snap={snap} mobile={mobile} onChanged={refresh} addRequest={moneyAdd} onAddHandled={() => setMoneyAdd(null)} />}
           {shownRoute.view === 'security' && <SecurityView snap={snap} onOpen={openEntry} onNavigate={go} />}
           {shownRoute.view === 'duplicates' && <DuplicatesView snap={snap} onChanged={refresh} onOpen={openEntry} />}
@@ -589,14 +612,16 @@ export function VaultApp({ version }: { version: string }) {
           <button
             type="button"
             className="fab"
-            onClick={() => (route.view === 'money' ? requestAdd() : newItem(currentCategory(route)))}
-            aria-label={route.view === 'money' ? 'Add expense' : 'Add item'}
+            onClick={() =>
+              route.view === 'money' ? requestAdd() : route.view === 'calendar' ? setCalendarFocus({ id: Date.now(), add: true }) : newItem(currentCategory(route))
+            }
+            aria-label={route.view === 'money' ? 'Add expense' : route.view === 'calendar' ? 'Add event' : 'Add item'}
           >
             <Plus size={28} strokeWidth={2.2} aria-hidden />
           </button>
-          <button type="button" className="tab-btn" aria-current={tab === 'search' ? 'page' : undefined} onClick={() => switchTab('search')}>
-            <Search size={22} strokeWidth={1.9} aria-hidden />
-            Search
+          <button type="button" className="tab-btn" aria-current={tab === 'calendar' ? 'page' : undefined} onClick={() => switchTab('calendar')}>
+            <CalendarDays size={22} strokeWidth={1.9} aria-hidden />
+            Calendar
           </button>
           <button type="button" className="tab-btn" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => switchTab('settings')}>
             <SettingsIcon size={22} strokeWidth={1.9} aria-hidden />
@@ -604,6 +629,16 @@ export function VaultApp({ version }: { version: string }) {
           </button>
         </nav>
       )}
+
+      <ReminderAlerts
+        snap={snap}
+        onChanged={refresh}
+        onView={(eventId, day) => {
+          setEditor(null);
+          go({ view: 'calendar' });
+          setCalendarFocus({ id: Date.now(), eventId, day });
+        }}
+      />
 
       {editor && (
         <EntryForm
@@ -629,7 +664,7 @@ export function VaultApp({ version }: { version: string }) {
       )}
 
       {deleting && (
-        <ConfirmDialog
+        <ConfirmDialog placement="center"
           title="Delete item?"
           danger
           confirmLabel="Move to Recently Deleted"

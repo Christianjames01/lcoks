@@ -35,12 +35,17 @@ async function wrap<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
 }
 
 const REMINDER_CHANNEL = 'reminders';
+const CALENDAR_CHANNEL = 'calendar';
+const CALENDAR_SILENT_CHANNEL = 'calendar-silent';
 let channelReady = false;
 async function ensureChannel(): Promise<void> {
   if (channelReady) return;
   // Notification channels exist only on Android.
   if (Capacitor.getPlatform() !== 'android') return void (channelReady = true);
   await LocalNotifications.createChannel({ id: REMINDER_CHANNEL, name: 'Reminders', description: 'Expiry, renewal and payment reminders', importance: 4, visibility: 0 });
+  // Calendar alarms: private on the lock screen (visibility 0); a silent twin for "sound off".
+  await LocalNotifications.createChannel({ id: CALENDAR_CHANNEL, name: 'Calendar alarms', description: 'Event reminders', importance: 5, visibility: 0, vibration: true });
+  await LocalNotifications.createChannel({ id: CALENDAR_SILENT_CHANNEL, name: 'Calendar alarms (silent)', description: 'Event reminders without sound', importance: 2, visibility: 0, vibration: false });
   channelReady = true;
 }
 
@@ -299,6 +304,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
       deleteCategory: (id) => wrap(() => vault.deleteCategory(id)),
       saveTransaction: (i) => wrap(() => vault.saveTransaction(i)),
       deleteTransaction: (id) => wrap(() => vault.deleteTransaction(id)),
+      saveEvents: (save, remove) => wrap(() => vault.saveEvents(save, remove)),
       saveAccount: (i) => wrap(() => vault.saveAccount(i)),
       deleteAccount: (id) => wrap(() => vault.deleteAccount(id)),
       updateSettings: (patch) =>
@@ -391,7 +397,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
               id: r.id,
               title: String(r.title).slice(0, 120),
               body: String(r.body).slice(0, 240),
-              channelId: REMINDER_CHANNEL,
+              channelId: r.kind === 'calendar' ? (r.silent ? CALENDAR_SILENT_CHANNEL : CALENDAR_CHANNEL) : REMINDER_CHANNEL,
               smallIcon: 'ic_stat_vault',
               iconColor: '#0A84FF',
               schedule: { at: new Date(r.at), allowWhileIdle: true }

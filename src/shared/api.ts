@@ -22,6 +22,7 @@ import type {
   VaultSettings,
   VaultSnapshot
 } from './types';
+import type { CalendarEvent, CalendarEventInput } from './calendar';
 import type { AccountKind, MoneyAccount, Transaction, TransactionInput } from './money';
 
 export interface VaultApi {
@@ -75,6 +76,8 @@ export interface VaultApi {
     /** Add (no id) or update an expense / income record. */
     saveTransaction(input: TransactionInput): Promise<Result<Transaction>>;
     deleteTransaction(id: string): Promise<Result<void>>;
+    /** Calendar: save and delete events in one write. */
+    saveEvents(save: CalendarEventInput[], remove: string[]): Promise<Result<CalendarEvent[]>>;
     /** Add (no id) or update a money account (Cash, GCash…). */
     saveAccount(input: { id?: string; name: string; kind: AccountKind; opening: number }): Promise<Result<MoneyAccount>>;
     /** Remove an account; its records are kept without an account. */
@@ -192,6 +195,9 @@ export interface ScheduledReminder {
   at: number;
   title: string;
   body: string;
+  /** Calendar reminders go to their own channel (sound on / off). */
+  kind?: 'calendar';
+  silent?: boolean;
 }
 
 export const MAX_PIN_ATTEMPTS = 5;

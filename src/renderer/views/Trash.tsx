@@ -84,7 +84,7 @@ export function TrashView({ snap, onChanged }: { snap: VaultSnapshot; onChanged:
       </div>
 
       {purging && (
-        <ConfirmDialog
+        <ConfirmDialog placement="center"
           title="Delete permanently?"
           danger
           confirmLabel="Delete permanently"
@@ -108,7 +108,7 @@ export function TrashView({ snap, onChanged }: { snap: VaultSnapshot; onChanged:
         />
       )}
       {emptying && (
-        <ConfirmDialog
+        <ConfirmDialog placement="center"
           title="Empty Recently Deleted?"
           danger
           confirmLabel={`Delete ${items.length} item${items.length === 1 ? '' : 's'}`}

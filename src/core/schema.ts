@@ -2,6 +2,22 @@
 // decrypted payload read from disk. Objects are rebuilt field-by-field so that
 // unexpected properties (e.g. prototype-pollution keys) are dropped.
 
+import {
+  EVENT_CATEGORY_IDS,
+  MAX_REMINDERS,
+  MAX_REPEAT_COUNT,
+  REMINDER_PRESETS,
+  SNOOZE_CHOICES,
+  isLocalDateTime,
+  isTime,
+  reminderSignature,
+  timeToMin,
+  type CalendarEvent,
+  type CalendarEventInput,
+  type EventCategory,
+  type ReminderRule,
+  type Repeat
+} from '../shared/calendar';
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../shared/categories';
 import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MONEY_CATEGORY_IDS, defaultCategory, isDayKey, moneyCategory, type AccountKind, type MoneyAccount, type Transaction, type TransactionInput } from '../shared/money';
 import {
@@ -47,7 +63,9 @@ export const LIMITS = {
   customCategories: 100,
   masterPasswordMax: 1024,
   masterPasswordMin: 8,
-  transactions: 200_000
+  transactions: 200_000,
+  events: 20_000,
+  eventNotes: 4000
 } as const;
 
 const FIELD_TYPES: FieldType[] = [
@@ -204,6 +222,13 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
     currency: typeof s.currency === 'string' && /^[A-Z]{3}$/.test(s.currency) ? s.currency : base.currency,
     quickAddBalances: typeof s.quickAddBalances === 'boolean' ? s.quickAddBalances : base.quickAddBalances,
     monthlyBudget: Number.isInteger(s.monthlyBudget) && (s.monthlyBudget as number) >= 0 && (s.monthlyBudget as number) <= MAX_AMOUNT ? (s.monthlyBudget as number) : base.monthlyBudget,
+    calendarReminders: typeof s.calendarReminders === 'boolean' ? s.calendarReminders : base.calendarReminders,
+    calendarSound: typeof s.calendarSound === 'boolean' ? s.calendarSound : base.calendarSound,
+    calendarDefaultReminders: Array.isArray(s.calendarDefaultReminders)
+      ? [...new Set((s.calendarDefaultReminders as unknown[]).filter((m): m is number => REMINDER_PRESETS.some((p) => p.minutes === m)))].slice(0, 5)
+      : base.calendarDefaultReminders,
+    calendarPreview: typeof s.calendarPreview === 'boolean' ? s.calendarPreview : base.calendarPreview,
+    calendarSnooze: SNOOZE_CHOICES.includes(s.calendarSnooze as number) ? (s.calendarSnooze as number) : base.calendarSnooze,
     generator: validateGeneratorDefaults(s.generator, base.generator)
   };
 }
@@ -313,6 +338,20 @@ export function validatePayload(v: unknown): VaultPayload {
     }
   }
 
+  // Calendar: a damaged event is skipped, never fatal (older vaults have none).
+  const events: CalendarEvent[] = [];
+  const evIds = new Set<string>();
+  for (const raw of Array.isArray(p.events) ? p.events.slice(0, LIMITS.events) : []) {
+    try {
+      const e = validateEventInput(raw);
+      const id = e.id && !evIds.has(e.id) ? e.id : randomUUID();
+      evIds.add(id);
+      events.push({ ...e, id, createdAt: isoOr(raw.createdAt, now), updatedAt: isoOr(raw.updatedAt, now) });
+    } catch {
+      /* skip */
+    }
+  }
+
   const m = p.meta && typeof p.meta === 'object' ? p.meta : {};
   return {
     schema: 1,
@@ -330,6 +369,7 @@ export function validatePayload(v: unknown): VaultPayload {
     trash,
     transactions,
     accounts,
+    events,
     ...(validInboxKey(p.inboxKey) ? { inboxKey: { priv: { ...p.inboxKey.priv }, pub: p.inboxKey.pub } } : {})
   };
 }
@@ -363,6 +403,94 @@ export function validateTransactionInput(input: unknown): TransactionInput {
   if (!isDayKey(i.date)) throw new ValidationError('date', 'Choose a valid date.');
   const accountId = typeof i.accountId === 'string' && ID_RE.test(i.accountId) ? i.accountId : undefined;
   return { id, kind, amount: i.amount as number, category, note: str(i.note, 'note', LIMITS.title).trim(), date: i.date, ...(accountId ? { accountId } : {}) };
+}
+
+/** One calendar event from the renderer or the decrypted payload. `id` is optional for a new one. */
+export function validateEventInput(input: unknown): CalendarEventInput {
+  if (!input || typeof input !== 'object') throw new ValidationError('form', 'Invalid event.');
+  const i = input as Record<string, unknown>;
+  const id = i.id === undefined || i.id === null ? undefined : str(i.id, 'id', 64);
+  if (id !== undefined && !ID_RE.test(id)) throw new ValidationError('id', 'Invalid event.');
+  const title = str(i.title, 'title', LIMITS.title, true).trim();
+  const notes = str(i.notes, 'notes', LIMITS.eventNotes);
+  const location = str(i.location, 'location', LIMITS.title).trim();
+  const category = (typeof i.category === 'string' && EVENT_CATEGORY_IDS.has(i.category) ? i.category : 'other') as EventCategory;
+  const allDay = i.allDay === true;
+  if (!isDayKey(i.start)) throw new ValidationError('start', 'Choose a start date.');
+  if (!isDayKey(i.end)) throw new ValidationError('end', 'Choose an end date.');
+  if (i.end < i.start) throw new ValidationError('end', 'The end date can\'t be before the start.');
+  let startTime = '';
+  let endTime = '';
+  if (!allDay) {
+    if (!isTime(i.startTime)) throw new ValidationError('startTime', 'Choose a start time.');
+    if (!isTime(i.endTime)) throw new ValidationError('endTime', 'Choose an end time.');
+    startTime = i.startTime;
+    endTime = i.endTime;
+    if (i.end === i.start && timeToMin(endTime) < timeToMin(startTime)) throw new ValidationError('endTime', 'The event must end after it starts.');
+  }
+
+  const reminders: ReminderRule[] = [];
+  const seen = new Set<string>();
+  const ruleIds = new Set<string>();
+  for (const raw of Array.isArray(i.reminders) ? i.reminders.slice(0, MAX_REMINDERS * 2) : []) {
+    if (!raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    const rid = typeof r.id === 'string' && ID_RE.test(r.id) && !ruleIds.has(r.id) ? r.id : `r${randomUUID().slice(0, 8)}`;
+    const enabled = r.enabled !== false;
+    let rule: ReminderRule | null = null;
+    if (r.type === 'before' && Number.isInteger(r.minutes) && (r.minutes as number) >= 0 && (r.minutes as number) <= 60 * 24 * 60) rule = { id: rid, type: 'before', minutes: r.minutes as number, enabled };
+    else if (r.type === 'dayAt' && Number.isInteger(r.days) && (r.days as number) >= 0 && (r.days as number) <= 60 && isTime(r.time)) rule = { id: rid, type: 'dayAt', days: r.days as number, time: r.time, enabled };
+    else if (r.type === 'at' && isLocalDateTime(r.at)) rule = { id: rid, type: 'at', at: r.at, enabled };
+    if (!rule || seen.has(reminderSignature(rule))) continue; // no duplicates
+    seen.add(reminderSignature(rule));
+    ruleIds.add(rid);
+    reminders.push(rule);
+    if (reminders.length >= MAX_REMINDERS) break;
+  }
+
+  let repeat: Repeat | null = null;
+  if (i.repeat && typeof i.repeat === 'object') {
+    const r = i.repeat as Record<string, unknown>;
+    if (r.freq === 'daily' || r.freq === 'weekly' || r.freq === 'monthly' || r.freq === 'yearly') {
+      repeat = { freq: r.freq, interval: Number.isInteger(r.interval) && (r.interval as number) >= 1 && (r.interval as number) <= 99 ? (r.interval as number) : 1 };
+      if (r.freq === 'weekly' && Array.isArray(r.weekdays)) {
+        const days = [...new Set(r.weekdays.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))].sort((a, b) => a - b);
+        if (days.length) repeat.weekdays = days;
+      }
+      if (isDayKey(r.until)) {
+        if (r.until < i.start) throw new ValidationError('until', 'The repeat must end after the event starts.');
+        repeat.until = r.until;
+      } else if (Number.isInteger(r.count) && (r.count as number) >= 1 && (r.count as number) <= MAX_REPEAT_COUNT) repeat.count = r.count as number;
+    }
+  }
+
+  const days = (v: unknown, max: number) => (Array.isArray(v) ? [...new Set(v.filter(isDayKey))].sort().slice(-max) : []);
+  const keyOk = (k: unknown): k is string => typeof k === 'string' && k.length <= 160 && /^[A-Za-z0-9_-]{1,64}\|\d{4}-\d{2}-\d{2}(\|[A-Za-z0-9_-]{1,64})?$/.test(k);
+  const acks = Array.isArray(i.acks) ? [...new Set(i.acks.filter(keyOk))].slice(-2000) : [];
+  const snoozes = Array.isArray(i.snoozes)
+    ? i.snoozes
+        .filter((s): s is { key: string; until: number } => !!s && typeof s === 'object' && keyOk((s as any).key) && Number.isFinite((s as any).until) && (s as any).until > 0)
+        .map((s) => ({ key: s.key, until: Math.round(s.until) }))
+        .slice(-50)
+    : [];
+  return {
+    id,
+    title,
+    notes,
+    location,
+    category,
+    allDay,
+    start: i.start,
+    startTime,
+    end: i.end,
+    endTime,
+    reminders,
+    repeat,
+    exdates: days(i.exdates, 1000),
+    done: days(i.done, 1000),
+    acks,
+    snoozes
+  };
 }
 
 const ACCOUNT_KINDS: AccountKind[] = ['cash', 'ewallet', 'bank', 'credit', 'other'];
