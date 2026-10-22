@@ -48,6 +48,9 @@ import {
   totals,
   ACCOUNT_KIND_ORDER,
   accountColor,
+  CARD_COLORS,
+  CARD_STYLES,
+  type CardStyle,
   balances,
   type AccountKind,
   type MoneyAccount,
@@ -59,6 +62,7 @@ import type { KnockInfo } from '../../shared/api';
 import type { VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
+import { ColorPicker } from '../components/ColorPicker';
 import { HoldArea } from '../components/HoldActions';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
@@ -668,6 +672,7 @@ function TxEditor({
   return (
     <>
       <Dialog
+        placement="center"
         title={existing ? (kind === 'income' ? 'Edit cash in' : 'Edit expense') : kind === 'income' ? 'Add cash' : 'Add expense'}
         onClose={onClose}
         busy={busy}
@@ -1245,17 +1250,34 @@ function AccountEditor({
   const [kind, setKind] = useState<AccountKind>(account?.kind ?? 'ewallet');
   const [opening, setOpening] = useState(account && account.opening ? fromMinor(Math.abs(account.opening)) : '');
   const [negative, setNegative] = useState((account?.opening ?? 0) < 0);
+  const [color, setColor] = useState(account?.color ?? '');
+  const [style, setStyle] = useState<CardStyle>(account?.style ?? 'gradient');
+  const [last4, setLast4] = useState(account?.last4 ?? '');
+  const [picker, setPicker] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const preview = { name: name.trim() || 'Account', kind, color: color || undefined, style };
+  const auto = accountColor({ name: name.trim() || 'Account', kind });
 
   const save = async () => {
     if (!name.trim()) return setError('Enter a name, e.g. GCash.');
+    if (last4 && !/^\d{4}$/.test(last4)) return setError('Card number ending: enter the last 4 digits, or leave it empty.');
     const minor = opening.trim() ? toMinor(opening) : 0;
     if (minor === null) return setError('Enter a valid starting balance.');
     setBusy(true);
     try {
       // A credit card's balance is what you owe: stored as a negative balance.
-      await unwrap(api.vault.saveAccount({ id: account?.id, name: name.trim(), kind, opening: kind === 'credit' || negative ? -minor : minor }));
+      await unwrap(
+        api.vault.saveAccount({
+          id: account?.id,
+          name: name.trim(),
+          kind,
+          opening: kind === 'credit' || negative ? -minor : minor,
+          ...(color ? { color } : {}),
+          ...(style !== 'gradient' ? { style } : {}),
+          ...(last4 ? { last4 } : {})
+        })
+      );
       await onSaved();
     } catch (err) {
       setError(errorMessage(err));
@@ -1292,6 +1314,20 @@ function AccountEditor({
           void save();
         }}
       >
+        <div className="card-preview" aria-hidden>
+          <div className="wallet-card" style={cardStyle(preview)}>
+            <span className="wc-top">
+              <span className="wc-badge">{initials(preview.name)}</span>
+              <span className="wc-name">{preview.name}</span>
+            </span>
+            <span className="wc-kind">
+              {kind === 'credit' ? 'Credit card · owed' : kind === 'cash' ? 'On hand' : ACCOUNT_KIND_NAMES.find(([x]) => x === kind)?.[1]}
+              {last4 && <span className="wc-num"> · •••• {last4}</span>}
+            </span>
+            <span className="wc-label">{kind === 'credit' ? 'Balance owed' : 'Balance'}</span>
+            <span className="wc-amount">{opening.trim() ? opening : '0'}</span>
+          </div>
+        </div>
         <div className="field">
           <label htmlFor="acc-name">Name</label>
           <input id="acc-name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="e.g. GCash" autoComplete="off" data-autofocus />
@@ -1314,7 +1350,54 @@ function AccountEditor({
               <input type="checkbox" checked={negative} onChange={(e) => setNegative(e.target.checked)} /> It's a debt (money owed)
             </label>
           )}
-          {error ? <div className="error-text">{error}</div> : <div className="help-text">How much was in it before you started tracking.</div>}
+          <div className="help-text">How much was in it before you started tracking.</div>
+        </div>
+        <div className="field card-look" style={{ marginTop: 16 }}>
+          <span className="label">Card color</span>
+          <div className="swatches" role="radiogroup" aria-label="Card color">
+            <button type="button" role="radio" aria-checked={!color} className="swatch auto" style={{ background: auto.bg }} onClick={() => setColor('')} title="Automatic">
+              Auto
+            </button>
+            {CARD_COLORS.map((c) => (
+              <button key={c} type="button" role="radio" aria-checked={color === c} aria-label={c} className="swatch" style={{ background: c }} onClick={() => setColor(c)} />
+            ))}
+            <button
+              type="button"
+              className={`swatch custom ${color && !CARD_COLORS.includes(color) ? 'on' : ''}`}
+              title="Custom color"
+              aria-label="Pick a custom color"
+              aria-expanded={picker}
+              style={color && !CARD_COLORS.includes(color) ? { background: color } : undefined}
+              onClick={() => setPicker((p) => !p)}
+            >
+              <span aria-hidden>+</span>
+            </button>
+          </div>
+          {picker && <ColorPicker value={color || auto.bg} onChange={setColor} />}
+        </div>
+        <div className="field">
+          <span className="label">Card style</span>
+          <div className="segmented" role="group" aria-label="Card style">
+            {CARD_STYLES.map(([k, label]) => (
+              <button key={k} type="button" aria-pressed={style === k} onClick={() => setStyle(k)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label htmlFor="acc-last4">Card number ending (optional)</label>
+          <input
+            id="acc-last4"
+            className="input"
+            inputMode="numeric"
+            maxLength={4}
+            value={last4}
+            onChange={(e) => setLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="e.g. 1234"
+            autoComplete="off"
+          />
+          {error ? <div className="error-text">{error}</div> : <div className="help-text">Only the last 4 digits, shown as •••• 1234. Never your full number.</div>}
         </div>
         <button type="submit" hidden />
       </form>
@@ -1362,7 +1445,7 @@ function AccountPage({
               <AccountIcon kind={account.kind} size={18} />
             </span>
             <span className="mc-name">{account.name}</span>
-            <span className="mc-kind">{ACCOUNT_KIND_NAMES.find(([k]) => k === account.kind)?.[1]}</span>
+            <span className="mc-kind">{account.last4 ? `•••• ${account.last4}` : ACCOUNT_KIND_NAMES.find(([k]) => k === account.kind)?.[1]}</span>
           </div>
           <div className="mc-label">Available balance</div>
           <div className={`mc-balance ${balance < 0 ? 'neg' : ''}`}>{money(balance)}</div>
@@ -1445,9 +1528,34 @@ function AccountPage({
 // ----------------------------------------------------------------- wallets --
 
 /** Colour of an account's card (background + readable text on it). */
-function cardStyle(a: Pick<MoneyAccount, 'name' | 'kind'>): React.CSSProperties {
+/** The card's look: the user's colour and style, or the automatic bank colour as a gradient. */
+function cardStyle(a: Pick<MoneyAccount, 'name' | 'kind' | 'color' | 'style'>): React.CSSProperties {
   const c = accountColor(a);
-  return { ['--card-bg' as string]: c.bg, ['--card-fg' as string]: c.fg };
+  const vars = { ['--card-bg' as string]: c.bg, ['--card-fg' as string]: c.fg };
+  switch (a.style) {
+    case 'solid':
+      return { ...vars, background: c.bg, color: c.fg };
+    case 'glass':
+      return {
+        ...vars,
+        ['--card-fg' as string]: 'var(--fg)',
+        background: `radial-gradient(180px 110px at 100% 0%, rgba(255,255,255,.16), transparent 70%), linear-gradient(135deg, ${c.bg}66, ${c.bg}1f)`,
+        WebkitBackdropFilter: 'blur(18px) saturate(140%)',
+        backdropFilter: 'blur(18px) saturate(140%)',
+        color: 'var(--fg)',
+        boxShadow: `inset 0 0 0 1px ${c.bg}99, var(--lg-edge)`
+      };
+    case 'black':
+      return {
+        ...vars,
+        ['--card-fg' as string]: '#ffffff',
+        background: 'radial-gradient(180px 110px at 100% 0%, rgba(255,255,255,.14), transparent 70%), linear-gradient(135deg, #2c2c2f, #0b0b0c)',
+        color: '#ffffff',
+        boxShadow: `inset 4px 0 0 ${c.bg}, inset 0 0 0 1px rgba(255,255,255,.12)`
+      };
+    default:
+      return vars;
+  }
 }
 
 const initials = (name: string) =>
@@ -1562,7 +1670,10 @@ function WalletsSection({
                         <span className="wc-badge">{initials(a.name)}</span>
                         <span className="wc-name">{a.name}</span>
                       </span>
-                      <span className="wc-kind">{a.kind === 'credit' ? 'Credit card · owed' : a.kind === 'cash' ? 'On hand' : ACCOUNT_KIND_NAMES.find(([x]) => x === a.kind)?.[1]}</span>
+                      <span className="wc-kind">
+                        {a.kind === 'credit' ? 'Credit card · owed' : a.kind === 'cash' ? 'On hand' : ACCOUNT_KIND_NAMES.find(([x]) => x === a.kind)?.[1]}
+                        {a.last4 && <span className="wc-num"> · •••• {a.last4}</span>}
+                      </span>
                       <span className="wc-label">{a.kind === 'credit' ? 'Balance owed' : 'Balance'}</span>
                       <span className="wc-amount">{a.kind === 'credit' ? money(Math.abs(b)) : money(b)}</span>
                     </button>

@@ -24,7 +24,8 @@ public class VaultNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteracti
         "read", "writeAtomic", "remove", "stat", "list", "rename", "freeSpace",
         "writeExport", "writeExportBase64", "clearExports", "openFile", "renderPdf", "setSecure",
         "copySecret", "clearClipboard", "readClipboard", "takeSharedText", "purgeCaptures",
-        "biometricStatus", "bioEncrypt", "bioDecrypt", "deviceEncrypt", "deviceDecrypt", "resetKey"
+        "biometricStatus", "bioEncrypt", "bioDecrypt", "deviceEncrypt", "deviceDecrypt", "resetKey",
+        "phoneCalendarStatus", "requestPhoneCalendar", "syncPhoneCalendar", "openPhoneCalendar"
     ].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
 
     private static let safeName = try! NSRegularExpression(pattern: "^[A-Za-z0-9._-]{1,100}$")
@@ -404,6 +405,46 @@ public class VaultNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteracti
             call.resolve(["data": try AES.GCM.open(box, using: key).base64EncodedString()])
         } catch {
             call.reject("Decryption failed", "ERROR")
+        }
+    }
+
+    // ------------------------------------------------ phone calendar widgets --
+
+    @objc func phoneCalendarStatus(_ call: CAPPluginCall) {
+        call.resolve(["granted": PhoneCalendar.shared.granted])
+    }
+
+    @objc func requestPhoneCalendar(_ call: CAPPluginCall) {
+        if PhoneCalendar.shared.granted { return call.resolve(["granted": true]) }
+        PhoneCalendar.shared.request { ok in call.resolve(["granted": ok]) }
+    }
+
+    @objc func syncPhoneCalendar(_ call: CAPPluginCall) {
+        let on = call.getBool("on") ?? false
+        let items: [[String: Any]] = (call.getArray("items", JSObject.self) ?? []).map { $0 as [String: Any] }
+        guard PhoneCalendar.shared.granted else {
+            if on { call.reject("Allow calendar access for VaultLocks first", "NO_PERMISSION") } else { call.resolve() }
+            return
+        }
+        DispatchQueue.global(qos: .utility).async {
+            do {
+                if on {
+                    let (n, local) = try PhoneCalendar.shared.replace(items)
+                    call.resolve(["count": n, "onDevice": local])
+                } else {
+                    try PhoneCalendar.shared.remove()
+                    call.resolve(["count": 0])
+                }
+            } catch {
+                call.reject("Could not update the phone calendar", "CALENDAR_FAILED")
+            }
+        }
+    }
+
+    @objc func openPhoneCalendar(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let url = URL(string: "calshow:") else { return call.reject("No calendar app found", "NO_CALENDAR_APP") }
+            UIApplication.shared.open(url) { ok in ok ? call.resolve() : call.reject("No calendar app found", "NO_CALENDAR_APP") }
         }
     }
 

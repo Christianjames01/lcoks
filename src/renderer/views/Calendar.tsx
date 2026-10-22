@@ -1591,7 +1591,7 @@ function ReminderSettings({
       setPhoneCal(s);
       if (s !== 'granted') return toast('Allow calendar access for VaultLocks to show events in the phone’s calendar widgets.', 'error');
     }
-    await update({ phoneCalendar: on });
+    await update({ phoneCalendarOff: !on });
     toast(on ? 'Your next 14 days now show in the phone’s calendar widgets.' : 'Removed from the phone’s calendar.');
   };
   const update = async (patch: Partial<VaultSettings>) => {
@@ -1619,11 +1619,11 @@ function ReminderSettings({
           <>
             <Row
               title="Show in the phone’s calendar widgets"
-              desc="Your next 14 days of events and tasks appear in the phone’s own calendar widget on the lock screen and home screen. They are copied into a separate “VaultLocks” calendar that stays on this phone only and is updated each time you unlock. Turning this off removes it."
+              desc="On automatically: your next 14 days of events and tasks appear in the phone’s own Calendar widgets on the lock screen and home screen. They are copied into a separate “VaultLocks” calendar on this phone, updated each time you unlock or change something (on iPhone with iCloud Calendar on, that calendar can also sync to your iCloud). Turning this off removes it."
             >
-              <input type="checkbox" className="switch" checked={settings.phoneCalendar} onChange={(e) => void togglePhoneCalendar(e.target.checked)} aria-label="Show in the phone’s calendar widgets" />
+              <input type="checkbox" className="switch" checked={!settings.phoneCalendarOff && phoneCal === 'granted'} onChange={(e) => void togglePhoneCalendar(e.target.checked)} aria-label="Show in the phone’s calendar widgets" />
             </Row>
-            {settings.phoneCalendar && phoneCal === 'granted' && (
+            {!settings.phoneCalendarOff && phoneCal === 'granted' && (
               <div className="evc-rule-form" style={{ marginTop: 0, paddingBottom: 10 }}>
                 <button
                   type="button"
@@ -1655,7 +1655,7 @@ function ReminderSettings({
                 type="checkbox"
                 className="switch"
                 checked={settings.phoneCalendarNames}
-                disabled={!settings.phoneCalendar}
+                disabled={settings.phoneCalendarOff}
                 onChange={(e) => void update({ phoneCalendarNames: e.target.checked })}
                 aria-label="Show names in the widget"
               />

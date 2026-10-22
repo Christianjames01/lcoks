@@ -124,8 +124,77 @@ const DEFAULT_THEME: Omit<CardTheme, 'label' | 'short'> = {
   color: '#fff'
 };
 
+/** A look the user chose for an Expenses account (see MoneyAccount.color / style). */
+export interface LinkedLook {
+  name: string;
+  color?: string;
+  style?: 'gradient' | 'solid' | 'glass' | 'black';
+}
+
+let linked: { key: string; look: LinkedLook }[] = [];
+const keyOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Expenses accounts with a custom colour or style. Vault cards with the same bank
+ * or name (e.g. "BDO", "GCash") then use that look, so both screens match.
+ */
+export function setLinkedLooks(looks: LinkedLook[]): void {
+  linked = looks
+    .filter((l) => l.color || (l.style && l.style !== 'gradient'))
+    .map((look) => ({ key: keyOf(look.name), look }))
+    .filter((l) => l.key.length >= 2)
+    // Longest names first: "BDO Mastercard" beats "BDO" for a Mastercard item.
+    .sort((a, b) => b.key.length - a.key.length);
+}
+
+/** The linked look for a Vault card: same name, or one name contained in the other. */
+export function linkedLookFor(bankName: string | undefined, title: string): LinkedLook | undefined {
+  const names = [bankName, title].filter((x): x is string => !!x).map(keyOf).filter((k) => k.length >= 2);
+  if (!names.length || !linked.length) return undefined;
+  // linked is longest-first, so the most specific exact name wins.
+  const exact = linked.find((l) => names.includes(l.key));
+  if (exact) return exact.look;
+  for (const l of linked) if (names.some((n) => (n.length >= 3 && l.key.includes(n)) || (l.key.length >= 3 && n.includes(l.key)))) return l.look;
+  return undefined;
+}
+
+function shade(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number) => Math.max(0, Math.min(255, Math.round(v + amount))).toString(16).padStart(2, '0');
+  return `#${c((n >> 16) & 255)}${c((n >> 8) & 255)}${c(n & 255)}`;
+}
+
+function textOn(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.62 ? '#111' : '#fff';
+}
+
+/** The card face for a chosen colour and style (same looks as the Expenses cards). */
+export function lookBackground(color: string, style: LinkedLook['style']): { background: string; color: string } {
+  switch (style) {
+    case 'solid':
+      return { background: color, color: textOn(color) };
+    case 'glass':
+      return { background: `radial-gradient(240px 140px at 100% 0%, rgba(255,255,255,.22), transparent 70%), linear-gradient(135deg, ${color}cc, ${color}55)`, color: '#fff' };
+    case 'black':
+      return { background: `linear-gradient(90deg, ${color} 0 6px, transparent 6px), linear-gradient(135deg, #2c2c2f 0%, #0b0b0c 100%)`, color: '#fff' };
+    default:
+      return { background: `linear-gradient(135deg, ${shade(color, 28)} 0%, ${color} 55%, ${shade(color, -40)} 100%)`, color: textOn(color) };
+  }
+}
+
 /** Pick a colour theme from the bank name (falls back to the item title). */
 export function cardTheme(bankName: string | undefined, title: string): CardTheme {
+  const base = builtInTheme(bankName, title);
+  const look = linkedLookFor(bankName, title);
+  if (!look) return base;
+  // Style only (colour still automatic): restyle the brand's own colour when it is a plain hex.
+  const color = look.color ?? /#[0-9a-f]{6}/i.exec(base.background)?.[0] ?? '#3a3a3a';
+  return { ...base, ...lookBackground(color, look.style) };
+}
+
+function builtInTheme(bankName: string | undefined, title: string): CardTheme {
   const hay = `${bankName ?? ''} ${title}`;
   for (const [re, theme, label] of THEMES) if (re.test(hay)) return { ...theme, label, short: SHORT[label] ?? label.slice(0, 4) };
   const label = (bankName || title).trim().slice(0, 24) || 'Card';

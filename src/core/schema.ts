@@ -20,7 +20,7 @@ import {
 } from '../shared/calendar';
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../shared/categories';
 import { MAX_TASK_CATEGORIES, TASK_CATEGORY_IDS, type Task, type TaskCategory, type TaskInput, type TaskReminder } from '../shared/tasks';
-import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MONEY_CATEGORY_IDS, defaultCategory, isDayKey, moneyCategory, type AccountKind, type MoneyAccount, type Transaction, type TransactionInput } from '../shared/money';
+import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, isHexColor, MONEY_CATEGORY_IDS, defaultCategory, isDayKey, moneyCategory, type AccountKind, type MoneyAccount, type Transaction, type TransactionInput } from '../shared/money';
 import {
   ACCENT_COLORS,
   DEFAULT_SETTINGS,
@@ -233,6 +233,7 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
     calendarSnooze: SNOOZE_CHOICES.includes(s.calendarSnooze as number) ? (s.calendarSnooze as number) : base.calendarSnooze,
     taskCategories: Array.isArray(s.taskCategories) ? validateTaskCategories(s.taskCategories) : base.taskCategories,
     phoneCalendar: typeof s.phoneCalendar === 'boolean' ? s.phoneCalendar : base.phoneCalendar,
+    phoneCalendarOff: typeof s.phoneCalendarOff === 'boolean' ? s.phoneCalendarOff : base.phoneCalendarOff,
     phoneCalendarNames: typeof s.phoneCalendarNames === 'boolean' ? s.phoneCalendarNames : base.phoneCalendarNames,
     generator: validateGeneratorDefaults(s.generator, base.generator)
   };
@@ -589,7 +590,18 @@ export function validateAccountInput(input: unknown): Omit<MoneyAccount, 'id'> &
   const name = str(i.name, 'name', 40, true).trim();
   const opening = i.opening === undefined ? 0 : i.opening;
   if (!Number.isInteger(opening) || Math.abs(opening as number) > MAX_AMOUNT) throw new ValidationError('opening', 'Enter a valid starting balance.');
-  return { id, name, kind: ACCOUNT_KINDS.includes(i.kind as AccountKind) ? (i.kind as AccountKind) : 'other', opening: opening as number };
+  const color = isHexColor(i.color) ? i.color.toLowerCase() : undefined;
+  const style = i.style === 'solid' || i.style === 'glass' || i.style === 'black' ? i.style : undefined;
+  const last4 = typeof i.last4 === 'string' && /^\d{4}$/.test(i.last4) ? i.last4 : undefined;
+  return {
+    id,
+    name,
+    kind: ACCOUNT_KINDS.includes(i.kind as AccountKind) ? (i.kind as AccountKind) : 'other',
+    opening: opening as number,
+    ...(color ? { color } : {}),
+    ...(style ? { style } : {}),
+    ...(last4 ? { last4 } : {})
+  };
 }
 
 const ATT_ID = /^[A-Za-z0-9-]{8,64}$/;

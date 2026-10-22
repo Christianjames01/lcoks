@@ -1040,7 +1040,7 @@ export function TaskAlerts({ snap, onChanged, onView }: { snap: VaultSnapshot; o
   const dismissInput = acknowledgeTask(task, current.key);
   return (
     <Dialog
-      placement="center"
+      placement="top"
       size="narrow"
       role="alertdialog"
       busy={busy}

@@ -8110,3 +8110,191 @@ body,
     transform: none;
   }
 }
+
+/* ===================================================================== */
+/* v1.9 — every in-app notification drops in at the TOP, like a phone    */
+/* banner (just under the title bar), newest first.                      */
+/* ===================================================================== */
+.toasts {
+  top: calc(var(--titlebar-h) + 10px);
+  bottom: auto !important;
+  flex-direction: column-reverse;
+}
+.toasts .toast {
+  animation: toast-drop 260ms var(--ease) both;
+}
+@keyframes toast-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toasts .toast {
+    animation: none;
+  }
+}
+
+/* ===================================================================== */
+/* v1.9 — customisable wallet cards: colour, style, card-number ending.   */
+/* ===================================================================== */
+.wc-num {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.card-preview {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 16px;
+}
+.card-preview .wallet-card {
+  width: min(240px, 100%);
+  pointer-events: none;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatch {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  padding: 0;
+}
+.swatch[aria-checked='true'],
+.swatch.custom.on {
+  border-color: var(--fg);
+  box-shadow: 0 0 0 2px var(--bg) inset;
+}
+.swatch.auto {
+  width: auto;
+  min-width: 52px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.swatch.custom {
+  display: grid;
+  place-items: center;
+  background: conic-gradient(#e53935, #f59e0b, #2e7d32, #039be5, #5b3cc4, #d81b60, #e53935);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  overflow: hidden;
+}
+.swatch.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+@media (pointer: coarse) {
+  .swatch {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* In-app colour picker (card editor). */
+.color-picker {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid var(--lg-border);
+  background: var(--lg-field);
+}
+.cp-square {
+  position: relative;
+  height: 150px;
+  border-radius: 12px;
+  touch-action: none;
+  cursor: crosshair;
+}
+.cp-square:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+.cp-thumb {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.cp-hue {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  outline: none;
+}
+.cp-hue::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.cp-hue::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+.cp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cp-chip {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.cp-hex {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  letter-spacing: 0.06em;
+}
+.color-picker input.cp-hue,
+.color-picker input.cp-hue[type='range'] {
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00) !important;
+  accent-color: #fff;
+}
+.color-picker input.cp-hue::-webkit-slider-runnable-track {
+  height: 22px;
+  border-radius: 999px;
+  background: transparent;
+}
+.color-picker input.cp-hue::-webkit-slider-thumb {
+  margin-top: -2px;
+}
+.color-picker input.cp-hue::-moz-range-track {
+  background: transparent;
+}

@@ -997,10 +997,25 @@ export class VaultCore {
         const existing = d.accounts.find((x) => x.id === a.id);
         if (!existing) throw new AppError('NOT_FOUND', 'Account not found.');
         Object.assign(existing, { name: a.name, kind: a.kind, opening: a.opening });
+        // Card look: set what was chosen, drop what was cleared ("Auto" colour, gradient, no number).
+        if (a.color) existing.color = a.color;
+        else delete existing.color;
+        if (a.style) existing.style = a.style;
+        else delete existing.style;
+        if (a.last4) existing.last4 = a.last4;
+        else delete existing.last4;
         return { ...existing };
       }
       if (d.accounts.length >= MAX_ACCOUNTS) throw new AppError('LIMIT', `At most ${MAX_ACCOUNTS} accounts.`);
-      const rec: MoneyAccount = { id: globalThis.crypto.randomUUID(), name: a.name, kind: a.kind, opening: a.opening };
+      const rec: MoneyAccount = {
+        id: globalThis.crypto.randomUUID(),
+        name: a.name,
+        kind: a.kind,
+        opening: a.opening,
+        ...(a.color ? { color: a.color } : {}),
+        ...(a.style ? { style: a.style } : {}),
+        ...(a.last4 ? { last4: a.last4 } : {})
+      };
       d.accounts.push(rec);
       return { ...rec };
     });

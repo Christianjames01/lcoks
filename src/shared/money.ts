@@ -36,6 +36,36 @@ export interface MoneyAccount {
   kind: AccountKind;
   /** Balance before the first record, minor units (may be negative, e.g. a credit card). */
   opening: number;
+  /** Card colour chosen by the user (#rrggbb); none = automatic (bank colours / palette). */
+  color?: string;
+  /** Card look; none = gradient. */
+  style?: CardStyle;
+  /** Last 4 digits shown on the card as •••• 1234 (optional). */
+  last4?: string;
+}
+
+export type CardStyle = 'gradient' | 'solid' | 'glass' | 'black';
+export const CARD_STYLES: [CardStyle, string][] = [
+  ['gradient', 'Gradient'],
+  ['solid', 'Solid'],
+  ['glass', 'Glass'],
+  ['black', 'Black']
+];
+/** Colours offered for cards (plus a custom one). */
+export const CARD_COLORS = [
+  '#0a5bd6', '#1c3f94', '#5b3cc4', '#8e24aa', '#d81b60', '#c8102e', '#e53935', '#f4511e',
+  '#f59e0b', '#2e7d32', '#0f9d58', '#00897b', '#039be5', '#6d4c41', '#455a64', '#1c1c1e'
+];
+export const isHexColor = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+
+/** Black or white text, whichever reads better on the colour. */
+export function readableOn(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! > 0.45 ? '#111111' : '#ffffff';
 }
 
 export type AccountKind = 'cash' | 'ewallet' | 'bank' | 'credit' | 'other';
@@ -44,7 +74,8 @@ export type AccountKind = 'cash' | 'ewallet' | 'bank' | 'credit' | 'other';
 export const ACCOUNT_KIND_ORDER: readonly AccountKind[] = ['cash', 'ewallet', 'bank', 'credit', 'other'];
 
 /** Card colour for an account: familiar colours for common PH banks / e-wallets, else one picked from the name. */
-export function accountColor(a: Pick<MoneyAccount, 'name' | 'kind'>): { bg: string; fg: string } {
+export function accountColor(a: Pick<MoneyAccount, 'name' | 'kind'> & { color?: string }): { bg: string; fg: string } {
+  if (isHexColor(a.color)) return { bg: a.color, fg: readableOn(a.color) };
   const n = a.name.toLowerCase();
   const known: [RegExp, string, string?][] = [
     [/gcash/, '#0a5bd6'],

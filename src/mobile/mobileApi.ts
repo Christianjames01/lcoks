@@ -34,6 +34,9 @@ async function wrap<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
   }
 }
 
+/** The phone's own calendar (lock-screen / home-screen widgets): Android and iPhone. */
+const HAS_PHONE_CALENDAR = () => Capacitor.getPlatform() === 'android' || Capacitor.getPlatform() === 'ios';
+
 const REMINDER_CHANNEL = 'reminders';
 const CALENDAR_CHANNEL = 'calendar';
 const CALENDAR_SILENT_CHANNEL = 'calendar-silent';
@@ -376,7 +379,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
     },
     phoneCalendar: {
       status: async () => {
-        if (Capacitor.getPlatform() !== 'android') return 'unsupported';
+        if (!HAS_PHONE_CALENDAR()) return 'unsupported';
         try {
           return (await native.phoneCalendarStatus()) ? 'granted' : 'denied';
         } catch {
@@ -384,7 +387,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
         }
       },
       request: async () => {
-        if (Capacitor.getPlatform() !== 'android') return 'unsupported';
+        if (!HAS_PHONE_CALENDAR()) return 'unsupported';
         try {
           // The system permission dialog briefly backgrounds the app: don't lock for that.
           return (await withExternalUi(() => native.requestPhoneCalendar())) ? 'granted' : 'denied';
@@ -394,7 +397,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
       },
       sync: (on, items) =>
         wrap(async () => {
-          if (Capacitor.getPlatform() !== 'android') throw new AppError('UNSUPPORTED', 'Available on Android.');
+          if (!HAS_PHONE_CALENDAR()) throw new AppError('UNSUPPORTED', 'Not available on this device.');
           if (on) requireUnlocked();
           if (!Array.isArray(items) || items.length > 300) throw new AppError('INVALID', 'Invalid calendar items.');
           const clean = items
@@ -404,7 +407,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
         }),
       open: () =>
         wrap(async () => {
-          if (Capacitor.getPlatform() !== 'android') throw new AppError('UNSUPPORTED', 'Available on Android.');
+          if (!HAS_PHONE_CALENDAR()) throw new AppError('UNSUPPORTED', 'Not available on this device.');
           // Leaving for the calendar app must not lock the vault mid-check.
           await withExternalUi(() => native.openPhoneCalendar());
         })
@@ -450,8 +453,12 @@ export function createMobileApi(native: NativeVault): VaultApi {
           // reschedule: ask for exact alarms only when they are allowed (else Android may ring a few minutes late).
           const exact = (await exactAlarmStatus()) !== 'denied';
           const now = Date.now();
+          // iOS keeps at most 64 pending notifications (the rest are silently dropped): keep the soonest.
+          const max = Capacitor.getPlatform() === 'ios' ? 64 : 100;
           const list = items
             .filter((r) => Number.isInteger(r.id) && r.id > 0 && r.id < 2 ** 31 && Number.isFinite(r.at) && r.at > now)
+            .sort((a, b) => a.at - b.at)
+            .slice(0, max)
             .map((r) => ({
               id: r.id,
               title: String(r.title).slice(0, 120),

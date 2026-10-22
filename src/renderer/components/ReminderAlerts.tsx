@@ -112,7 +112,7 @@ export function ReminderAlerts({ snap, onChanged, onView }: { snap: VaultSnapsho
 
   return (
     <Dialog
-      placement="center"
+      placement="top"
       size="narrow"
       role="alertdialog"
       busy={busy}

@@ -216,8 +216,13 @@ export interface VaultSettings {
   calendarSnooze: number;
   /** Tasks: the user's own categories (besides the built-in ones). */
   taskCategories: TaskCategory[];
-  /** Android: show the next days' events and tasks in the phone's calendar widgets (opt-in; stored outside the vault). */
+  /** Unused since 1.0.40 (was the opt-in switch); kept so older vaults still validate. */
   phoneCalendar: boolean;
+  /**
+   * Android: the next days' events and tasks are copied into the phone's calendar so its
+   * lock-screen / home-screen widgets show them — on unless the user turned it off.
+   */
+  phoneCalendarOff: boolean;
   /** …with their names (off: only "VaultLocks event" and the time). */
   phoneCalendarNames: boolean;
 }
@@ -251,6 +256,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   calendarSnooze: 10,
   taskCategories: [],
   phoneCalendar: false,
+  phoneCalendarOff: false,
   phoneCalendarNames: true,
   generator: { length: 20, upper: true, lower: true, digits: true, symbols: true, avoidAmbiguous: false }
 };

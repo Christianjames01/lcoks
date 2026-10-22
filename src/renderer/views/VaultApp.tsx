@@ -1,6 +1,7 @@
 import { CalendarDays, CopyCheck, ListTodo, House, Layers, Lock, Wallet, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarNotifications } from '../../shared/calendar';
+import { setLinkedLooks } from '../../shared/cards';
 import { phoneCalendarItems } from '../../shared/phoneCalendar';
 import { taskNotifications } from '../../shared/tasks';
 import { buildReminders } from '../../shared/expiry';
@@ -194,16 +195,31 @@ export function VaultApp({ version }: { version: string }) {
     return () => clearTimeout(t);
   }, [snap]);
 
-  // Android, opt-in: keep the phone's own calendar widgets (lock screen / home screen)
-  // showing the next days' events and tasks. Turning it off removes the copy.
+  // Android: keep the phone's own calendar widgets (lock screen / home screen) showing
+  // the next days' events and tasks — on by default; turning it off removes the copy.
   useEffect(() => {
     if (!snap) return;
     const t = setTimeout(async () => {
-      if ((await api.phoneCalendar.status()) !== 'granted') return;
-      const { phoneCalendar, phoneCalendarNames } = snap.settings;
-      const r = await api.phoneCalendar.sync(phoneCalendar, phoneCalendar ? phoneCalendarItems(snap.events, snap.tasks, new Date(), phoneCalendarNames) : []);
-      if (!r.ok && phoneCalendar) toast(`Phone calendar widget: ${r.message}`, 'error');
-    }, 1200);
+      const on = !snap.settings.phoneCalendarOff;
+      let status = await api.phoneCalendar.status();
+      if (status === 'unsupported') return;
+      if (status !== 'granted') {
+        if (!on) return;
+        // Ask Android once (the first unlock after the update); later only from the switch.
+        let asked = false;
+        try {
+          asked = localStorage.getItem('vaultlocks.phoneCalAsked') === '1';
+          localStorage.setItem('vaultlocks.phoneCalAsked', '1');
+        } catch {
+          /* ignore */
+        }
+        if (asked) return;
+        status = await api.phoneCalendar.request();
+        if (status !== 'granted') return;
+      }
+      const r = await api.phoneCalendar.sync(on, on ? phoneCalendarItems(snap.events, snap.tasks, new Date(), snap.settings.phoneCalendarNames) : []);
+      if (!r.ok && on) toast(`Phone calendar widget: ${r.message}`, 'error');
+    }, 1500);
     return () => clearTimeout(t);
   }, [snap]);
 
@@ -444,6 +460,8 @@ export function VaultApp({ version }: { version: string }) {
   })();
 
   const tab = tabOf(route);
+  // Vault cards use the colour/style chosen for the Expenses card with the same name.
+  setLinkedLooks(snap.accounts);
 
   return (
     <EntryActionsProvider value={actions}>
