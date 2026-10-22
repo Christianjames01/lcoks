@@ -114,6 +114,8 @@ export interface VaultApi {
     status(): Promise<'granted' | 'denied' | 'unsupported'>;
     request(): Promise<'granted' | 'denied' | 'unsupported'>;
     sync(on: boolean, items: PhoneCalendarItem[]): Promise<Result<number>>;
+    /** Open the phone's calendar app at today. */
+    open(): Promise<Result<void>>;
   };
   /** Phone reminders for expiry / renewal / due dates (Android). */
   notifications: {

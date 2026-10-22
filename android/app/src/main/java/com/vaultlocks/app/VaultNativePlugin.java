@@ -884,6 +884,19 @@ public class VaultNativePlugin extends Plugin {
         }).start();
     }
 
+    /** Opens the phone's calendar app at today, to check what the widgets will show. */
+    @PluginMethod
+    public void openPhoneCalendar(PluginCall call) {
+        try {
+            Uri uri = android.provider.CalendarContract.CONTENT_URI.buildUpon().appendPath("time").appendPath(String.valueOf(System.currentTimeMillis())).build();
+            Intent i = new Intent(Intent.ACTION_VIEW).setData(uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getActivity().startActivity(i);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("No calendar app found", "NO_CALENDAR_APP");
+        }
+    }
+
     /** Screenshot / screen-recording protection (FLAG_SECURE), per the user's setting. */
     @PluginMethod
     public void setSecure(PluginCall call) {

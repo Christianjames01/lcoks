@@ -55,6 +55,7 @@ import {
 } from '../../shared/calendar';
 import { addMonths, dayKey, monthOf, parseDay } from '../../shared/money';
 import type { ExactAlarmStatus, NotificationPermission } from '../../shared/api';
+import { phoneCalendarItems, type PhoneCalendarItem } from '../../shared/phoneCalendar';
 import { completeTask, describeDue, isTaskOverdue, priorityName, uncompleteTask, type Task } from '../../shared/tasks';
 import type { VaultSettings, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
@@ -489,7 +490,14 @@ export function CalendarView({
         />
       )}
 
-      {settingsOpen && <ReminderSettings settings={snap.settings} onClose={() => setSettingsOpen(false)} onChanged={onChanged} />}
+      {settingsOpen && (
+        <ReminderSettings
+          settings={snap.settings}
+          onClose={() => setSettingsOpen(false)}
+          onChanged={onChanged}
+          phoneItems={() => phoneCalendarItems(snap.events, snap.tasks, new Date(), snap.settings.phoneCalendarNames)}
+        />
+      )}
     </div>
   );
 }
@@ -1557,7 +1565,17 @@ function EventEditor({
 
 // ------------------------------------------------------------- settings --
 
-function ReminderSettings({ settings, onClose, onChanged }: { settings: VaultSettings; onClose: () => void; onChanged: () => Promise<void> }) {
+function ReminderSettings({
+  settings,
+  onClose,
+  onChanged,
+  phoneItems
+}: {
+  settings: VaultSettings;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+  phoneItems: () => PhoneCalendarItem[];
+}) {
   const toast = useToast();
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
   const [exact, setExact] = useState<ExactAlarmStatus | null>(null);
@@ -1605,6 +1623,33 @@ function ReminderSettings({ settings, onClose, onChanged }: { settings: VaultSet
             >
               <input type="checkbox" className="switch" checked={settings.phoneCalendar} onChange={(e) => void togglePhoneCalendar(e.target.checked)} aria-label="Show in the phone’s calendar widgets" />
             </Row>
+            {settings.phoneCalendar && phoneCal === 'granted' && (
+              <div className="evc-rule-form" style={{ marginTop: 0, paddingBottom: 10 }}>
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={async () => {
+                    const items = phoneItems();
+                    const r = await api.phoneCalendar.sync(true, items);
+                    if (!r.ok) return toast(`Couldn’t update the phone calendar: ${r.message}`, 'error');
+                    const today = items.filter((i) => new Date(i.start).toDateString() === new Date().toDateString()).length;
+                    toast(`Copied ${r.value} item${r.value === 1 ? '' : 's'} to the phone’s “VaultLocks” calendar (${today} today).`);
+                  }}
+                >
+                  Sync now
+                </button>
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={async () => {
+                    const r = await api.phoneCalendar.open();
+                    if (!r.ok) toast(r.message, 'error');
+                  }}
+                >
+                  Open phone calendar
+                </button>
+              </div>
+            )}
             <Row title="Show names in the widget" desc="Off: the widget only shows “VaultLocks event” or “VaultLocks task” and the time. Names are readable by anyone who sees your phone’s calendar.">
               <input
                 type="checkbox"

@@ -201,7 +201,8 @@ export function VaultApp({ version }: { version: string }) {
     const t = setTimeout(async () => {
       if ((await api.phoneCalendar.status()) !== 'granted') return;
       const { phoneCalendar, phoneCalendarNames } = snap.settings;
-      await api.phoneCalendar.sync(phoneCalendar, phoneCalendar ? phoneCalendarItems(snap.events, snap.tasks, new Date(), phoneCalendarNames) : []);
+      const r = await api.phoneCalendar.sync(phoneCalendar, phoneCalendar ? phoneCalendarItems(snap.events, snap.tasks, new Date(), phoneCalendarNames) : []);
+      if (!r.ok && phoneCalendar) toast(`Phone calendar widget: ${r.message}`, 'error');
     }, 1200);
     return () => clearTimeout(t);
   }, [snap]);

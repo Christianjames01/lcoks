@@ -54,8 +54,8 @@ final class SystemCalendar {
         v.put(CalendarContract.Calendars.NAME, NAME);
         v.put(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, NAME);
         v.put(CalendarContract.Calendars.CALENDAR_COLOR, Color.rgb(142, 142, 147));
-        // Read-only for other apps: changes happen in VaultLocks.
-        v.put(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL, CalendarContract.Calendars.CAL_ACCESS_READ);
+        // Owner access: some phones (e.g. Xiaomi Calendar) hide read-only calendars from their widgets.
+        v.put(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL, CalendarContract.Calendars.CAL_ACCESS_OWNER);
         v.put(CalendarContract.Calendars.OWNER_ACCOUNT, ACCOUNT);
         v.put(CalendarContract.Calendars.VISIBLE, 1);
         v.put(CalendarContract.Calendars.SYNC_EVENTS, 1);
@@ -72,6 +72,12 @@ final class SystemCalendar {
         long cal = findCalendar(cr);
         if (cal < 0) cal = createCalendar(cr);
         if (cal < 0) return -1;
+        // Older versions created it read-only: make sure it is visible and shown everywhere.
+        ContentValues show = new ContentValues();
+        show.put(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL, CalendarContract.Calendars.CAL_ACCESS_OWNER);
+        show.put(CalendarContract.Calendars.VISIBLE, 1);
+        show.put(CalendarContract.Calendars.SYNC_EVENTS, 1);
+        cr.update(asSync(ContentUris.withAppendedId(CalendarContract.Calendars.CONTENT_URI, cal)), show, null, null);
         cr.delete(asSync(CalendarContract.Events.CONTENT_URI), CalendarContract.Events.CALENDAR_ID + "=?", new String[] { String.valueOf(cal) });
         int n = 0;
         for (int i = 0; i < items.length() && n < 300; i++) {
@@ -89,7 +95,6 @@ final class SystemCalendar {
             // All-day events are stored in UTC midnight-to-midnight, timed ones in the phone's zone.
             v.put(CalendarContract.Events.EVENT_TIMEZONE, allDay ? "UTC" : TimeZone.getDefault().getID());
             v.put(CalendarContract.Events.HAS_ALARM, 0); // VaultLocks rings its own reminders
-            v.put(CalendarContract.Events.ACCESS_LEVEL, CalendarContract.Events.ACCESS_PRIVATE);
             if (cr.insert(asSync(CalendarContract.Events.CONTENT_URI), v) != null) n++;
         }
         return n;

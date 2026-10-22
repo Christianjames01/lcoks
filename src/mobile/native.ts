@@ -52,6 +52,7 @@ export interface NativeVault {
   requestPhoneCalendar(): Promise<boolean>;
   /** on: replace the VaultLocks calendar with these items; off: delete it. */
   syncPhoneCalendar(on: boolean, items: PhoneCalendarItem[]): Promise<number>;
+  openPhoneCalendar(): Promise<void>;
   /** Double tap on the back of the phone → add-expense pop-up (KnockService.java). */
   knockStatus(): Promise<KnockStatus>;
   setKnock(on: boolean, sensitivity: number): Promise<void>;
@@ -105,6 +106,7 @@ interface VaultNativePlugin {
   phoneCalendarStatus(): Promise<{ granted: boolean }>;
   requestPhoneCalendar(): Promise<{ granted: boolean }>;
   syncPhoneCalendar(o: { on: boolean; items: PhoneCalendarItem[] }): Promise<{ count?: number }>;
+  openPhoneCalendar(): Promise<void>;
   knockStatus(): Promise<KnockStatus>;
   setKnock(o: { on: boolean; sensitivity: number }): Promise<void>;
   openQuickAdd(): Promise<void>;
@@ -154,6 +156,7 @@ export const capacitorNative: NativeVault = {
   phoneCalendarStatus: async () => (await Plugin.phoneCalendarStatus()).granted === true,
   requestPhoneCalendar: async () => (await Plugin.requestPhoneCalendar()).granted === true,
   syncPhoneCalendar: async (on, items) => (await Plugin.syncPhoneCalendar({ on, items })).count ?? 0,
+  openPhoneCalendar: () => Plugin.openPhoneCalendar(),
   knockStatus: () => Plugin.knockStatus(),
   setKnock: (on, sensitivity) => Plugin.setKnock({ on, sensitivity }),
   openQuickAdd: () => Plugin.openQuickAdd(),

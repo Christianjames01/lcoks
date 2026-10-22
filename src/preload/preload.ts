@@ -82,7 +82,8 @@ const api: VaultApi = {
   phoneCalendar: {
     status: async () => 'unsupported' as const,
     request: async () => 'unsupported' as const,
-    sync: async () => unsupported
+    sync: async () => unsupported,
+    open: async () => unsupported
   },
   // Desktop notifications come from the main process while the app runs (no permission prompt).
   notifications: {

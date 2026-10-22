@@ -401,6 +401,12 @@ export function createMobileApi(native: NativeVault): VaultApi {
             .filter((i) => i && typeof i.title === 'string' && Number.isFinite(i.start) && Number.isFinite(i.end))
             .map((i) => ({ title: i.title.slice(0, 120), start: i.start, end: i.end, allDay: i.allDay === true }));
           return native.syncPhoneCalendar(on === true, on ? clean : []);
+        }),
+      open: () =>
+        wrap(async () => {
+          if (Capacitor.getPlatform() !== 'android') throw new AppError('UNSUPPORTED', 'Available on Android.');
+          // Leaving for the calendar app must not lock the vault mid-check.
+          await withExternalUi(() => native.openPhoneCalendar());
         })
     },
     notifications: {
