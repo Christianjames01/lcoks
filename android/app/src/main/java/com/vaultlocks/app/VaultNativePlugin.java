@@ -34,6 +34,10 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
+import com.getcapacitor.PermissionState;
+import android.Manifest;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -57,7 +61,10 @@ import java.util.regex.Pattern;
  *   Android 13+) and cleared by a native timer even if the app is backgrounded.
  * - Nothing here ever logs file contents or clipboard values.
  */
-@CapacitorPlugin(name = "VaultNative")
+@CapacitorPlugin(
+    name = "VaultNative",
+    permissions = { @Permission(alias = "calendar", strings = { Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR }) }
+)
 public class VaultNativePlugin extends Plugin {
 
     private static final String CLIP_LABEL = "VaultLocks";
@@ -822,6 +829,59 @@ public class VaultNativePlugin extends Plugin {
         } finally {
             tmp.delete();
         }
+    }
+
+    // ------------------------------------------------ phone calendar widgets --
+
+    private boolean calendarGranted() {
+        return getPermissionState("calendar") == PermissionState.GRANTED;
+    }
+
+    /** May VaultLocks write its own calendar (so the phone's calendar widgets show the events)? */
+    @PluginMethod
+    public void phoneCalendarStatus(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("granted", calendarGranted());
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void requestPhoneCalendar(PluginCall call) {
+        if (calendarGranted()) {
+            phoneCalendarStatus(call);
+            return;
+        }
+        requestPermissionForAlias("calendar", call, "phoneCalendarCallback");
+    }
+
+    @PermissionCallback
+    private void phoneCalendarCallback(PluginCall call) {
+        phoneCalendarStatus(call);
+    }
+
+    /** on: replace the VaultLocks calendar with the given items; off: delete it. Runs off the UI thread. */
+    @PluginMethod
+    public void syncPhoneCalendar(PluginCall call) {
+        boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
+        JSArray items = call.getArray("items", new JSArray());
+        if (!calendarGranted()) {
+            if (on) call.reject("Allow calendar access for VaultLocks first", "NO_PERMISSION");
+            else call.resolve();
+            return;
+        }
+        new Thread(() -> {
+            try {
+                JSObject r = new JSObject();
+                if (on) r.put("count", SystemCalendar.replace(getContext().getContentResolver(), items));
+                else {
+                    SystemCalendar.remove(getContext().getContentResolver());
+                    r.put("count", 0);
+                }
+                call.resolve(r);
+            } catch (Exception e) {
+                call.reject("Could not update the phone calendar", "CALENDAR_FAILED");
+            }
+        }).start();
     }
 
     /** Screenshot / screen-recording protection (FLAG_SECURE), per the user's setting. */

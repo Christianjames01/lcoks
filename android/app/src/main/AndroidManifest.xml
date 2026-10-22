@@ -105,6 +105,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Only to put the quick-add notification / double-tap detector back after a restart. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Optional: "Show on the phone's calendar widgets" writes a local VaultLocks calendar. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <!-- Double tap on the back: background listener + opening the pop-up from it. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

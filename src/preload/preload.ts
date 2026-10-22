@@ -78,6 +78,12 @@ const api: VaultApi = {
     restoreWhileLocked: call('backup.restoreWhileLocked') as VaultApi['backup']['restoreWhileLocked'],
     exportPlaintext: call('backup.exportPlaintext') as VaultApi['backup']['exportPlaintext']
   },
+  // Phone calendar widgets are an Android feature.
+  phoneCalendar: {
+    status: async () => 'unsupported' as const,
+    request: async () => 'unsupported' as const,
+    sync: async () => unsupported
+  },
   // Desktop notifications come from the main process while the app runs (no permission prompt).
   notifications: {
     status: async () => {

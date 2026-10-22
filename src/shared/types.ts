@@ -216,6 +216,10 @@ export interface VaultSettings {
   calendarSnooze: number;
   /** Tasks: the user's own categories (besides the built-in ones). */
   taskCategories: TaskCategory[];
+  /** Android: show the next days' events and tasks in the phone's calendar widgets (opt-in; stored outside the vault). */
+  phoneCalendar: boolean;
+  /** …with their names (off: only "VaultLocks event" and the time). */
+  phoneCalendarNames: boolean;
 }
 
 export const DEFAULT_SETTINGS: VaultSettings = {
@@ -246,6 +250,8 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   calendarPreview: false,
   calendarSnooze: 10,
   taskCategories: [],
+  phoneCalendar: false,
+  phoneCalendarNames: true,
   generator: { length: 20, upper: true, lower: true, digits: true, symbols: true, avoidAmbiguous: false }
 };
 

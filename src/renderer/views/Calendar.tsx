@@ -1561,10 +1561,21 @@ function ReminderSettings({ settings, onClose, onChanged }: { settings: VaultSet
   const toast = useToast();
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
   const [exact, setExact] = useState<ExactAlarmStatus | null>(null);
+  const [phoneCal, setPhoneCal] = useState<'granted' | 'denied' | 'unsupported' | null>(null);
   useEffect(() => {
     void api.notifications.status().then(setPermission);
     void api.notifications.exactStatus().then(setExact);
+    void api.phoneCalendar.status().then(setPhoneCal);
   }, []);
+  const togglePhoneCalendar = async (on: boolean) => {
+    if (on && phoneCal !== 'granted') {
+      const s = await api.phoneCalendar.request();
+      setPhoneCal(s);
+      if (s !== 'granted') return toast('Allow calendar access for VaultLocks to show events in the phone’s calendar widgets.', 'error');
+    }
+    await update({ phoneCalendar: on });
+    toast(on ? 'Your next 14 days now show in the phone’s calendar widgets.' : 'Removed from the phone’s calendar.');
+  };
   const update = async (patch: Partial<VaultSettings>) => {
     try {
       await unwrap(api.vault.updateSettings(patch));
@@ -1586,6 +1597,26 @@ function ReminderSettings({ settings, onClose, onChanged }: { settings: VaultSet
         <Row title="Show event titles in notifications" desc="Off: notifications only say you have an event and when. Titles stay inside the vault.">
           <input type="checkbox" className="switch" checked={settings.calendarPreview} onChange={(e) => update({ calendarPreview: e.target.checked })} aria-label="Show event titles in notifications" />
         </Row>
+        {phoneCal && phoneCal !== 'unsupported' && (
+          <>
+            <Row
+              title="Show in the phone’s calendar widgets"
+              desc="Your next 14 days of events and tasks appear in the phone’s own calendar widget on the lock screen and home screen. They are copied into a separate “VaultLocks” calendar that stays on this phone only and is updated each time you unlock. Turning this off removes it."
+            >
+              <input type="checkbox" className="switch" checked={settings.phoneCalendar} onChange={(e) => void togglePhoneCalendar(e.target.checked)} aria-label="Show in the phone’s calendar widgets" />
+            </Row>
+            <Row title="Show names in the widget" desc="Off: the widget only shows “VaultLocks event” or “VaultLocks task” and the time. Names are readable by anyone who sees your phone’s calendar.">
+              <input
+                type="checkbox"
+                className="switch"
+                checked={settings.phoneCalendarNames}
+                disabled={!settings.phoneCalendar}
+                onChange={(e) => void update({ phoneCalendarNames: e.target.checked })}
+                aria-label="Show names in the widget"
+              />
+            </Row>
+          </>
+        )}
         <div className="evc-setting-block">
           <div className="title">Default reminders for new events</div>
           <div className="evc-weekdays" role="group" aria-label="Default reminders">

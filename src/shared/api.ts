@@ -23,6 +23,7 @@ import type {
   VaultSnapshot
 } from './types';
 import type { CalendarEvent, CalendarEventInput } from './calendar';
+import type { PhoneCalendarItem } from './phoneCalendar';
 import type { Task, TaskInput } from './tasks';
 import type { AccountKind, MoneyAccount, Transaction, TransactionInput } from './money';
 
@@ -104,6 +105,15 @@ export interface VaultApi {
     /** Android: render PDF pages to images inside the app (no copy leaves the app). */
     renderPdf(entryId: string, attachmentId: string): Promise<Result<string[]>>;
     storageInfo(): Promise<Result<StorageInfo>>;
+  };
+  /**
+   * Android: copy the next days' events and tasks into a device-only "VaultLocks"
+   * calendar, so the phone's own calendar widgets (lock screen / home screen) show them.
+   */
+  phoneCalendar: {
+    status(): Promise<'granted' | 'denied' | 'unsupported'>;
+    request(): Promise<'granted' | 'denied' | 'unsupported'>;
+    sync(on: boolean, items: PhoneCalendarItem[]): Promise<Result<number>>;
   };
   /** Phone reminders for expiry / renewal / due dates (Android). */
   notifications: {

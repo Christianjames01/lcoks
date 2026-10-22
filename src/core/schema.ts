@@ -232,6 +232,8 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
     calendarPreview: typeof s.calendarPreview === 'boolean' ? s.calendarPreview : base.calendarPreview,
     calendarSnooze: SNOOZE_CHOICES.includes(s.calendarSnooze as number) ? (s.calendarSnooze as number) : base.calendarSnooze,
     taskCategories: Array.isArray(s.taskCategories) ? validateTaskCategories(s.taskCategories) : base.taskCategories,
+    phoneCalendar: typeof s.phoneCalendar === 'boolean' ? s.phoneCalendar : base.phoneCalendar,
+    phoneCalendarNames: typeof s.phoneCalendarNames === 'boolean' ? s.phoneCalendarNames : base.phoneCalendarNames,
     generator: validateGeneratorDefaults(s.generator, base.generator)
   };
 }

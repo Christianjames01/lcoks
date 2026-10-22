@@ -1,6 +1,7 @@
 import { CalendarDays, CopyCheck, ListTodo, House, Layers, Lock, Wallet, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarNotifications } from '../../shared/calendar';
+import { phoneCalendarItems } from '../../shared/phoneCalendar';
 import { taskNotifications } from '../../shared/tasks';
 import { buildReminders } from '../../shared/expiry';
 import { searchEntries } from '../../shared/search';
@@ -190,6 +191,18 @@ export function VaultApp({ version }: { version: string }) {
       const list = [...expiry, ...calendar, ...tasks].sort((a, b) => a.at - b.at).slice(0, 100);
       await api.notifications.schedule(list);
     }, 800);
+    return () => clearTimeout(t);
+  }, [snap]);
+
+  // Android, opt-in: keep the phone's own calendar widgets (lock screen / home screen)
+  // showing the next days' events and tasks. Turning it off removes the copy.
+  useEffect(() => {
+    if (!snap) return;
+    const t = setTimeout(async () => {
+      if ((await api.phoneCalendar.status()) !== 'granted') return;
+      const { phoneCalendar, phoneCalendarNames } = snap.settings;
+      await api.phoneCalendar.sync(phoneCalendar, phoneCalendar ? phoneCalendarItems(snap.events, snap.tasks, new Date(), phoneCalendarNames) : []);
+    }, 1200);
     return () => clearTimeout(t);
   }, [snap]);
 
