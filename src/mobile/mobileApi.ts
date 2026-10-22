@@ -37,18 +37,23 @@ async function wrap<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
 /** The phone's own calendar (lock-screen / home-screen widgets): Android and iPhone. */
 const HAS_PHONE_CALENDAR = () => Capacitor.getPlatform() === 'android' || Capacitor.getPlatform() === 'ios';
 
-const REMINDER_CHANNEL = 'reminders';
-const CALENDAR_CHANNEL = 'calendar';
-const CALENDAR_SILENT_CHANNEL = 'calendar-silent';
+// v2 channels: shown in full on the lock screen. Android never lets an app change an
+// existing channel's lock-screen visibility, so the old private ones are replaced.
+const REMINDER_CHANNEL = 'reminders-v2';
+const CALENDAR_CHANNEL = 'calendar-v2';
+const CALENDAR_SILENT_CHANNEL = 'calendar-silent-v2';
+const OLD_CHANNELS = ['reminders', 'calendar', 'calendar-silent'];
 let channelReady = false;
 async function ensureChannel(): Promise<void> {
   if (channelReady) return;
   // Notification channels exist only on Android.
   if (Capacitor.getPlatform() !== 'android') return void (channelReady = true);
-  await LocalNotifications.createChannel({ id: REMINDER_CHANNEL, name: 'Reminders', description: 'Expiry, renewal and payment reminders', importance: 4, visibility: 0 });
-  // Calendar alarms: private on the lock screen (visibility 0); a silent twin for "sound off".
-  await LocalNotifications.createChannel({ id: CALENDAR_CHANNEL, name: 'Calendar alarms', description: 'Event reminders', importance: 5, visibility: 0, vibration: true });
-  await LocalNotifications.createChannel({ id: CALENDAR_SILENT_CHANNEL, name: 'Calendar alarms (silent)', description: 'Event reminders without sound', importance: 2, visibility: 0, vibration: false });
+  // Lock screen: shown in full (visibility 1). The text is already safe to show — it only
+  // names the event when the user turned on "Show event titles in notifications".
+  await LocalNotifications.createChannel({ id: REMINDER_CHANNEL, name: 'Reminders', description: 'Expiry, renewal and payment reminders', importance: 4, visibility: 1 });
+  await LocalNotifications.createChannel({ id: CALENDAR_CHANNEL, name: 'Calendar & task alarms', description: 'Event and task reminders', importance: 5, visibility: 1, vibration: true });
+  await LocalNotifications.createChannel({ id: CALENDAR_SILENT_CHANNEL, name: 'Calendar & task alarms (silent)', description: 'Reminders without sound', importance: 3, visibility: 1, vibration: false });
+  for (const id of OLD_CHANNELS) await LocalNotifications.deleteChannel({ id }).catch(() => undefined);
   channelReady = true;
 }
 

@@ -97,6 +97,7 @@ final class SystemCalendar {
                 o.put("id", c.getLong(0));
                 o.put("name", c.getString(1) == null ? "Calendar" : c.getString(1));
                 o.put("account", c.getString(2) == null ? "" : c.getString(2));
+                o.put("type", c.getString(3) == null ? "" : c.getString(3));
                 o.put("visible", c.getInt(5) == 1);
                 out.put(o);
             }

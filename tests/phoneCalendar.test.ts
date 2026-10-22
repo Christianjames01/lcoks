@@ -46,3 +46,16 @@ describe('phone calendar copy', () => {
     expect(items).toHaveLength(14);
   });
 });
+
+describe('default phone calendar', () => {
+  it('picks the main Google calendar (named after the Gmail address)', async () => {
+    const { defaultGoogleCalendar } = await import('../src/shared/phoneCalendar');
+    const list = [
+      { id: 1, name: 'Phone', account: 'Phone', type: 'LOCAL', visible: true },
+      { id: 2, name: 'Holidays in Philippines', account: 'me@gmail.com', type: 'com.google', visible: true },
+      { id: 3, name: 'me@gmail.com', account: 'me@gmail.com', type: 'com.google', visible: true }
+    ];
+    expect(defaultGoogleCalendar(list)?.id).toBe(3);
+    expect(defaultGoogleCalendar(list.slice(0, 1))).toBeUndefined();
+  });
+});

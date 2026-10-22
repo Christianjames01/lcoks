@@ -55,7 +55,8 @@ import {
 } from '../../shared/calendar';
 import { addMonths, dayKey, monthOf, parseDay } from '../../shared/money';
 import type { ExactAlarmStatus, NotificationPermission } from '../../shared/api';
-import { phoneCalendarItems, phoneCalendarTarget, setPhoneCalendarTarget, type PhoneCalendarInfo, type PhoneCalendarItem } from '../../shared/phoneCalendar';
+import { markPhoneCalendarChosen, phoneCalendarItems, phoneCalendarTarget, setPhoneCalendarTarget, type PhoneCalendarInfo, type PhoneCalendarItem } from '../../shared/phoneCalendar';
+import { describeTarget, resolvePhoneTarget } from '../lib/phoneCalendarSync';
 import { completeTask, describeDue, isTaskOverdue, priorityName, uncompleteTask, type Task } from '../../shared/tasks';
 import type { VaultSettings, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
@@ -1585,10 +1586,13 @@ function ReminderSettings({
   useEffect(() => {
     if (phoneCal !== 'granted') return;
     void api.phoneCalendar.list().then((r) => r.ok && setCalendars(r.value));
+    // Shows the calendar actually in use (the Google default when nothing was picked).
+    void resolvePhoneTarget().then((t) => setTarget(t.id));
   }, [phoneCal]);
   const chooseTarget = async (id: number) => {
     setTarget(id);
     setPhoneCalendarTarget(id);
+    markPhoneCalendarChosen();
     const items = phoneItems();
     const r = await api.phoneCalendar.sync(true, items, id);
     if (!r.ok) return toast(`Couldn’t update the phone calendar: ${r.message}`, 'error');
@@ -1645,10 +1649,16 @@ function ReminderSettings({
                   className="btn sm"
                   onClick={async () => {
                     const items = phoneItems();
-                    const r = await api.phoneCalendar.sync(true, items, phoneCalendarTarget());
+                    const t = await resolvePhoneTarget();
+                    setTarget(t.id);
+                    const r = await api.phoneCalendar.sync(true, items, t.id);
                     if (!r.ok) return toast(`Couldn’t update the phone calendar: ${r.message}`, 'error');
                     const today = items.filter((i) => new Date(i.start).toDateString() === new Date().toDateString()).length;
-                    toast(`Copied ${r.value} item${r.value === 1 ? '' : 's'} to the phone’s “VaultLocks” calendar (${today} today).`);
+                    toast(
+                      r.value === 0
+                        ? `Nothing to copy: no events or open tasks in the next 14 days.`
+                        : `Copied ${r.value} item${r.value === 1 ? '' : 's'} (${today} today) to ${describeTarget(t)}. ${t.calendar?.type === 'com.google' ? 'Google may take a minute to show them on other devices.' : ''}`
+                    );
                   }}
                 >
                   Sync now

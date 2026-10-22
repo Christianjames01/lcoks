@@ -37,7 +37,32 @@ export interface PhoneCalendarInfo {
   id: number;
   name: string;
   account: string;
+  /** Account type, e.g. "com.google" for a Google calendar. */
+  type?: string;
   visible: boolean;
+}
+
+const CHOSEN_KEY = 'vaultlocks.phoneCalendarChosen';
+/** True once the user picked a calendar themselves (then we never override it). */
+export function phoneCalendarChosen(): boolean {
+  try {
+    return localStorage.getItem(CHOSEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+export function markPhoneCalendarChosen(): void {
+  try {
+    localStorage.setItem(CHOSEN_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Default target: the main Google calendar (named after the Gmail address), else any Google calendar. */
+export function defaultGoogleCalendar(list: PhoneCalendarInfo[]): PhoneCalendarInfo | undefined {
+  const google = list.filter((c) => c.type === 'com.google');
+  return google.find((c) => c.name === c.account) ?? google.find((c) => /@gmail.com$/i.test(c.name)) ?? google[0];
 }
 
 const utcMidnight = (day: string) => {

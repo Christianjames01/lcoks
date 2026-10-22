@@ -18,7 +18,8 @@
     "build:mobile": "vite build --config vite.mobile.config.mts",
     "android:sync": "npm run build:mobile && cap sync android",
     "android:icons": "node scripts/make-android-icons.mjs",
-    "android:live": "node scripts/android-live.mjs"
+    "android:live": "node scripts/android-live.mjs",
+    "postinstall": "node scripts/patch-plugins.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

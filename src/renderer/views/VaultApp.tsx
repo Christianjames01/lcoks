@@ -2,7 +2,6 @@ import { CalendarDays, CopyCheck, ListTodo, House, Layers, Lock, Wallet, Menu, P
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarNotifications } from '../../shared/calendar';
 import { setLinkedLooks } from '../../shared/cards';
-import { phoneCalendarItems, phoneCalendarTarget } from '../../shared/phoneCalendar';
 import { taskNotifications } from '../../shared/tasks';
 import { buildReminders } from '../../shared/expiry';
 import { searchEntries } from '../../shared/search';
@@ -13,6 +12,7 @@ import { EntryActionsProvider, EntryMenu, passwordKeyOf, usernameOf, websiteOf, 
 import { GeneratorDialog } from '../components/Generator';
 import { ReminderAlerts } from '../components/ReminderAlerts';
 import { TabBar } from '../components/TabBar';
+import { syncPhoneCalendar } from '../lib/phoneCalendarSync';
 import { CategoryIcon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { setAppearance, setGeneratorDefaults } from '../lib/appearance';
@@ -217,7 +217,7 @@ export function VaultApp({ version }: { version: string }) {
         status = await api.phoneCalendar.request();
         if (status !== 'granted') return;
       }
-      const r = await api.phoneCalendar.sync(on, on ? phoneCalendarItems(snap.events, snap.tasks, new Date(), snap.settings.phoneCalendarNames) : [], phoneCalendarTarget());
+      const r = await syncPhoneCalendar(snap, on);
       if (!r.ok && on) toast(`Phone calendar widget: ${r.message}`, 'error');
     }, 1500);
     return () => clearTimeout(t);
