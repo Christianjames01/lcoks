@@ -15,6 +15,31 @@ export interface PhoneCalendarItem {
 
 export const PHONE_CALENDAR_DAYS = 14;
 
+const TARGET_KEY = 'vaultlocks.phoneCalendarTarget';
+/** Which phone calendar to write into (0 = VaultLocks' own). Stored on this device only. */
+export function phoneCalendarTarget(): number {
+  try {
+    return Number(localStorage.getItem(TARGET_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+export function setPhoneCalendarTarget(id: number): void {
+  try {
+    localStorage.setItem(TARGET_KEY, String(id));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** A calendar on the phone that VaultLocks may write into (Android). */
+export interface PhoneCalendarInfo {
+  id: number;
+  name: string;
+  account: string;
+  visible: boolean;
+}
+
 const utcMidnight = (day: string) => {
   const d = parseDay(day);
   return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());

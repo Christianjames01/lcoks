@@ -83,7 +83,8 @@ const api: VaultApi = {
     status: async () => 'unsupported' as const,
     request: async () => 'unsupported' as const,
     sync: async () => unsupported,
-    open: async () => unsupported
+    open: async () => unsupported,
+    list: async () => unsupported
   },
   // Desktop notifications come from the main process while the app runs (no permission prompt).
   notifications: {

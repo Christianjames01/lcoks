@@ -872,9 +872,10 @@ public class VaultNativePlugin extends Plugin {
         new Thread(() -> {
             try {
                 JSObject r = new JSObject();
-                if (on) r.put("count", SystemCalendar.replace(getContext().getContentResolver(), items));
+                long target = call.getLong("target", 0L) == null ? 0 : call.getLong("target", 0L);
+                if (on) r.put("count", SystemCalendar.replace(getContext(), getContext().getContentResolver(), items, target));
                 else {
-                    SystemCalendar.remove(getContext().getContentResolver());
+                    SystemCalendar.remove(getContext(), getContext().getContentResolver());
                     r.put("count", 0);
                 }
                 call.resolve(r);
@@ -882,6 +883,22 @@ public class VaultNativePlugin extends Plugin {
                 call.reject("Could not update the phone calendar", "CALENDAR_FAILED");
             }
         }).start();
+    }
+
+    /** The phone's writable calendars, so the user can pick one their calendar app shows. */
+    @PluginMethod
+    public void listPhoneCalendars(PluginCall call) {
+        if (!calendarGranted()) {
+            call.reject("Allow calendar access for VaultLocks first", "NO_PERMISSION");
+            return;
+        }
+        try {
+            JSObject r = new JSObject();
+            r.put("calendars", new JSArray(SystemCalendar.list(getContext().getContentResolver()).toString()));
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("Could not read the phone's calendars", "CALENDAR_FAILED");
+        }
     }
 
     /** Opens the phone's calendar app at today, to check what the widgets will show. */

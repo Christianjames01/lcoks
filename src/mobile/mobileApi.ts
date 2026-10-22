@@ -395,7 +395,12 @@ export function createMobileApi(native: NativeVault): VaultApi {
           return 'unsupported';
         }
       },
-      sync: (on, items) =>
+      list: () =>
+        wrap(async () => {
+          if (Capacitor.getPlatform() !== 'android') return [];
+          return native.listPhoneCalendars();
+        }),
+      sync: (on, items, target) =>
         wrap(async () => {
           if (!HAS_PHONE_CALENDAR()) throw new AppError('UNSUPPORTED', 'Not available on this device.');
           if (on) requireUnlocked();
@@ -403,7 +408,8 @@ export function createMobileApi(native: NativeVault): VaultApi {
           const clean = items
             .filter((i) => i && typeof i.title === 'string' && Number.isFinite(i.start) && Number.isFinite(i.end))
             .map((i) => ({ title: i.title.slice(0, 120), start: i.start, end: i.end, allDay: i.allDay === true }));
-          return native.syncPhoneCalendar(on === true, on ? clean : []);
+          const t = Capacitor.getPlatform() === 'android' && Number.isInteger(target) && (target as number) > 0 ? (target as number) : 0;
+          return native.syncPhoneCalendar(on === true, on ? clean : [], t);
         }),
       open: () =>
         wrap(async () => {

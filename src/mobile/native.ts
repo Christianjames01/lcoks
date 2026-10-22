@@ -5,7 +5,7 @@
 // backups (allowBackup=false). Writes are atomic: temp file + fsync + rename.
 
 import { registerPlugin } from '@capacitor/core';
-import type { PhoneCalendarItem } from '../shared/phoneCalendar';
+import type { PhoneCalendarInfo, PhoneCalendarItem } from '../shared/phoneCalendar';
 
 export interface NativeVault {
   read(name: string): Promise<string | null>;
@@ -51,8 +51,9 @@ export interface NativeVault {
   phoneCalendarStatus(): Promise<boolean>;
   requestPhoneCalendar(): Promise<boolean>;
   /** on: replace the VaultLocks calendar with these items; off: delete it. */
-  syncPhoneCalendar(on: boolean, items: PhoneCalendarItem[]): Promise<number>;
+  syncPhoneCalendar(on: boolean, items: PhoneCalendarItem[], target?: number): Promise<number>;
   openPhoneCalendar(): Promise<void>;
+  listPhoneCalendars(): Promise<PhoneCalendarInfo[]>;
   /** Double tap on the back of the phone → add-expense pop-up (KnockService.java). */
   knockStatus(): Promise<KnockStatus>;
   setKnock(on: boolean, sensitivity: number): Promise<void>;
@@ -105,8 +106,9 @@ interface VaultNativePlugin {
   setQuickAddNotification(o: { on: boolean }): Promise<void>;
   phoneCalendarStatus(): Promise<{ granted: boolean }>;
   requestPhoneCalendar(): Promise<{ granted: boolean }>;
-  syncPhoneCalendar(o: { on: boolean; items: PhoneCalendarItem[] }): Promise<{ count?: number }>;
+  syncPhoneCalendar(o: { on: boolean; items: PhoneCalendarItem[]; target?: number }): Promise<{ count?: number }>;
   openPhoneCalendar(): Promise<void>;
+  listPhoneCalendars(): Promise<{ calendars?: PhoneCalendarInfo[] }>;
   knockStatus(): Promise<KnockStatus>;
   setKnock(o: { on: boolean; sensitivity: number }): Promise<void>;
   openQuickAdd(): Promise<void>;
@@ -155,7 +157,8 @@ export const capacitorNative: NativeVault = {
   setQuickAddNotification: (on) => Plugin.setQuickAddNotification({ on }),
   phoneCalendarStatus: async () => (await Plugin.phoneCalendarStatus()).granted === true,
   requestPhoneCalendar: async () => (await Plugin.requestPhoneCalendar()).granted === true,
-  syncPhoneCalendar: async (on, items) => (await Plugin.syncPhoneCalendar({ on, items })).count ?? 0,
+  syncPhoneCalendar: async (on, items, target) => (await Plugin.syncPhoneCalendar({ on, items, target: target ?? 0 })).count ?? 0,
+  listPhoneCalendars: async () => (await Plugin.listPhoneCalendars()).calendars ?? [],
   openPhoneCalendar: () => Plugin.openPhoneCalendar(),
   knockStatus: () => Plugin.knockStatus(),
   setKnock: (on, sensitivity) => Plugin.setKnock({ on, sensitivity }),

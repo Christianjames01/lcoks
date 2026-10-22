@@ -23,7 +23,7 @@ import type {
   VaultSnapshot
 } from './types';
 import type { CalendarEvent, CalendarEventInput } from './calendar';
-import type { PhoneCalendarItem } from './phoneCalendar';
+import type { PhoneCalendarInfo, PhoneCalendarItem } from './phoneCalendar';
 import type { Task, TaskInput } from './tasks';
 import type { AccountKind, MoneyAccount, Transaction, TransactionInput } from './money';
 
@@ -113,7 +113,10 @@ export interface VaultApi {
   phoneCalendar: {
     status(): Promise<'granted' | 'denied' | 'unsupported'>;
     request(): Promise<'granted' | 'denied' | 'unsupported'>;
-    sync(on: boolean, items: PhoneCalendarItem[]): Promise<Result<number>>;
+    /** target: a calendar id from list() (Android), or 0 / omitted for VaultLocks' own calendar. */
+    sync(on: boolean, items: PhoneCalendarItem[], target?: number): Promise<Result<number>>;
+    /** Android: the phone's writable calendars (e.g. when the calendar app hides VaultLocks' own). */
+    list(): Promise<Result<PhoneCalendarInfo[]>>;
     /** Open the phone's calendar app at today. */
     open(): Promise<Result<void>>;
   };
