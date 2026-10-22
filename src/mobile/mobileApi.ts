@@ -414,7 +414,11 @@ export function createMobileApi(native: NativeVault): VaultApi {
             .filter((i) => i && typeof i.title === 'string' && Number.isFinite(i.start) && Number.isFinite(i.end))
             .map((i) => ({ title: i.title.slice(0, 120), start: i.start, end: i.end, allDay: i.allDay === true }));
           const t = Capacitor.getPlatform() === 'android' && Number.isInteger(target) && (target as number) > 0 ? (target as number) : 0;
-          return native.syncPhoneCalendar(on === true, on ? clean : [], t);
+          const r = await native.syncPhoneCalendar(on === true, on ? clean : [], t);
+          // Never report a calendar that wasn't used.
+          if (on && r.target !== null && r.target !== t) throw new AppError('CALENDAR_TARGET', 'The events went to VaultLocks’ own calendar instead of the one you chose. Please update VaultLocks.');
+          if (r.count < 0) throw new AppError('CALENDAR_FAILED', 'Could not create a calendar on this phone.');
+          return r.count;
         }),
       open: () =>
         wrap(async () => {

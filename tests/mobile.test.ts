@@ -83,7 +83,7 @@ function memoryNative() {
     setQuickAddNotification: async () => undefined,
     phoneCalendarStatus: async () => false,
     requestPhoneCalendar: async () => false,
-    syncPhoneCalendar: async () => 0,
+    syncPhoneCalendar: async () => ({ count: 0, target: null }),
     openPhoneCalendar: async () => undefined,
     listPhoneCalendars: async () => [],
     knockStatus: async () => ({ on: false, sensitivity: 1, canPopUp: false, fullScreen: false, xiaomi: false }),

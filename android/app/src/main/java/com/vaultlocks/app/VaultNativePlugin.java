@@ -872,8 +872,13 @@ public class VaultNativePlugin extends Plugin {
         new Thread(() -> {
             try {
                 JSObject r = new JSObject();
-                long target = call.getLong("target", 0L) == null ? 0 : call.getLong("target", 0L);
-                if (on) r.put("count", SystemCalendar.replace(getContext(), getContext().getContentResolver(), items, target));
+                // getLong() ignores small numbers (they arrive as Integer): read it as any number.
+                long target = Math.max(0, call.getData().optLong("target", 0));
+                if (on) {
+                    r.put("count", SystemCalendar.replace(getContext(), getContext().getContentResolver(), items, target));
+                    // Which calendar was really used (0 = VaultLocks' own), so the app never names the wrong one.
+                    r.put("target", target);
+                }
                 else {
                     SystemCalendar.remove(getContext(), getContext().getContentResolver());
                     r.put("count", 0);
