@@ -8013,3 +8013,100 @@ body,
     display: none;
   }
 }
+
+/* Calendar month view: every event of the month under the grid. */
+.evc-month-day + .evc-month-day {
+  margin-top: 14px;
+}
+.evc-month-day-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  cursor: pointer;
+}
+.evc-month-day-num {
+  font-size: 20px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.evc-month-day-name {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.evc-month-day.today .evc-month-day-name {
+  color: var(--fg);
+}
+.evc-month-day.past {
+  opacity: 0.6;
+}
+.evc-month-list .evc-list {
+  gap: 6px;
+}
+.evc-month-list .evc-item {
+  padding: 6px 8px 6px 6px;
+  border-radius: 14px;
+}
+.evc-month-list .evc-item-main {
+  padding: 2px 0;
+}
+.evc-month-list .evc-item-title {
+  font-size: 14px;
+}
+
+/* ===================================================================== */
+/* v1.8 — draggable tab bar: one glass highlight that slides between      */
+/* tabs and follows the finger while dragging along the bar.             */
+/* ===================================================================== */
+.bottom-nav.has-indicator {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.bottom-nav.has-indicator .tab-btn[aria-current='page'] {
+  background: none;
+  box-shadow: none;
+}
+.bottom-nav.has-indicator .tab-btn,
+.bottom-nav.has-indicator .fab {
+  position: relative;
+  z-index: 1;
+}
+.tab-indicator {
+  position: absolute;
+  z-index: 0;
+  border-radius: 18px;
+  background: var(--lg-sheen), var(--lg-card-hover);
+  box-shadow: var(--lg-edge), inset 0 0 0 1px var(--lg-border);
+  pointer-events: none;
+  transition: left 340ms cubic-bezier(0.32, 1.25, 0.5, 1), width 340ms var(--ease), transform 200ms var(--ease);
+}
+.bottom-nav.dragging .tab-indicator {
+  transition: transform 200ms var(--ease);
+  transform: scale(1.08);
+  box-shadow: var(--lg-edge), inset 0 0 0 1px var(--lg-border-strong), var(--lg-shadow-sm);
+}
+.bottom-nav.dragging .tab-btn {
+  color: var(--muted);
+}
+.bottom-nav[data-hover='vault'] .tab-btn[data-tab='vault'],
+.bottom-nav[data-hover='calendar'] .tab-btn[data-tab='calendar'],
+.bottom-nav[data-hover='money'] .tab-btn[data-tab='money'],
+.bottom-nav[data-hover='tasks'] .tab-btn[data-tab='tasks'] {
+  color: var(--fg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-indicator {
+    transition: none;
+  }
+  .bottom-nav.dragging .tab-indicator {
+    transform: none;
+  }
+}

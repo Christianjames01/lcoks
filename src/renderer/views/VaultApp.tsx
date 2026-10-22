@@ -10,6 +10,7 @@ import { ConfirmDialog } from '../components/Dialog';
 import { EntryActionsProvider, EntryMenu, passwordKeyOf, usernameOf, websiteOf, type EntryActions } from '../components/EntryActions';
 import { GeneratorDialog } from '../components/Generator';
 import { ReminderAlerts } from '../components/ReminderAlerts';
+import { TabBar } from '../components/TabBar';
 import { CategoryIcon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { setAppearance, setGeneratorDefaults } from '../lib/appearance';
@@ -629,12 +630,12 @@ export function VaultApp({ version }: { version: string }) {
       </div>
 
       {mobile && (
-        <nav className="bottom-nav" aria-label="Main">
-          <button type="button" className="tab-btn" aria-current={tab === 'vault' ? 'page' : undefined} onClick={() => switchTab('vault')}>
+        <TabBar current={tab} onPick={(t) => switchTab(t as Tab)}>
+          <button type="button" className="tab-btn" data-tab="vault" aria-current={tab === 'vault' ? 'page' : undefined} onClick={() => switchTab('vault')}>
             <House size={22} strokeWidth={1.9} aria-hidden />
             Vault
           </button>
-          <button type="button" className="tab-btn" aria-current={tab === 'calendar' ? 'page' : undefined} onClick={() => switchTab('calendar')}>
+          <button type="button" className="tab-btn" data-tab="calendar" aria-current={tab === 'calendar' ? 'page' : undefined} onClick={() => switchTab('calendar')}>
             <CalendarDays size={22} strokeWidth={1.9} aria-hidden />
             Calendar
           </button>
@@ -654,15 +655,15 @@ export function VaultApp({ version }: { version: string }) {
           >
             <Plus size={28} strokeWidth={2.2} aria-hidden />
           </button>
-          <button type="button" className="tab-btn" aria-current={tab === 'money' ? 'page' : undefined} onClick={() => switchTab('money')}>
+          <button type="button" className="tab-btn" data-tab="money" aria-current={tab === 'money' ? 'page' : undefined} onClick={() => switchTab('money')}>
             <Wallet size={22} strokeWidth={1.9} aria-hidden />
             Expenses
           </button>
-          <button type="button" className="tab-btn" aria-current={tab === 'tasks' ? 'page' : undefined} onClick={() => switchTab('tasks')}>
+          <button type="button" className="tab-btn" data-tab="tasks" aria-current={tab === 'tasks' ? 'page' : undefined} onClick={() => switchTab('tasks')}>
             <ListTodo size={22} strokeWidth={1.9} aria-hidden />
             Tasks
           </button>
-        </nav>
+        </TabBar>
       )}
 
       <TaskAlerts

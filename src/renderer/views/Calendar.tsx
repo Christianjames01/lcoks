@@ -364,6 +364,15 @@ export function CalendarView({
                   onOpen={(o) => setDetail({ eventId: o.event.id, day: o.day })}
                   onToggle={toggleDone}
                 />
+                <MonthEvents
+                  month={monthOf(selected)}
+                  today={today}
+                  events={events}
+                  now={now}
+                  onSelectDay={setSelected}
+                  onOpen={(o) => setDetail({ eventId: o.event.id, day: o.day })}
+                  onToggle={toggleDone}
+                />
               </>
             )}
             {view === 'week' && (
@@ -603,6 +612,62 @@ function MonthGrid({
         );
       })}
     </div>
+  );
+}
+
+/** Every event of the month under the calendar, grouped by day (tap a day to jump to it). */
+function MonthEvents({
+  month,
+  today,
+  events,
+  now,
+  onSelectDay,
+  onOpen,
+  onToggle
+}: {
+  month: string;
+  today: string;
+  events: CalendarEvent[];
+  now: Date;
+  onSelectDay: (day: string) => void;
+  onOpen: (o: Occurrence) => void;
+  onToggle: (o: Occurrence) => void;
+}) {
+  const first = `${month}-01`;
+  const last = addDays(addMonths(month, 1) + '-01', -1);
+  const days = useMemo(() => {
+    const m = new Map<string, Occurrence[]>();
+    for (const o of occurrencesInRange(events, first, last)) {
+      // Multi-day events are listed on their first day in this month.
+      const d = o.day < first ? first : o.day;
+      m.set(d, [...(m.get(d) ?? []), o]);
+    }
+    return [...m.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+  }, [events, first, last]);
+  const total = days.reduce((n, [, list]) => n + list.length, 0);
+  const label = parseDay(first).toLocaleDateString(undefined, { month: 'long' });
+
+  return (
+    <section className="card evc-panel evc-month-list" aria-label={`All events in ${label}`}>
+      <div className="evc-panel-head">
+        <h2 className="evc-panel-title">
+          All events in {label} <span className="muted">({total})</span>
+        </h2>
+      </div>
+      {days.length === 0 ? (
+        <div className="evc-empty muted">No events this month.</div>
+      ) : (
+        days.map(([day, list]) => (
+          <div key={day} className={`evc-month-day ${day === today ? 'today' : ''} ${day < today ? 'past' : ''}`}>
+            <button type="button" className="evc-month-day-head" onClick={() => onSelectDay(day)} aria-label={`Show ${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}`}>
+              <span className="evc-month-day-num">{Number(day.slice(8))}</span>
+              <span className="evc-month-day-name">{day === today ? 'Today' : formatDay(day, { weekday: 'long' })}</span>
+            </button>
+            <OccurrenceList items={list} now={now} onOpen={onOpen} onToggle={onToggle} empty="" />
+          </div>
+        ))
+      )}
+    </section>
   );
 }
 
