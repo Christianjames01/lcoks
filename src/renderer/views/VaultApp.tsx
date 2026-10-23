@@ -10,6 +10,7 @@ import type { EntryView, VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog } from '../components/Dialog';
 import { EntryActionsProvider, EntryMenu, passwordKeyOf, usernameOf, websiteOf, type EntryActions } from '../components/EntryActions';
 import { GeneratorDialog } from '../components/Generator';
+import { BellButton, NotificationCenter, unreadCount } from '../components/NotificationCenter';
 import { ReminderAlerts } from '../components/ReminderAlerts';
 import { TabBar } from '../components/TabBar';
 import { syncPhoneCalendar } from '../lib/phoneCalendarSync';
@@ -78,6 +79,13 @@ export function VaultApp({ version }: { version: string }) {
   const [calendarFocus, setCalendarFocus] = useState<CalendarFocus | null>(null);
   // Tasks: open a task (calendar, reminder pop-up) or the new-task form (+ button).
   const [taskFocus, setTaskFocus] = useState<TaskFocus | null>(null);
+  // Notification bell: past and upcoming reminders; the count refreshes every minute.
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [bellNow, setBellNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setBellNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
   const [sharedText, setSharedText] = useState<string | undefined>(undefined);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.innerWidth < 1180);
@@ -460,6 +468,7 @@ export function VaultApp({ version }: { version: string }) {
   })();
 
   const tab = tabOf(route);
+  const bellCount = unreadCount(snap, bellNow);
   // Vault cards use the colour/style chosen for the Expenses card with the same name.
   setLinkedLooks(snap.accounts);
 
@@ -485,6 +494,7 @@ export function VaultApp({ version }: { version: string }) {
             <button type="button" className="icon-btn" onClick={() => go({ view: 'settings' })} aria-label="Settings" title="Settings" aria-current={route.view === 'settings' ? 'page' : undefined}>
               <SettingsIcon size={19} />
             </button>
+            <BellButton count={bellCount} onClick={() => setNotifOpen(true)} />
             <button type="button" className="icon-btn" onClick={lock} aria-label="Lock vault" title="Lock vault">
               <Lock size={19} />
             </button>
@@ -554,6 +564,7 @@ export function VaultApp({ version }: { version: string }) {
                 <Plus size={14} aria-hidden /> <span className="btn-text">New item</span>
               </button>
             )}
+            <BellButton count={bellCount} onClick={() => setNotifOpen(true)} size={16} />
             <button type="button" className="btn sm" onClick={lock} title="Lock vault (Ctrl+L)" aria-label="Lock vault">
               <Lock size={14} aria-hidden /> <span className="btn-text">Lock</span>
             </button>
@@ -698,6 +709,26 @@ export function VaultApp({ version }: { version: string }) {
         </TabBar>
       )}
 
+      {notifOpen && (
+        <NotificationCenter
+          snap={snap}
+          onClose={() => {
+            setNotifOpen(false);
+            setBellNow(Date.now());
+          }}
+          onOpenEvent={(eventId, day) => {
+            setEditor(null);
+            go({ view: 'calendar' });
+            setCalendarFocus({ id: Date.now(), eventId, day });
+          }}
+          onOpenTask={(taskId) => {
+            setEditor(null);
+            go({ view: 'tasks' });
+            setTaskFocus({ id: Date.now(), taskId });
+          }}
+          onOpenEntry={(id) => openEntry(id)}
+        />
+      )}
       <TaskAlerts
         snap={snap}
         onChanged={refresh}
