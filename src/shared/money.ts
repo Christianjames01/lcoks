@@ -146,6 +146,7 @@ function wordIndex(text: string, word: string): number {
 const hasWord = (text: string, word: string) => wordIndex(text, word) !== -1;
 
 export type MoneyIcon =
+  | 'coffee'
   | 'food'
   | 'cart'
   | 'car'
@@ -178,7 +179,14 @@ export const MONEY_CATEGORIES: readonly MoneyCategory[] = [
     name: 'Food & Drinks',
     kind: 'expense',
     icon: 'food',
-    words: ['food', 'lunch', 'dinner', 'breakfast', 'merienda', 'snack', 'coffee', 'cafe', 'starbucks', 'jollibee', 'mcdo', 'mcdonalds', 'kfc', 'chowking', 'pizza', 'milktea', 'drinks', 'restaurant', 'eat', 'kain']
+    words: ['food', 'lunch', 'dinner', 'breakfast', 'merienda', 'snack', 'jollibee', 'mcdo', 'mcdonalds', 'kfc', 'chowking', 'pizza', 'milktea', 'drinks', 'restaurant', 'eat', 'kain']
+  },
+  {
+    id: 'coffee',
+    name: 'Coffee',
+    kind: 'expense',
+    icon: 'coffee',
+    words: ['coffee', 'kape', 'cafe', 'café', 'starbucks', 'latte', 'americano', 'espresso', 'cappuccino', 'macchiato', 'mocha', 'frappe', 'frappuccino', 'cold brew', 'tim hortons', 'dunkin', 'coffee bean', 'bo\'s', 'kopi']
   },
   { id: 'groceries', name: 'Groceries', kind: 'expense', icon: 'cart', words: ['grocery', 'groceries', 'market', 'palengke', 'supermarket', 'sm', 'puregold', 'savemore', 'rice', 'bigas'] },
   {

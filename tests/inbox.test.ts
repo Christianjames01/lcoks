@@ -82,7 +82,7 @@ describe('quick add while locked', () => {
     const v = new VaultService(path.join(vaultDir, 'vault.vault'));
     await v.create(PW, null);
     expect(await v.quickAdd('coffee 120 yesterday', DAY)).toEqual({ queued: false });
-    expect(v.snapshot().transactions[0]).toMatchObject({ amount: 12000, date: '2026-10-19', category: 'food' });
+    expect(v.snapshot().transactions[0]).toMatchObject({ amount: 12000, date: '2026-10-19', category: 'coffee' });
   });
 });
 

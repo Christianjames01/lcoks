@@ -185,6 +185,23 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
     ]
   },
   {
+    id: 'loyalty',
+    name: 'Loyalty & Rewards',
+    icon: 'gift',
+    builtin: true,
+    fields: [
+      { key: 'brand', label: 'Store / brand', type: 'text', placeholder: 'Starbucks, Coffee Bean, SM Advantage…' },
+      { key: 'memberName', label: 'Member name', type: 'text' },
+      { key: 'cardNumber', label: 'Card / member number', type: 'secret', partialMask: true },
+      { key: 'pin', label: 'PIN', type: 'pin' },
+      { key: 'points', label: 'Points / stars', type: 'text', placeholder: '120 stars, 3 free drinks…' },
+      { key: 'email', label: 'Login email', type: 'email' },
+      { key: 'password', label: 'Password', type: 'password' },
+      { key: 'expiryDate', label: 'Valid until', type: 'date' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
     id: 'personal',
     name: 'Passwords',
     icon: 'user',

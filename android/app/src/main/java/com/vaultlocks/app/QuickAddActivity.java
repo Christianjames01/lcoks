@@ -56,6 +56,7 @@ public class QuickAddActivity extends Activity {
     /** id, label, icon, kind — ids match src/shared/money.ts. */
     private static final Object[][] CATEGORIES = {
         { "food", "Food", R.drawable.qa_food, "expense" },
+        { "coffee", "Coffee", R.drawable.qa_coffee, "expense" },
         { "transport", "Fare", R.drawable.qa_fare, "expense" },
         { "groceries", "Groceries", R.drawable.qa_groceries, "expense" },
         { "bills", "Bills", R.drawable.qa_bills, "expense" },

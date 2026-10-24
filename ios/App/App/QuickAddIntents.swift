@@ -8,12 +8,13 @@ import Foundation
 
 @available(iOS 17.0, *)
 enum ExpenseCategoryChoice: String, AppEnum {
-    case food, groceries, transport, bills, housing, shopping, health, entertainment, education, personal, family, other
+    case food, coffee, groceries, transport, bills, housing, shopping, health, entertainment, education, personal, family, other
 
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Category"
     // Ids match MONEY_CATEGORIES in src/shared/money.ts.
     static let caseDisplayRepresentations: [ExpenseCategoryChoice: DisplayRepresentation] = [
         .food: DisplayRepresentation(title: "Food & Drinks", image: .init(systemName: "fork.knife")),
+        .coffee: DisplayRepresentation(title: "Coffee", image: .init(systemName: "cup.and.saucer")),
         .groceries: DisplayRepresentation(title: "Groceries", image: .init(systemName: "cart")),
         .transport: DisplayRepresentation(title: "Fare & Transport", image: .init(systemName: "bus")),
         .bills: DisplayRepresentation(title: "Bills & Utilities", image: .init(systemName: "bolt")),

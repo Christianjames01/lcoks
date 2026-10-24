@@ -5,6 +5,7 @@ import {
   FileText,
   Folder,
   Gamepad2,
+  Gift,
   Globe,
   HeartPulse,
   House,
@@ -43,7 +44,8 @@ export const CATEGORY_ICONS: Record<IconName, LucideIcon> = {
   gamepad: Gamepad2,
   wallet: Wallet,
   health: HeartPulse,
-  calendar: CalendarClock
+  calendar: CalendarClock,
+  gift: Gift
 };
 
 export function CategoryIcon({ icon, size = 16 }: { icon: IconName | undefined; size?: number }) {

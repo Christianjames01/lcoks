@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clapperboard,
+  Coffee,
   Ellipsis,
   Landmark,
   Smartphone,
@@ -59,9 +60,11 @@ import {
   type TxKind
 } from '../../shared/money';
 import type { KnockInfo } from '../../shared/api';
+import { COFFEE, coffeeBudgetNudge, coffeeMonth, usualCoffee } from '../../shared/coffee';
 import type { VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
+import { CoffeeCorner } from '../components/CoffeeCorner';
 import { ColorPicker } from '../components/ColorPicker';
 import { HoldArea } from '../components/HoldActions';
 import { useToast } from '../components/Toast';
@@ -69,6 +72,7 @@ import { api, errorMessage, unwrap } from '../lib/api';
 import { isIOS } from '../lib/platform';
 
 const ICONS: Record<MoneyIcon, LucideIcon> = {
+  coffee: Coffee,
   food: UtensilsCrossed,
   cart: ShoppingCart,
   car: Car,
@@ -127,7 +131,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<Editing>(null);
   const [setup, setSetup] = useState(false);
-  const { currency, monthlyBudget } = snap.settings;
+  const { currency, monthlyBudget, coffeeBudget } = snap.settings;
   const money = (v: number, o?: { compact?: boolean; sign?: boolean }) => formatMoney(v, currency, o);
 
   // "+" in the bottom bar / title bar.
@@ -173,11 +177,40 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   };
 
   const save = async (input: { id?: string; kind: TxKind; amount: number; category: string; note: string; date: string; accountId?: string }) => {
+    // Coffee budget: spent in that month before this record (an edited record counts once).
+    const coffeeBefore =
+      input.kind === 'expense' && input.category === COFFEE ? coffeeMonth(snap.transactions.filter((t) => t.id !== input.id), monthOf(input.date)).total : 0;
     const r = await api.vault.saveTransaction(input);
     if (!r.ok) throw new Error(r.message);
     api.app.haptic('success');
     await onChanged();
+    const nudge = input.kind === 'expense' && input.category === COFFEE ? coffeeBudgetNudge(coffeeBefore, input.amount, coffeeBudget) : null;
+    if (nudge) {
+      const total = coffeeBefore + input.amount;
+      setTimeout(
+        () => toast(nudge === 'over' ? `☕ Coffee budget passed: ${money(total)} of ${money(coffeeBudget)} this month.` : `☕ Heads up: ${money(total)} of your ${money(coffeeBudget)} coffee budget used.`),
+        900
+      );
+    }
     return r.value;
+  };
+
+  const usual = useMemo(() => usualCoffee(snap.transactions), [snap.transactions]);
+  const showUsual = usual.learned || coffeeBudget > 0;
+  const addUsual = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const accountId = usual.accountId && snap.accounts.some((a) => a.id === usual.accountId) ? usual.accountId : undefined;
+      const t = await save({ kind: 'expense', amount: usual.amount, category: COFFEE, note: usual.note, date: selected, ...(accountId ? { accountId } : {}) });
+      setSelected(t.date);
+      setMonth(monthOf(t.date));
+      toast(`☕ Coffee added: ${money(t.amount)}.`);
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const addQuick = async (e: FormEvent) => {
@@ -299,6 +332,16 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
             </div>
           )}
         </form>
+        {showUsual && (
+          <div className="coffee-quick">
+            <button type="button" className="coffee-chip" onClick={addUsual} disabled={busy} title="Add your usual coffee to the selected day">
+              <Coffee size={15} strokeWidth={1.9} aria-hidden />
+              <span>Usual coffee</span>
+              <strong>{money(usual.amount)}</strong>
+              {usual.accountId && snap.accounts.find((a) => a.id === usual.accountId) && <span className="dim">· {snap.accounts.find((a) => a.id === usual.accountId)!.name}</span>}
+            </button>
+          </div>
+        )}
 
         <header className="money-head">
           <div className="month-switch" role="group" aria-label="Month">
@@ -371,6 +414,8 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
             )}
           </section>
         </div>
+
+        <CoffeeCorner snap={snap} month={month} money={(v) => money(v)} onBudget={() => setSetup(true)} onChanged={onChanged} />
 
         <div className="section-title">
           <span className="label">Spending by category</span>
@@ -462,7 +507,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
       )}
       {delTx.dialog}
       {delAccount.dialog}
-      {setup && <MoneySetup currency={currency} budget={monthlyBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
+      {setup && <MoneySetup currency={currency} budget={monthlyBudget} coffeeBudget={coffeeBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
     </div>
   );
 }
@@ -820,9 +865,25 @@ function TxEditor({
 
 // ------------------------------------------------------------ budget setup --
 
-function MoneySetup({ currency, budget, balancesOn, onClose, onSaved }: { currency: string; budget: number; balancesOn: boolean; onClose: () => void; onSaved: () => Promise<void> }) {
+function MoneySetup({
+  currency,
+  budget,
+  coffeeBudget,
+  balancesOn,
+  onClose,
+  onSaved
+}: {
+  currency: string;
+  budget: number;
+  coffeeBudget: number;
+  balancesOn: boolean;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
   const [cur, setCur] = useState(currency);
   const [amount, setAmount] = useState(budget ? fromMinor(budget) : '');
+  const [coffee, setCoffee] = useState(coffeeBudget ? fromMinor(coffeeBudget) : '');
+  const [coffeeError, setCoffeeError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
@@ -830,9 +891,11 @@ function MoneySetup({ currency, budget, balancesOn, onClose, onSaved }: { curren
   const save = async () => {
     const minor = amount.trim() ? toMinor(amount) : 0;
     if (minor === null) return setError('Enter a budget amount, or leave it empty for no budget.');
+    const coffeeMinor = coffee.trim() ? toMinor(coffee) : 0;
+    if (coffeeMinor === null) return setCoffeeError('Enter a coffee budget, or leave it empty for none.');
     setBusy(true);
     try {
-      await unwrap(api.vault.updateSettings({ currency: cur, monthlyBudget: minor }));
+      await unwrap(api.vault.updateSettings({ currency: cur, monthlyBudget: minor, coffeeBudget: coffeeMinor }));
       await onSaved();
       toast('Budget saved.');
       onClose();
@@ -886,6 +949,30 @@ function MoneySetup({ currency, budget, balancesOn, onClose, onSaved }: { curren
           aria-invalid={!!error}
         />
         {error ? <div className="error-text">{error}</div> : <div className="help-text">Shows how much you have left to spend each month.</div>}
+      </div>
+      <div className="field" style={{ marginTop: 14, marginBottom: 0 }}>
+        <label htmlFor="m-coffee">
+          <Coffee size={13} aria-hidden style={{ verticalAlign: -2, marginRight: 4 }} />
+          Coffee budget
+        </label>
+        <input
+          id="m-coffee"
+          className="input"
+          inputMode="decimal"
+          value={coffee}
+          onChange={(e) => {
+            setCoffee(e.target.value);
+            setCoffeeError(null);
+          }}
+          placeholder="No coffee budget"
+          autoComplete="off"
+          aria-invalid={!!coffeeError}
+        />
+        {coffeeError ? (
+          <div className="error-text">{coffeeError}</div>
+        ) : (
+          <div className="help-text">A gentle heads-up at 80% and when you pass it. Coffee you type (“latte 180”, “starbucks 210”) counts.</div>
+        )}
       </div>
       <QuickAddSettings balancesOn={balancesOn} onSaved={onSaved} />
     </Dialog>

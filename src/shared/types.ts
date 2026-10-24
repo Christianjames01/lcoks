@@ -45,6 +45,7 @@ export interface FieldDef {
 }
 
 export type CategoryIcon =
+  | 'gift'
   | 'bank'
   | 'mail'
   | 'globe'
@@ -202,6 +203,8 @@ export interface VaultSettings {
   currency: string;
   /** Expenses: monthly spending budget in minor units (0 = no budget). */
   monthlyBudget: number;
+  /** Expenses: monthly coffee budget in minor units (0 = none). */
+  coffeeBudget: number;
   /** Quick-add pop-up shows account balances while locked (stored unencrypted next to the vault). */
   quickAddBalances: boolean;
   /** Calendar: alarms for event reminders (in the app and as phone / desktop notifications). */
@@ -248,6 +251,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   reminderDaysBefore: 1,
   currency: 'PHP',
   monthlyBudget: 0,
+  coffeeBudget: 0,
   quickAddBalances: false,
   calendarReminders: true,
   calendarSound: true,

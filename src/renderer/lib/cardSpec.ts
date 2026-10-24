@@ -3,7 +3,7 @@ import type { EntryView } from '../../shared/types';
 import { formatDate } from './format';
 
 /** Categories that get a 3D card on their detail screen and a coloured badge icon. */
-export const CARD_CATEGORIES = new Set(['banking', 'cards', 'wallets', 'ids', 'insurance', 'subscriptions']);
+export const CARD_CATEGORIES = new Set(['banking', 'cards', 'wallets', 'ids', 'insurance', 'subscriptions', 'loyalty']);
 export const isCardCategory = (categoryId: string) => CARD_CATEGORIES.has(categoryId);
 
 /** The field that names the brand/agency for an item, used to pick colours. */
@@ -17,6 +17,8 @@ export function brandOf(e: Pick<EntryView, 'categoryId' | 'fields'>): string | u
       return f.idType;
     case 'subscriptions':
       return f.service;
+    case 'loyalty':
+      return f.brand;
     default:
       return f.bankName;
   }
@@ -117,6 +119,17 @@ export function cardSpec(e: EntryView): CardSpec | null {
         holder: f.price ? `${f.price}${f.billingCycle ? ' / ' + f.billingCycle.toLowerCase().replace('monthly', 'month').replace('yearly', 'year') : ''}` : '',
         extraCaption: f.renewalDate ? 'Renews' : undefined,
         extra: f.renewalDate ? formatDate(f.renewalDate) : undefined
+      };
+    case 'loyalty':
+      return {
+        theme,
+        kind: 'bank',
+        topRight: 'Rewards',
+        numberKey: 'cardNumber',
+        holderCaption: 'Member',
+        holder: f.memberName ?? '',
+        extraCaption: f.points ? 'Points' : f.expiryDate ? 'Valid until' : undefined,
+        extra: f.points || (f.expiryDate ? formatDate(f.expiryDate) : undefined)
       };
     default:
       return null;

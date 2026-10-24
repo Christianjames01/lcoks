@@ -21,6 +21,7 @@ const BUILTIN: Record<string, { key: string; kind: DateKind }[]> = {
   subscriptions: [{ key: 'renewalDate', kind: 'renews' }],
   software: [{ key: 'expirationDate', kind: 'expires' }],
   cards: [{ key: 'expiry', kind: 'expires' }],
+  loyalty: [{ key: 'expiryDate', kind: 'expires' }],
   documents: [{ key: 'expiryDate', kind: 'expires' }]
 };
 

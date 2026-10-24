@@ -76,7 +76,7 @@ const FIELD_TYPES: FieldType[] = [
 ];
 const ICONS: CategoryIcon[] = [
   'bank', 'mail', 'globe', 'wifi', 'key', 'user', 'note', 'card', 'lock',
-  'briefcase', 'server', 'shield', 'home', 'phone', 'id', 'folder', 'gamepad', 'wallet', 'health', 'calendar'
+  'briefcase', 'server', 'shield', 'home', 'phone', 'id', 'folder', 'gamepad', 'wallet', 'health', 'calendar', 'gift'
 ];
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -223,6 +223,7 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
     reminderDaysBefore: [1, 3, 7, 14, 30].includes(s.reminderDaysBefore as number) ? (s.reminderDaysBefore as ReminderDays) : base.reminderDaysBefore,
     currency: typeof s.currency === 'string' && /^[A-Z]{3}$/.test(s.currency) ? s.currency : base.currency,
     quickAddBalances: typeof s.quickAddBalances === 'boolean' ? s.quickAddBalances : base.quickAddBalances,
+    coffeeBudget: Number.isInteger(s.coffeeBudget) && (s.coffeeBudget as number) >= 0 && (s.coffeeBudget as number) <= MAX_AMOUNT ? (s.coffeeBudget as number) : base.coffeeBudget,
     monthlyBudget: Number.isInteger(s.monthlyBudget) && (s.monthlyBudget as number) >= 0 && (s.monthlyBudget as number) <= MAX_AMOUNT ? (s.monthlyBudget as number) : base.monthlyBudget,
     calendarReminders: typeof s.calendarReminders === 'boolean' ? s.calendarReminders : base.calendarReminders,
     calendarSound: typeof s.calendarSound === 'boolean' ? s.calendarSound : base.calendarSound,
