@@ -1,3 +1,7 @@
+import { GiftCardPanel } from '../components/GiftCardPanel';
+import { WifiShare } from '../components/WifiShare';
+import { GIFT_CATEGORY, daysToExpiry, parseAmountText } from '../../shared/giftcards';
+import { formatMoney } from '../../shared/money';
 import { ArrowDown, ArrowLeft, ArrowUp, Copy, CopyPlus, ExternalLink, Eye, EyeOff, Lock, Maximize2, Paperclip, Pencil, Plus, Star, Trash } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { subtitleFor } from '../../shared/categories';
@@ -202,6 +206,22 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
             </h2>
             <span className="dim small">{entries.length}</span>
           </div>
+          {filter === `cat:${GIFT_CATEGORY}` && !searching && entries.length > 0 && (() => {
+            const left = entries.reduce((sum, e) => sum + (parseAmountText(e.fields.balance) ?? 0), 0);
+            const soon = entries.filter((e) => {
+              const d = daysToExpiry(e.fields.expiryDate);
+              return d !== null && d >= 0 && d <= 30 && (parseAmountText(e.fields.balance) ?? 1) > 0;
+            }).length;
+            return (
+              <div className="gift-summary">
+                <span className="grow">
+                  <span className="label">Left on {entries.length} card{entries.length === 1 ? '' : 's'}</span>
+                  <span className="gift-summary-total">{formatMoney(left, snap.settings.currency)}</span>
+                </span>
+                {soon > 0 && <span className="vl-pill warn">{soon} expire{soon === 1 ? 's' : ''} soon</span>}
+              </div>
+            );
+          })()}
           {sortable && input.length > 1 && (
             <div className="list-tools">
               <label htmlFor="sort" className="sr-only">
@@ -276,11 +296,17 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
                                   Encrypted note · {formatDate(e.updatedAt)}
                                 </>
                               ) : (
+                                e.categoryId === GIFT_CATEGORY && parseAmountText(e.fields.balance) !== null ? (
+                                <>
+                                  {formatMoney(parseAmountText(e.fields.balance)!, snap.settings.currency)} left
+                                  {e.fields.expiryDate ? ` · until ${formatDate(e.fields.expiryDate)}` : ''}
+                                </>
+                              ) : (
                                 <>
                                   {subtitleFor(cat, e.fields)}
                                   {e.secrets.cardNumber?.preview ? ` · ${e.secrets.cardNumber.preview}` : ''}
                                 </>
-                              )}
+                              ))}
                             </span>
                           </span>
                           {(e.favorite || e.attachmentCount > 0) && (
@@ -483,13 +509,19 @@ function EntryDetail({
       </div>
 
       {(() => {
-        const spec = cardSpec(entry);
+        const spec = cardSpec(entry, snap.settings.currency);
         return spec ? <BankCard entry={entry} spec={spec} revealSeconds={snap.settings.revealTimeoutSeconds} /> : null;
       })()}
 
-      {(category?.fields ?? []).map((def) => (
-        <DetailField key={def.key} entry={entry} def={def} snap={snap} />
-      ))}
+      <WifiShare entry={entry} />
+      <GiftCardPanel entry={entry} snap={snap} onChanged={onChanged} />
+
+      {(category?.fields ?? [])
+        // A gift card's use history is shown by GiftCardPanel.
+        .filter((def) => !(entry.categoryId === GIFT_CATEGORY && def.key === 'history'))
+        .map((def) => (
+          <DetailField key={def.key} entry={entry} def={def} snap={snap} />
+        ))}
 
       <AttachmentsSection
         entryId={entry.id}

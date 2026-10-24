@@ -1,9 +1,11 @@
 import { cardTheme, type CardTheme } from '../../shared/cards';
 import type { EntryView } from '../../shared/types';
 import { formatDate } from './format';
+import { parseAmountText } from '../../shared/giftcards';
+import { formatMoney } from '../../shared/money';
 
 /** Categories that get a 3D card on their detail screen and a coloured badge icon. */
-export const CARD_CATEGORIES = new Set(['banking', 'cards', 'wallets', 'ids', 'insurance', 'subscriptions', 'loyalty']);
+export const CARD_CATEGORIES = new Set(['banking', 'cards', 'wallets', 'ids', 'insurance', 'subscriptions', 'loyalty', 'giftcards']);
 export const isCardCategory = (categoryId: string) => CARD_CATEGORIES.has(categoryId);
 
 /** The field that names the brand/agency for an item, used to pick colours. */
@@ -18,6 +20,7 @@ export function brandOf(e: Pick<EntryView, 'categoryId' | 'fields'>): string | u
     case 'subscriptions':
       return f.service;
     case 'loyalty':
+    case 'giftcards':
       return f.brand;
     default:
       return f.bankName;
@@ -53,7 +56,7 @@ function maskPhone(p: string | undefined): string | undefined {
   return `${d.slice(0, 4)} ••• ${d.slice(-4)}`;
 }
 
-export function cardSpec(e: EntryView): CardSpec | null {
+export function cardSpec(e: EntryView, currency = 'PHP'): CardSpec | null {
   const f = e.fields;
   const theme = cardTheme(brandOf(e), e.title);
   switch (e.categoryId) {
@@ -120,6 +123,20 @@ export function cardSpec(e: EntryView): CardSpec | null {
         extraCaption: f.renewalDate ? 'Renews' : undefined,
         extra: f.renewalDate ? formatDate(f.renewalDate) : undefined
       };
+    case 'giftcards': {
+      const bal = parseAmountText(f.balance);
+      const start = parseAmountText(f.initialValue);
+      return {
+        theme,
+        kind: 'bank',
+        topRight: 'Gift card',
+        numberKey: 'cardNumber',
+        holderCaption: 'Balance',
+        holder: bal === null ? '' : `${formatMoney(bal, currency)}${start ? ` / ${formatMoney(start, currency)}` : ''}`,
+        extraCaption: f.expiryDate ? 'Valid until' : undefined,
+        extra: f.expiryDate ? formatDate(f.expiryDate) : undefined
+      };
+    }
     case 'loyalty':
       return {
         theme,

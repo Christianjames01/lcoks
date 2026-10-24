@@ -20,6 +20,7 @@ import { eventCategory, type CalendarEvent } from '../shared/calendar';
 import { BUILTIN_CATEGORIES } from '../shared/categories';
 import { categoryName, type Task } from '../shared/tasks';
 import { detectCardNetwork } from '../shared/cards';
+import { GIFT_CATEGORY, addHistory, amountText, parseAmountText } from '../shared/giftcards';
 import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, accountColor, balances, dayKey, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type Transaction } from '../shared/money';
 import { generateInboxKeys, openInbox, sealInbox, type InboxEntry } from './inbox';
 import { estimateStrength } from '../shared/strength';
@@ -967,6 +968,40 @@ export class VaultCore {
     const rec = await this.saveTransactionNow(input);
     if (this.settings.quickAddBalances) await this.writeInboxMeta().catch(() => undefined);
     return rec;
+  }
+
+  /**
+   * "Use balance" on a gift card: lower its balance, add a line to its use
+   * history and (optionally) record the purchase in Expenses — one encrypted write.
+   */
+  async useGiftCard(id: unknown, input: unknown): Promise<{ balance: number; transaction: Transaction | null }> {
+    const card = this.findEntry(id);
+    if (card.categoryId !== GIFT_CATEGORY) throw new AppError('INVALID', 'This item is not a gift card.');
+    const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    const amount = i.amount;
+    const balance = parseAmountText(card.fields.balance);
+    if (balance === null) throw new AppError('INVALID', 'Set the balance left on this card first (Edit).');
+    if (!Number.isInteger(amount) || (amount as number) <= 0) throw new AppError('INVALID', 'Enter an amount.');
+    if ((amount as number) > balance) throw new AppError('INVALID', 'That is more than the balance left on the card.');
+    const note = typeof i.note === 'string' ? i.note.trim().slice(0, 120) : '';
+    const date = isDayKey(i.date) ? i.date : dayKey(new Date());
+    const tx = i.expense && typeof i.expense === 'object'
+      ? validateTransactionInput({ kind: 'expense', amount, category: (i.expense as Record<string, unknown>).category, note: note || card.title, date })
+      : null;
+    const now = this.iso();
+    const left = balance - (amount as number);
+    const rec = await this.mutate((d) => {
+      const e = d.entries.find((x) => x.id === card.id)!;
+      e.fields = { ...e.fields, balance: amountText(left), history: addHistory(e.fields.history, { date, amount: amount as number, note: note || 'Used' }) };
+      e.updatedAt = now;
+      if (!tx) return null;
+      if (d.transactions.length >= LIMITS.transactions) throw new AppError('LIMIT', 'Too many records.');
+      const t: Transaction = { id: globalThis.crypto.randomUUID(), kind: 'expense', amount: tx.amount, category: tx.category, note: tx.note, date: tx.date, createdAt: now, updatedAt: now };
+      d.transactions.push(t);
+      return { ...t };
+    });
+    if (rec && this.settings.quickAddBalances) await this.writeInboxMeta().catch(() => undefined);
+    return { balance: left, transaction: rec };
   }
 
   private saveTransactionNow(input: unknown): Promise<Transaction> {

@@ -8577,3 +8577,224 @@ body,
     transform: none;
   }
 }
+
+/* ----------------------------------------------------------- camera scan (item form) */
+.scan-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.scan-row {
+  display: flex;
+  gap: 8px;
+}
+.scan-main {
+  flex: 1;
+}
+.scan-notice {
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+.field.scanned .input,
+.field.scanned .select,
+.field.scanned .input-group {
+  border-color: var(--lg-border-strong, var(--fg-2));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.scan-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--lg-border-strong, var(--border));
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg);
+}
+
+/* ----------------------------------------------------------- small pills */
+.vl-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--lg-border-strong, var(--border));
+  background: var(--lg-field, var(--input-bg));
+  color: var(--fg);
+  font: 600 12.5px var(--font);
+  white-space: nowrap;
+}
+button.vl-pill {
+  cursor: pointer;
+}
+.vl-pill.warn {
+  border-color: color-mix(in srgb, #ff9f0a 55%, transparent);
+  color: #ffb340;
+  background: color-mix(in srgb, #ff9f0a 12%, transparent);
+}
+.vl-pill.danger {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  color: var(--danger);
+}
+
+/* ----------------------------------------------------------- Wi-Fi share */
+.wifi-share {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  margin: 4px 0 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--lg-border, var(--border));
+  background: var(--lg-sheen, none), var(--lg-card, var(--surface));
+  box-shadow: var(--lg-edge, none), var(--lg-shadow-sm, none);
+}
+.wifi-share-icon {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--fg);
+  color: var(--bg);
+}
+.wifi-share-title {
+  font-weight: 680;
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+.wifi-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.wifi-qr-frame {
+  align-self: center;
+  padding: 14px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3), 0 24px 70px rgba(0, 0, 0, 0.45);
+  line-height: 0;
+}
+.wifi-qr-frame.loading {
+  width: 288px;
+  height: 288px;
+  display: grid;
+  place-items: center;
+}
+.wifi-qr-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.wifi-qr-chips {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wifi-qr-pass {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 17px;
+  word-break: break-all;
+}
+
+/* ----------------------------------------------------------- gift cards */
+.gift-panel {
+  margin: 4px 0 14px;
+}
+.gift-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.gift-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.gift-history li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.gift-history li:last-child {
+  border-bottom: 0;
+}
+.gift-h-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--lg-border, var(--border));
+  color: var(--fg);
+}
+.gift-h-note {
+  display: block;
+  font-size: 14.5px;
+}
+.gift-h-amt {
+  font-variant-numeric: tabular-nums;
+}
+.gift-amount {
+  height: 60px;
+  font-size: 28px;
+  font-weight: 750;
+  text-align: center;
+}
+.gift-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.gift-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+.gift-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--lg-border, var(--border));
+  background: var(--lg-sheen, none), var(--lg-card, var(--surface));
+}
+.gift-summary .label {
+  display: block;
+}
+.gift-summary-total {
+  display: block;
+  font-size: 22px;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+}
+.gift-history .grow,
+.gift-toggle .grow,
+.gift-summary .grow {
+  flex: 1;
+  min-width: 0;
+}

@@ -15,6 +15,7 @@ import PDFKit
 import Security
 import UIKit
 import UniformTypeIdentifiers
+import Vision
 
 @objc(VaultNativePlugin)
 public class VaultNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteractionControllerDelegate {
@@ -25,7 +26,8 @@ public class VaultNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteracti
         "writeExport", "writeExportBase64", "clearExports", "openFile", "renderPdf", "setSecure",
         "copySecret", "clearClipboard", "readClipboard", "takeSharedText", "purgeCaptures",
         "biometricStatus", "bioEncrypt", "bioDecrypt", "deviceEncrypt", "deviceDecrypt", "resetKey",
-        "phoneCalendarStatus", "requestPhoneCalendar", "syncPhoneCalendar", "openPhoneCalendar"
+        "phoneCalendarStatus", "requestPhoneCalendar", "syncPhoneCalendar", "openPhoneCalendar",
+        "recognizeText"
     ].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
 
     private static let safeName = try! NSRegularExpression(pattern: "^[A-Za-z0-9._-]{1,100}$")
@@ -293,6 +295,55 @@ public class VaultNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteracti
             }
         }
         call.resolve()
+    }
+
+    /**
+     * Camera scan: the text in a photo (base64 JPEG), read with Vision on the
+     * phone. The image only lives in memory; lines come back top to bottom.
+     */
+    @objc func recognizeText(_ call: CAPPluginCall) {
+        guard let b64 = call.getString("data"), let bytes = Data(base64Encoded: b64, options: .ignoreUnknownCharacters),
+              let image = UIImage(data: bytes), let cg = image.cgImage else {
+            call.reject("Could not read the photo.")
+            return
+        }
+        let request = VNRecognizeTextRequest { req, err in
+            if err != nil {
+                call.reject("Could not read text in the photo.")
+                return
+            }
+            let found = (req.results as? [VNRecognizedTextObservation]) ?? []
+            // Vision's boxes start bottom-left: higher y = nearer the top.
+            let sorted = found.sorted { a, b in
+                abs(a.boundingBox.midY - b.boundingBox.midY) > a.boundingBox.height / 2
+                    ? a.boundingBox.midY > b.boundingBox.midY
+                    : a.boundingBox.minX < b.boundingBox.minX
+            }
+            call.resolve(["lines": sorted.compactMap { $0.topCandidates(1).first?.string }])
+        }
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = false
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try VNImageRequestHandler(cgImage: cg, orientation: VaultNativePlugin.orientation(image.imageOrientation)).perform([request])
+            } catch {
+                call.reject("Could not read text in the photo.")
+            }
+        }
+    }
+
+    private static func orientation(_ o: UIImage.Orientation) -> CGImagePropertyOrientation {
+        switch o {
+        case .up: return .up
+        case .down: return .down
+        case .left: return .left
+        case .right: return .right
+        case .upMirrored: return .upMirrored
+        case .downMirrored: return .downMirrored
+        case .leftMirrored: return .leftMirrored
+        case .rightMirrored: return .rightMirrored
+        @unknown default: return .up
+        }
     }
 
     // --------------------------------------------------------- quick unlock --

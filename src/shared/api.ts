@@ -44,6 +44,8 @@ export interface VaultApi {
     setAppearance(dark: boolean): void;
     /** Short vibration on phones (no-op on desktop). */
     haptic(kind: HapticKind): void;
+    /** Phones: read the text in a photo on the device (camera scan). Desktop: UNSUPPORTED. */
+    recognizeText(imageB64: string): Promise<Result<string[]>>;
   };
   auth: {
     create(password: string, hint: string | null): Promise<Result<void>>;
@@ -77,6 +79,8 @@ export interface VaultApi {
     deleteCategory(id: string): Promise<Result<void>>;
     /** Add (no id) or update an expense / income record. */
     saveTransaction(input: TransactionInput): Promise<Result<Transaction>>;
+    /** Gift card: use part of the balance; optionally record it as an expense. */
+    useGiftCard(id: string, input: { amount: number; note: string; date: string; expense?: { category: string } }): Promise<Result<{ balance: number; transaction: Transaction | null }>>;
     deleteTransaction(id: string): Promise<Result<void>>;
     /** Calendar: save and delete events in one write. */
     saveEvents(save: CalendarEventInput[], remove: string[]): Promise<Result<CalendarEvent[]>>;

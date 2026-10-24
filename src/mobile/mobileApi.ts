@@ -242,6 +242,12 @@ export function createMobileApi(native: NativeVault): VaultApi {
       setAppearance(dark: boolean) {
         void SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => undefined);
       },
+      recognizeText: (imageB64) =>
+        wrap(async () => {
+          requireUnlocked();
+          if (typeof imageB64 !== 'string' || !imageB64 || imageB64.length > 20_000_000) throw new AppError('INVALID', 'No photo to read.');
+          return (await native.recognizeText(imageB64)).slice(0, 400).map((l) => String(l).slice(0, 300));
+        }),
       haptic(kind) {
         const p =
           kind === 'tap'
@@ -320,6 +326,7 @@ export function createMobileApi(native: NativeVault): VaultApi {
       saveCategory: (i) => wrap(() => vault.saveCategory(i)),
       deleteCategory: (id) => wrap(() => vault.deleteCategory(id)),
       saveTransaction: (i) => wrap(() => vault.saveTransaction(i)),
+      useGiftCard: (id, i) => wrap(() => vault.useGiftCard(id, i)),
       deleteTransaction: (id) => wrap(() => vault.deleteTransaction(id)),
       saveEvents: (save, remove) => wrap(() => vault.saveEvents(save, remove)),
       saveTasks: (save, remove) => wrap(() => vault.saveTasks(save, remove)),

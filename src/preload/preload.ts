@@ -19,7 +19,8 @@ const api: VaultApi = {
     takeSharedText: async () => null,
     suspendAutoLock: () => undefined,
     setAppearance: (dark: boolean) => ipcRenderer.send('app.appearance', dark === true),
-    haptic: () => undefined
+    haptic: () => undefined,
+    recognizeText: async () => ({ ok: false, code: 'UNSUPPORTED', message: 'Scanning works in the phone app.' })
   },
   auth: {
     create: call('auth.create') as VaultApi['auth']['create'],
@@ -48,6 +49,7 @@ const api: VaultApi = {
     saveCategory: call('vault.saveCategory') as VaultApi['vault']['saveCategory'],
     deleteCategory: call('vault.deleteCategory') as VaultApi['vault']['deleteCategory'],
     saveTransaction: call('vault.saveTransaction') as VaultApi['vault']['saveTransaction'],
+    useGiftCard: call('vault.useGiftCard') as VaultApi['vault']['useGiftCard'],
     deleteTransaction: call('vault.deleteTransaction') as VaultApi['vault']['deleteTransaction'],
     saveEvents: call('vault.saveEvents') as VaultApi['vault']['saveEvents'],
     saveTasks: call('vault.saveTasks') as VaultApi['vault']['saveTasks'],

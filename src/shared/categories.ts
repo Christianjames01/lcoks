@@ -202,6 +202,38 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
     ]
   },
   {
+    id: 'giftcards',
+    name: 'Gift cards & vouchers',
+    icon: 'ticket',
+    builtin: true,
+    fields: [
+      { key: 'brand', label: 'Store / brand', type: 'text', placeholder: 'Starbucks, SM, Jollibee…' },
+      { key: 'cardNumber', label: 'Card / voucher number', type: 'secret', partialMask: true },
+      { key: 'pin', label: 'PIN / security code', type: 'pin' },
+      { key: 'balance', label: 'Balance left', type: 'text', placeholder: '1,000' },
+      { key: 'initialValue', label: 'Original value', type: 'text', placeholder: '1,000' },
+      { key: 'expiryDate', label: 'Valid until', type: 'date' },
+      { key: 'history', label: 'Use history', type: 'textarea' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
+    id: 'wifiNetwork',
+    name: 'Wi-Fi networks',
+    icon: 'wifi',
+    builtin: true,
+    fields: [
+      { key: 'ssid', label: 'Network name (SSID)', type: 'text', placeholder: 'PLDT-Home 5G' },
+      { key: 'password', label: 'Wi-Fi password', type: 'password' },
+      { key: 'security', label: 'Security', type: 'select', options: ['WPA / WPA2 / WPA3', 'WEP', 'None (open)'] },
+      { key: 'hidden', label: 'Hidden network', type: 'select', options: ['No', 'Yes'] },
+      { key: 'adminUrl', label: 'Router admin page', type: 'url', placeholder: 'http://192.168.1.1' },
+      { key: 'adminUser', label: 'Router admin username', type: 'username' },
+      { key: 'adminPassword', label: 'Router admin password', type: 'password' },
+      { ...NOTES_FIELD }
+    ]
+  },
+  {
     id: 'personal',
     name: 'Passwords',
     icon: 'user',

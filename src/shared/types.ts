@@ -46,6 +46,7 @@ export interface FieldDef {
 
 export type CategoryIcon =
   | 'gift'
+  | 'ticket'
   | 'bank'
   | 'mail'
   | 'globe'

@@ -79,6 +79,7 @@ function memoryNative() {
     readClipboard: async () => self.clipboard,
     takeSharedText: async () => null,
     purgeCaptures: async () => undefined,
+    recognizeText: async () => ["BPI", "4111 1111 1111 1111"],
     quickAddNotification: async () => false,
     setQuickAddNotification: async () => undefined,
     phoneCalendarStatus: async () => false,

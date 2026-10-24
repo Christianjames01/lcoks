@@ -207,6 +207,12 @@ function builtInTheme(bankName: string | undefined, title: string): CardTheme {
   return { ...DEFAULT_THEME, label, short: initials(label) };
 }
 
+/** The bank / brand named in some text (e.g. what a camera read off a card), '' if none. */
+export function detectBrand(text: string): string {
+  for (const [re, , label] of THEMES) if (re.test(text)) return label;
+  return '';
+}
+
 const SHORT: Record<string, string> = {
   Metrobank: 'MB',
   LANDBANK: 'LBP',

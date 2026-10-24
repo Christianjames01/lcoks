@@ -71,7 +71,7 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock your vault with Face ID.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Take photos of cards and documents to attach them, encrypted, to your items.</string>
+	<string>Take photos of cards and documents to attach them, encrypted, to your items, or to fill in a card’s details (read on this iPhone).</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Choose photos to attach, encrypted, to your items.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

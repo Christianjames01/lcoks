@@ -1,4 +1,4 @@
-import { CircleAlert, File as FileIcon, Info, Paperclip, Plus, ShieldCheck, X } from 'lucide-react';
+import { Check, CircleAlert, File as FileIcon, Info, Paperclip, Plus, ScanLine, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { AttachmentInput, EntryView, FieldDef, VaultSnapshot } from '../../shared/types';
 import { AddAttachmentSheet, readPicked } from '../components/Attachments';
@@ -7,6 +7,9 @@ import { useToast } from '../components/Toast';
 import { formatBytes } from '../lib/format';
 import { isImage, pickFiles, type PickSource } from '../lib/files';
 import { PasswordInput } from '../components/PasswordInput';
+import { ScanButton } from '../components/ScanButton';
+import { SCAN_KINDS, type ScanKind, type ScanResult } from '../../shared/scan';
+import { isPhone } from '../lib/platform';
 import { TagInput } from '../components/TagInput';
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
 import type { EditorState } from './VaultApp';
@@ -47,7 +50,8 @@ const TITLE_SOURCE: Record<string, string> = {
   email: 'service',
   social: 'platform',
   others: 'name',
-  software: 'product'
+  software: 'product',
+  wifiNetwork: 'ssid'
 };
 
 export function EntryForm({ state, snap, onClose, onSaved }: Props) {
@@ -67,7 +71,27 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
   const [addingFile, setAddingFile] = useState(false);
   const [readingFiles, setReadingFiles] = useState(false);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
+  // Fields filled from a camera scan (highlighted until the user edits them).
+  const [scanned, setScanned] = useState<{ keys: string[]; checked: string[] } | null>(null);
   const toast = useToast();
+
+  const applyScan = (r: ScanResult) => {
+    const keys: string[] = [];
+    setFields((f) => {
+      const next = { ...f };
+      for (const [k, v] of Object.entries(r.fields)) {
+        // Editing: never overwrite what is already there.
+        if (isEdit && f[k]?.trim()) continue;
+        next[k] = v;
+        keys.push(k);
+      }
+      return next;
+    });
+    if (!title.trim() && r.title) setTitle(r.title);
+    setScanned({ keys, checked: r.checked });
+    setErrors({});
+    api.app.haptic('success');
+  };
 
   // Edit: load the full entry (including secrets) only for the lifetime of this form.
   useEffect(() => {
@@ -104,7 +128,10 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
     return snap.entries.some((e) => e.categoryId === categoryId && e.title.trim().toLowerCase() === t && (state.mode === 'new' || e.id !== state.id));
   }, [title, categoryId, snap.entries, state]);
 
-  const setField = (key: string, v: string) => setFields((f) => ({ ...f, [key]: v }));
+  const setField = (key: string, v: string) => {
+    setFields((f) => ({ ...f, [key]: v }));
+    setScanned((s) => (s && s.keys.includes(key) ? { ...s, keys: s.keys.filter((k) => k !== key) } : s));
+  };
 
   const pickPending = async (source: PickSource) => {
     setAddingFile(false);
@@ -261,8 +288,15 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
         );
     }
     return (
-      <div key={def.key} className={`field ${wide ? 'span-2' : ''}`}>
-        <label htmlFor={id}>{def.label}</label>
+      <div key={def.key} className={`field ${wide ? 'span-2' : ''} ${scanned?.keys.includes(def.key) ? 'scanned' : ''}`}>
+        <label htmlFor={id}>
+          {def.label}
+          {scanned?.keys.includes(def.key) && (
+            <span className="scan-tag">
+              <Check size={11} aria-hidden /> {scanned.checked.includes(def.key) ? 'Checked' : 'From photo'}
+            </span>
+          )}
+        </label>
         {control}
         {fieldError(def.key)}
       </div>
@@ -340,6 +374,16 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
                 </span>
               )}
             </div>
+            {isPhone() && SCAN_KINDS.has(categoryId) && <ScanButton kind={categoryId as ScanKind} onResult={applyScan} />}
+            {scanned && scanned.keys.length > 0 && (
+              <div className="notice scan-notice span-2" role="status">
+                <ScanLine size={16} aria-hidden />
+                <span>
+                  Filled {scanned.keys.length} field{scanned.keys.length === 1 ? '' : 's'} from the photo. Check each one before saving.
+                  {(categoryId === 'cards' || categoryId === 'giftcards') && ' CVV and PIN are never read — type them yourself.'}
+                </span>
+              </div>
+            )}
             {(category?.fields ?? []).map(renderField)}
             <div className="field span-2">
               <label htmlFor="f-tags">Tags</label>

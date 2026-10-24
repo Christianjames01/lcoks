@@ -89,6 +89,31 @@ public class VaultNativePlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** Camera scan: the text in a photo (base64 JPEG), read on the device. */
+    @PluginMethod
+    public void recognizeText(PluginCall call) {
+        String data = call.getString("data");
+        if (data == null || data.isEmpty()) {
+            call.reject("No photo to read.");
+            return;
+        }
+        TextScan.read(data, new TextScan.Done() {
+            @Override
+            public void lines(java.util.List<String> lines) {
+                JSObject ret = new JSObject();
+                JSArray arr = new JSArray();
+                for (String l : lines) arr.put(l);
+                ret.put("lines", arr);
+                call.resolve(ret);
+            }
+
+            @Override
+            public void error(String message) {
+                call.reject(message);
+            }
+        });
+    }
+
     /**
      * SECURITY: the system camera saves the photo it takes for us UNENCRYPTED in
      * app-specific storage (Pictures/). As soon as the app has read it, delete it.

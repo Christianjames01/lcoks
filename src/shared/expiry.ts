@@ -22,6 +22,7 @@ const BUILTIN: Record<string, { key: string; kind: DateKind }[]> = {
   software: [{ key: 'expirationDate', kind: 'expires' }],
   cards: [{ key: 'expiry', kind: 'expires' }],
   loyalty: [{ key: 'expiryDate', kind: 'expires' }],
+  giftcards: [{ key: 'expiryDate', kind: 'expires' }],
   documents: [{ key: 'expiryDate', kind: 'expires' }]
 };
 

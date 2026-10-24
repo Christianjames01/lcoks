@@ -17,6 +17,7 @@ import {
   Phone,
   Server,
   Shield,
+  Ticket,
   User,
   Wallet,
   Wifi,
@@ -45,7 +46,8 @@ export const CATEGORY_ICONS: Record<IconName, LucideIcon> = {
   wallet: Wallet,
   health: HeartPulse,
   calendar: CalendarClock,
-  gift: Gift
+  gift: Gift,
+  ticket: Ticket
 };
 
 export function CategoryIcon({ icon, size = 16 }: { icon: IconName | undefined; size?: number }) {

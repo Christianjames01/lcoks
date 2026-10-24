@@ -209,6 +209,7 @@ export function registerIpc(d: IpcDeps): void {
   handle('inbox.add', (text: unknown, day: unknown) => d.vault.quickAdd(text, day));
   handle('inbox.takeReport', () => d.vault.takeInboxReport());
   handle('vault.saveTransaction', (input: unknown) => d.vault.saveTransaction(input));
+  handle('vault.useGiftCard', (id: unknown, input: unknown) => d.vault.useGiftCard(id, input));
   handle('vault.deleteTransaction', (id: unknown) => d.vault.deleteTransaction(id));
   handle('vault.saveEvents', (save: unknown, remove: unknown) => d.vault.saveEvents(save, remove));
   handle('vault.saveTasks', (save: unknown, remove: unknown) => d.vault.saveTasks(save, remove));
