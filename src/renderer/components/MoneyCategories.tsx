@@ -1,6 +1,7 @@
-import { Pencil, Plus, Trash } from 'lucide-react';
-import { useState } from 'react';
-import { CUSTOM_MONEY_ICONS, type MoneyCategory, type MoneyIcon, type TxKind } from '../../shared/money';
+import { Pencil, Plus, RotateCcw, Trash } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { CUSTOM_MONEY_ICONS, MONEY_CATEGORIES, isBuiltinCategory, isDefaultCategory, type MoneyCategory, type MoneyCategoryEdit, type MoneyIcon, type TxKind } from '../../shared/money';
+import type { ActionItem } from './HoldActions';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { MoneyIconOf } from '../views/Money';
 import { ConfirmDialog, Dialog } from './Dialog';
@@ -25,6 +26,9 @@ export function MoneyCategoryEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const k = initial?.kind ?? kind;
+  const builtin = initial && isBuiltinCategory(initial.id) ? MONEY_CATEGORIES.find((c) => c.id === initial.id) : undefined;
+  // A built-in keeps its own icon among the choices.
+  const icons: MoneyIcon[] = builtin && !CUSTOM_MONEY_ICONS.includes(builtin.icon) ? [builtin.icon, ...CUSTOM_MONEY_ICONS] : [...CUSTOM_MONEY_ICONS];
 
   const save = async () => {
     if (!name.trim()) return setError('Give the category a name.');
@@ -52,7 +56,8 @@ export function MoneyCategoryEditor({
     <Dialog
       placement="center"
       size="narrow"
-      title={initial ? 'Edit category' : k === 'income' ? 'New income category' : 'New expense category'}
+      title={initial ? `Edit ${initial.name}` : k === 'income' ? 'New income category' : 'New expense category'}
+      subtitle={builtin && builtin.name !== initial?.name ? `Built-in: ${builtin.name}` : undefined}
       onClose={onClose}
       busy={busy}
       footer={
@@ -88,7 +93,7 @@ export function MoneyCategoryEditor({
       <div className="field">
         <span className="label">Icon</span>
         <div className="mc-icons" role="radiogroup" aria-label="Icon">
-          {CUSTOM_MONEY_ICONS.map((i) => (
+          {icons.map((i) => (
             <button key={i} type="button" role="radio" aria-checked={icon === i} className="mc-icon" onClick={() => setIcon(i)} aria-label={i}>
               <MoneyIconOf icon={i} size={18} />
             </button>
@@ -169,6 +174,95 @@ export function MoneyCategoryList({ list, onChanged }: { list: readonly MoneyCat
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Edit / Delete for any category (built-in or the user's own), e.g. from a long
+ * press on its chip. Deleting moves its records to Other; "Other" itself stays.
+ */
+export function useCategoryActions(onChanged: () => Promise<void>, onDeleted?: (c: MoneyCategory) => void) {
+  const toast = useToast();
+  const [editing, setEditing] = useState<MoneyCategory | null>(null);
+  const [deleting, setDeleting] = useState<MoneyCategory | null>(null);
+  const itemsFor = (c: MoneyCategory): ActionItem[] => [
+    { key: 'edit', label: `Edit ${c.name}`, icon: <Pencil size={16} aria-hidden />, run: () => setEditing(c) },
+    ...(isDefaultCategory(c.id) ? [] : [{ key: 'delete', label: `Delete ${c.name}`, icon: <Trash size={16} aria-hidden />, danger: true, run: () => setDeleting(c) }])
+  ];
+  const dialogs: ReactNode = (
+    <>
+      {editing && <MoneyCategoryEditor initial={editing} kind={editing.kind} onClose={() => setEditing(null)} onSaved={onChanged} />}
+      {deleting && (
+        <ConfirmDialog
+          placement="center"
+          title={`Delete “${deleting.name}”?`}
+          danger
+          confirmLabel="Delete"
+          message={
+            isBuiltinCategory(deleting.id)
+              ? `It is hidden from your categories and its records move to ${deleting.kind === 'income' ? 'Other income' : 'Other'}. You can bring it back in Budget & categories.`
+              : `Records in it move to ${deleting.kind === 'income' ? 'Other income' : 'Other'}. Nothing else is deleted.`
+          }
+          onCancel={() => setDeleting(null)}
+          onConfirm={async () => {
+            try {
+              const c = deleting;
+              const moved = await unwrap(api.vault.deleteMoneyCategory(c.id));
+              await onChanged();
+              setDeleting(null);
+              onDeleted?.(c);
+              toast(moved ? `${c.name} deleted. ${moved} record${moved === 1 ? '' : 's'} moved to Other.` : `${c.name} deleted.`);
+            } catch (e) {
+              toast(errorMessage(e), 'error');
+            }
+          }}
+        />
+      )}
+    </>
+  );
+  return { itemsFor, dialogs };
+}
+
+/** Built-in categories the user renamed or deleted, with Restore. */
+export function EditedBuiltins({ edits, onChanged }: { edits: Readonly<Record<string, MoneyCategoryEdit>>; onChanged: () => Promise<void> }) {
+  const toast = useToast();
+  const changed = MONEY_CATEGORIES.filter((c) => edits[c.id]);
+  if (!changed.length) return null;
+  return (
+    <div className="mc-list-wrap">
+      <span className="label">Changed built-in categories</span>
+      <ul className="mc-list">
+        {changed.map((c) => {
+          const e = edits[c.id]!;
+          return (
+            <li key={c.id}>
+              <span className="bd-icon">
+                <MoneyIconOf icon={e.icon ?? c.icon} size={16} />
+              </span>
+              <span className="grow">
+                <span style={{ display: 'block', fontWeight: 600 }}>{e.name ?? c.name}</span>
+                <span className="dim small">{e.hidden ? 'Deleted' : e.name && e.name !== c.name ? `Was ${c.name}` : 'Changed'}</span>
+              </span>
+              <button
+                type="button"
+                className="btn sm"
+                onClick={async () => {
+                  try {
+                    await unwrap(api.vault.restoreMoneyCategory(c.id));
+                    await onChanged();
+                    toast(`${c.name} restored.`);
+                  } catch (err) {
+                    toast(errorMessage(err), 'error');
+                  }
+                }}
+              >
+                <RotateCcw size={14} aria-hidden /> Restore
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

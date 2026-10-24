@@ -28,7 +28,8 @@ describe('custom categories (shared)', () => {
     expect(validateMoneyCategoryInput({ name: '  GCash   cash out ', kind: 'expense', icon: 'cashout', words: ['Cashout', 'cash out', 'x', '50 off', 'cashout'] })).toEqual({ name: 'GCash cash out', kind: 'expense', icon: 'cashout', words: ['cashout', 'cash out'] });
     expect(validateMoneyCategoryInput({ name: 'X', icon: 'nope' }).icon).toBe('tag');
     expect(() => validateMoneyCategoryInput({ name: '' })).toThrow();
-    expect(() => validateMoneyCategoryInput({ id: 'food', name: 'Food' })).toThrow();
+    expect(validateMoneyCategoryInput({ id: 'salary', name: 'Sweldo', kind: 'expense' })).toMatchObject({ id: 'salary', kind: 'income', icon: 'wallet' });
+    expect(() => validateMoneyCategoryInput({ id: 'not-a-category', name: 'X' })).toThrow();
     expect(validateTransactionInput({ kind: 'expense', amount: 100, category: 'mc-games', note: '', date: '2026-10-24' }, [games]).category).toBe('mc-games');
     expect(validateTransactionInput({ kind: 'income', amount: 100, category: 'mc-games', note: '', date: '2026-10-24' }, [games]).category).toBe('other-income');
     expect(validateTransactionInput({ kind: 'expense', amount: 100, category: 'mc-games', note: '', date: '2026-10-24' }).category).toBe('other');
@@ -89,5 +90,65 @@ describe('coffee break days', () => {
     expect(describeDays([0, 1, 2, 3, 4, 5, 6])).toBe('every day');
     expect(describeDays([6, 0])).toBe('weekends');
     expect(describeDays([1, 3, 5])).toBe('Mon, Wed, Fri');
+  });
+});
+
+describe('editing and deleting built-in categories', () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'vaultlocks-mcat-b-'));
+  });
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  it('rename keeps the id and records; delete hides it and moves records; restore brings it back', async () => {
+    const v = new VaultService(path.join(dir, 'vault', 'vault.vault'));
+    await v.create(PW, null);
+    await v.saveTransaction({ kind: 'expense', amount: 15000, category: 'food', note: 'Lunch', date: '2026-10-24' });
+    const c = await v.saveMoneyCategory({ id: 'food', name: 'Pagkain', kind: 'income', icon: 'tag', words: ['ulam', 'kain'] });
+    expect(c).toMatchObject({ id: 'food', name: 'Pagkain', kind: 'expense', icon: 'tag' });
+    expect(v.snapshot().transactions[0]!.category).toBe('food');
+    expect(moneyCategory('food', [], v.snapshot().moneyCategoryEdits).name).toBe('Pagkain');
+    expect(parseQuick('ulam 80', new Date(2026, 9, 24), [], [], v.snapshot().moneyCategoryEdits)?.category).toBe('food');
+
+    expect(await v.deleteMoneyCategory('food')).toBe(1);
+    const edits = v.snapshot().moneyCategoryEdits;
+    expect(v.snapshot().transactions[0]!.category).toBe('other');
+    expect(allMoneyCategories([], edits).some((x) => x.id === 'food')).toBe(false);
+    expect(parseQuick('lunch 150', new Date(2026, 9, 24), [], [], edits)?.category).toBe('other');
+    expect(validateTransactionInput({ kind: 'expense', amount: 100, category: 'food', note: '', date: '2026-10-24' }, [], edits).category).toBe('other');
+    await expect(v.deleteMoneyCategory('other')).rejects.toMatchObject({ code: 'INVALID' });
+
+    v.lock();
+    await v.unlock(PW);
+    expect(v.snapshot().moneyCategoryEdits.food).toMatchObject({ name: 'Pagkain', hidden: true });
+
+    await v.restoreMoneyCategory('food');
+    expect(v.snapshot().moneyCategoryEdits).toEqual({});
+    expect(allMoneyCategories([], {}).find((x) => x.id === 'food')?.name).toBe('Food & Drinks');
+  });
+
+  it('a renamed built-in clashes like any other name; damaged edits are dropped', async () => {
+    const v = new VaultService(path.join(dir, 'vault', 'vault.vault'));
+    await v.create(PW, null);
+    await expect(v.saveMoneyCategory({ id: 'food', name: 'Groceries', kind: 'expense', icon: 'food', words: [] })).rejects.toMatchObject({ code: 'DUPLICATE' });
+    const base = { schema: 1, entries: [], settings: {}, transactions: [], accounts: [] };
+    expect(validatePayload({ ...base, moneyCategoryEdits: { food: { name: 'X', hidden: true }, nope: { name: 'Y' }, other: { hidden: true } } }).moneyCategoryEdits).toEqual({ food: { name: 'X', hidden: true } });
+  });
+});
+
+describe('saving a built-in unchanged', () => {
+  it('leaves no edit behind', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'vaultlocks-mcat-c-'));
+    try {
+      const v = new VaultService(path.join(dir, 'vault', 'vault.vault'));
+      await v.create(PW, null);
+      const housing = allMoneyCategories([], {}).find((c) => c.id === 'housing')!;
+      await v.saveMoneyCategory({ id: 'housing', name: housing.name, kind: 'expense', icon: housing.icon, words: housing.words });
+      expect(v.snapshot().moneyCategoryEdits).toEqual({});
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 });

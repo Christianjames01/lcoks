@@ -82,6 +82,8 @@ export interface VaultApi {
     /** The user's own Expenses categories. Deleting moves their records to Other; returns how many moved. */
     saveMoneyCategory(input: { id?: string; name: string; kind: TxKind; icon: string; words: string[] }): Promise<Result<MoneyCategory>>;
     deleteMoneyCategory(id: string): Promise<Result<number>>;
+    /** A built-in category back to how it came, shown again. */
+    restoreMoneyCategory(id: string): Promise<Result<void>>;
     /** Gift card: use part of the balance; optionally record it as an expense. */
     useGiftCard(id: string, input: { amount: number; note: string; date: string; expense?: { category: string } }): Promise<Result<{ balance: number; transaction: Transaction | null }>>;
     deleteTransaction(id: string): Promise<Result<void>>;

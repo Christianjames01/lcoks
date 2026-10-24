@@ -234,28 +234,51 @@ export const MONEY_CATEGORY_IDS: ReadonlySet<string> = new Set(MONEY_CATEGORIES.
 export const CUSTOM_MONEY_ICONS: readonly MoneyIcon[] = ['tag', 'gamepad', 'cashout', 'phone', 'paw', 'plane', 'dumbbell', 'music', 'baby', 'film', 'bag', 'food', 'car', 'gift', 'wallet', 'briefcase', 'health', 'book', 'sparkles', 'home'];
 export const MAX_MONEY_CATEGORIES = 40;
 
-/**
- * The user's own categories (stored in the vault). The renderer registers the
- * unlocked vault's list here so names and icons show everywhere; the vault core
- * passes its list explicitly instead.
- */
-let customMoney: readonly MoneyCategory[] = [];
-export function setCustomMoneyCategories(list: readonly MoneyCategory[]): void {
-  customMoney = list;
+/** The user's changes to a built-in category: a new name, icon or words, or hidden ("deleted"). */
+export interface MoneyCategoryEdit {
+  name?: string;
+  icon?: MoneyIcon;
+  words?: string[];
+  hidden?: boolean;
 }
-/** Built-in categories, the user's own ones before "Other". */
-export function allMoneyCategories(custom: readonly MoneyCategory[] = customMoney): MoneyCategory[] {
+export type MoneyCategoryEdits = Readonly<Record<string, MoneyCategoryEdit>>;
+
+let customMoney: readonly MoneyCategory[] = [];
+let moneyEdits: MoneyCategoryEdits = {};
+export function setCustomMoneyCategories(list: readonly MoneyCategory[], edits: MoneyCategoryEdits = {}): void {
+  customMoney = list;
+  moneyEdits = edits;
+}
+
+/** "Other" and "Other income" always exist: records of deleted categories go there. */
+export const isDefaultCategory = (id: string) => id === 'other' || id === 'other-income';
+export const isBuiltinCategory = (id: string) => MONEY_CATEGORY_IDS.has(id);
+export const isHiddenCategory = (id: string, edits: MoneyCategoryEdits = moneyEdits) => !!edits[id]?.hidden && !isDefaultCategory(id);
+
+/** Built-in categories with the user's changes applied (hidden ones included). */
+export function editedBuiltins(edits: MoneyCategoryEdits = moneyEdits): MoneyCategory[] {
+  return MONEY_CATEGORIES.map((c) => {
+    const e = edits[c.id];
+    if (!e) return c;
+    return { ...c, ...(e.name ? { name: e.name } : {}), ...(e.icon ? { icon: e.icon } : {}), ...(e.words ? { words: [...e.words] } : {}) };
+  });
+}
+
+/** Categories to choose from: built-ins (minus hidden ones), then the user's own, then "Other". */
+export function allMoneyCategories(custom: readonly MoneyCategory[] = customMoney, edits: MoneyCategoryEdits = moneyEdits): MoneyCategory[] {
+  const base = editedBuiltins(edits).filter((c) => !isHiddenCategory(c.id, edits));
   const out: MoneyCategory[] = [];
   for (const kind of ['expense', 'income'] as const) {
-    const base = MONEY_CATEGORIES.filter((c) => c.kind === kind);
-    const other = base.filter((c) => c.id === defaultCategory(kind));
-    out.push(...base.filter((c) => c.id !== defaultCategory(kind)), ...custom.filter((c) => c.kind === kind), ...other);
+    const mine = base.filter((c) => c.kind === kind);
+    out.push(...mine.filter((c) => !isDefaultCategory(c.id)), ...custom.filter((c) => c.kind === kind), ...mine.filter((c) => isDefaultCategory(c.id)));
   }
   return out;
 }
 
-export const moneyCategory = (id: string, custom: readonly MoneyCategory[] = customMoney): MoneyCategory =>
-  MONEY_CATEGORIES.find((c) => c.id === id) ?? custom.find((c) => c.id === id) ?? MONEY_CATEGORIES.find((c) => c.id === 'other')!;
+export const moneyCategory = (id: string, custom: readonly MoneyCategory[] = customMoney, edits: MoneyCategoryEdits = moneyEdits): MoneyCategory => {
+  const built = editedBuiltins(edits);
+  return built.find((c) => c.id === id) ?? custom.find((c) => c.id === id) ?? built.find((c) => c.id === 'other')!;
+};
 
 export const defaultCategory = (kind: TxKind) => (kind === 'income' ? 'other-income' : 'other');
 
@@ -344,7 +367,7 @@ const AMOUNT_RE = /(^|\s)([+-]?)(?:₱|php|p|\$|usd|€|£|¥)?\s?(\d{1,3}(?:,\d
  * "cash in gcash 500" or "salary 30k". Returns null when no amount is found.
  * `accounts`: names to look for ("gcash", "maya"…); the match becomes accountId.
  */
-export function parseQuick(text: string, today: Date = new Date(), accounts: readonly MoneyAccount[] = [], custom: readonly MoneyCategory[] = customMoney): QuickParse | null {
+export function parseQuick(text: string, today: Date = new Date(), accounts: readonly MoneyAccount[] = [], custom: readonly MoneyCategory[] = customMoney, edits: MoneyCategoryEdits = moneyEdits): QuickParse | null {
   let rest = ` ${text.trim()} `;
   if (!rest.trim()) return null;
 
@@ -385,7 +408,7 @@ export function parseQuick(text: string, today: Date = new Date(), accounts: rea
 
   const kind: TxKind = sign === '+' || (sign !== '-' && INCOME_HINT.test(text.trim())) ? 'income' : 'expense';
   // The user's own categories first: their words are more specific ("ml", "cashout").
-  const match = [...custom, ...MONEY_CATEGORIES].filter((c) => c.kind === kind).find((c) => c.words.some((w) => hasWord(rest, w)));
+  const match = [...custom, ...editedBuiltins(edits).filter((c) => !isHiddenCategory(c.id, edits))].filter((c) => c.kind === kind).find((c) => c.words.some((w) => hasWord(rest, w)));
   const note = rest.replace(/\s+/g, ' ').trim();
   return {
     kind,

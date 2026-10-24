@@ -18,6 +18,8 @@ export function ActionSheet({ title, items, onClose }: { title: string; items: A
   const ref = useRef<HTMLDivElement>(null);
   // Opened by a long press: the lifting finger must not "click" the item under it.
   const pressed = useRef(false);
+  // The lifting finger can also send a late mousedown to the backdrop: ignore it.
+  const openedAt = useRef(Date.now());
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
@@ -36,7 +38,7 @@ export function ActionSheet({ title, items, onClose }: { title: string; items: A
     }
   };
   return createPortal(
-    <div className="menu-backdrop hold-menu-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="menu-backdrop hold-menu-backdrop" onMouseDown={(e) => e.target === e.currentTarget && Date.now() - openedAt.current > 700 && onClose()}>
       <div ref={ref} className="hold-menu" role="menu" aria-label={title} onKeyDown={onKey} onPointerDown={() => (pressed.current = true)}>
         <div className="sheet-title">{title}</div>
         {items.map((it) => (
@@ -108,6 +110,8 @@ export function HoldArea({
 
   const onPointerDown = (e: PointerEvent) => {
     if (e.button !== 0) return;
+    // Presses inside the open menu (rendered in a portal, but still a React child) are not a hold.
+    if (!(e.currentTarget as HTMLElement).contains(e.target as Node)) return;
     g.current = { ...g.current, x: e.clientX, y: e.clientY, mode: 'press', swallow: false, base: dx };
     setHolding(true);
     g.current.timer = window.setTimeout(showActions, HOLD_MS);

@@ -20,7 +20,7 @@ import {
 } from '../shared/calendar';
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../shared/categories';
 import { MAX_TASK_CATEGORIES, TASK_CATEGORY_IDS, type Task, type TaskCategory, type TaskInput, type TaskReminder } from '../shared/tasks';
-import { CUSTOM_MONEY_ICONS, DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, isHexColor, MONEY_CATEGORY_IDS, defaultCategory, isDayKey, type AccountKind, type MoneyAccount, type MoneyCategory, type MoneyIcon, type Transaction, type TransactionInput } from '../shared/money';
+import { CUSTOM_MONEY_ICONS, DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, isHexColor, MONEY_CATEGORY_IDS, defaultCategory, isDayKey, type AccountKind, type MoneyAccount, type MoneyCategory, type MoneyCategoryEdit, type MoneyIcon, type Transaction, type TransactionInput } from '../shared/money';
 import {
   ACCENT_COLORS,
   DEFAULT_SETTINGS,
@@ -332,6 +332,7 @@ export function validatePayload(v: unknown): VaultPayload {
     }
 
   // The user's own expense / income categories (older vaults have none).
+  const moneyCategoryEdits = validateMoneyCategoryEdits(p.moneyCategoryEdits);
   const moneyCategories: MoneyCategory[] = [];
   for (const raw of Array.isArray(p.moneyCategories) ? p.moneyCategories.slice(0, MAX_MONEY_CATEGORIES) : []) {
     try {
@@ -347,7 +348,7 @@ export function validatePayload(v: unknown): VaultPayload {
   const txIds = new Set<string>();
   for (const raw of Array.isArray(p.transactions) ? p.transactions.slice(0, LIMITS.transactions) : []) {
     try {
-      const t = validateTransactionInput(raw, moneyCategories);
+      const t = validateTransactionInput(raw, moneyCategories, moneyCategoryEdits);
       const id = t.id && !txIds.has(t.id) ? t.id : randomUUID();
       txIds.add(id);
       transactions.push({ ...t, id, createdAt: isoOr(raw.createdAt, now), updatedAt: isoOr(raw.updatedAt, now) });
@@ -402,6 +403,7 @@ export function validatePayload(v: unknown): VaultPayload {
     transactions,
     accounts,
     moneyCategories,
+    moneyCategoryEdits,
     events,
     tasks,
     ...(validInboxKey(p.inboxKey) ? { inboxKey: { priv: { ...p.inboxKey.priv }, pub: p.inboxKey.pub } } : {})
@@ -430,11 +432,13 @@ export function validateMoneyCategoryInput(input: unknown): Omit<MoneyCategory, 
   if (!input || typeof input !== 'object') throw new ValidationError('form', 'Invalid category.');
   const i = input as Record<string, unknown>;
   const id = i.id === undefined || i.id === null ? undefined : str(i.id, 'id', 64);
-  if (id !== undefined && (!/^mc-[A-Za-z0-9-]{1,60}$/.test(id) || MONEY_CATEGORY_IDS.has(id))) throw new ValidationError('id', 'Built-in categories cannot be changed.');
+  // A built-in id edits that built-in (its kind stays); "mc-…" is one of the user's own.
+  if (id !== undefined && !/^mc-[A-Za-z0-9-]{1,60}$/.test(id) && !MONEY_CATEGORY_IDS.has(id)) throw new ValidationError('id', 'Invalid category.');
+  const builtin = id ? MONEY_CATEGORIES.find((c) => c.id === id) : undefined;
   const name = str(i.name, 'name', 30, true).trim().replace(/\s+/g, ' ');
   if (!name) throw new ValidationError('name', 'Give the category a name.');
-  const kind = i.kind === 'income' ? 'income' : 'expense';
-  const icon = CUSTOM_MONEY_ICONS.includes(i.icon as MoneyIcon) ? (i.icon as MoneyIcon) : 'tag';
+  const kind = builtin ? builtin.kind : i.kind === 'income' ? 'income' : 'expense';
+  const icon = CUSTOM_MONEY_ICONS.includes(i.icon as MoneyIcon) || MONEY_CATEGORIES.some((c) => c.icon === i.icon) ? (i.icon as MoneyIcon) : (builtin?.icon ?? 'tag');
   const words = (Array.isArray(i.words) ? i.words : [])
     .filter((w): w is string => typeof w === 'string')
     .map((w) => w.trim().toLowerCase().replace(/\s+/g, ' '))
@@ -442,7 +446,29 @@ export function validateMoneyCategoryInput(input: unknown): Omit<MoneyCategory, 
   return { ...(id ? { id } : {}), name, kind, icon, words: [...new Set(words)].slice(0, 20) };
 }
 
-export function validateTransactionInput(input: unknown, custom: readonly MoneyCategory[] = []): TransactionInput {
+/** Changes to built-in categories (name, icon, words, hidden). Unknown or damaged ones are dropped. */
+export function validateMoneyCategoryEdits(v: unknown): Record<string, MoneyCategoryEdit> {
+  const out: Record<string, MoneyCategoryEdit> = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const [id, raw] of Object.entries(v as Record<string, unknown>)) {
+    if (!MONEY_CATEGORY_IDS.has(id) || !raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    const e: MoneyCategoryEdit = {};
+    try {
+      const c = validateMoneyCategoryInput({ id, name: typeof r.name === 'string' && r.name.trim() ? r.name : 'x', icon: r.icon, words: r.words });
+      if (typeof r.name === 'string' && r.name.trim()) e.name = c.name;
+      if (typeof r.icon === 'string') e.icon = c.icon;
+      if (Array.isArray(r.words)) e.words = c.words;
+    } catch {
+      /* keep what is valid */
+    }
+    if (r.hidden === true && id !== 'other' && id !== 'other-income') e.hidden = true;
+    if (Object.keys(e).length) out[id] = e;
+  }
+  return out;
+}
+
+export function validateTransactionInput(input: unknown, custom: readonly MoneyCategory[] = [], edits: Readonly<Record<string, MoneyCategoryEdit>> = {}): TransactionInput {
   if (!input || typeof input !== 'object') throw new ValidationError('form', 'Invalid record.');
   const i = input as Record<string, unknown>;
   const id = i.id === undefined || i.id === null ? undefined : str(i.id, 'id', 64);
@@ -451,7 +477,7 @@ export function validateTransactionInput(input: unknown, custom: readonly MoneyC
   if (!kind) throw new ValidationError('kind', 'Choose expense or income.');
   if (!Number.isInteger(i.amount) || (i.amount as number) <= 0 || (i.amount as number) > MAX_AMOUNT) throw new ValidationError('amount', 'Enter an amount greater than zero.');
   const cat = typeof i.category === 'string' ? (MONEY_CATEGORIES.find((c) => c.id === i.category) ?? custom.find((c) => c.id === i.category)) : undefined;
-  const category = cat && cat.kind === kind ? cat.id : defaultCategory(kind);
+  const category = cat && cat.kind === kind && !edits[cat.id]?.hidden ? cat.id : defaultCategory(kind);
   if (!isDayKey(i.date)) throw new ValidationError('date', 'Choose a valid date.');
   const accountId = typeof i.accountId === 'string' && ID_RE.test(i.accountId) ? i.accountId : undefined;
   return { id, kind, amount: i.amount as number, category, note: str(i.note, 'note', LIMITS.title).trim(), date: i.date, ...(accountId ? { accountId } : {}) };

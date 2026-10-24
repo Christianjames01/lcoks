@@ -52,6 +52,7 @@ const api: VaultApi = {
     useGiftCard: call('vault.useGiftCard') as VaultApi['vault']['useGiftCard'],
     saveMoneyCategory: call('vault.saveMoneyCategory') as VaultApi['vault']['saveMoneyCategory'],
     deleteMoneyCategory: call('vault.deleteMoneyCategory') as VaultApi['vault']['deleteMoneyCategory'],
+    restoreMoneyCategory: call('vault.restoreMoneyCategory') as VaultApi['vault']['restoreMoneyCategory'],
     deleteTransaction: call('vault.deleteTransaction') as VaultApi['vault']['deleteTransaction'],
     saveEvents: call('vault.saveEvents') as VaultApi['vault']['saveEvents'],
     saveTasks: call('vault.saveTasks') as VaultApi['vault']['saveTasks'],

@@ -472,7 +472,7 @@ export function VaultApp({ version }: { version: string }) {
   const bellCount = unreadCount(snap, bellNow);
   // Vault cards use the colour/style chosen for the Expenses card with the same name.
   setLinkedLooks(snap.accounts);
-  setCustomMoneyCategories(snap.moneyCategories);
+  setCustomMoneyCategories(snap.moneyCategories, snap.moneyCategoryEdits);
 
   return (
     <EntryActionsProvider value={actions}>

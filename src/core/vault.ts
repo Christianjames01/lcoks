@@ -21,7 +21,7 @@ import { BUILTIN_CATEGORIES } from '../shared/categories';
 import { categoryName, type Task } from '../shared/tasks';
 import { detectCardNetwork } from '../shared/cards';
 import { GIFT_CATEGORY, addHistory, amountText, parseAmountText } from '../shared/giftcards';
-import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, accountColor, balances, dayKey, defaultCategory, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type MoneyCategory, type Transaction } from '../shared/money';
+import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, accountColor, editedBuiltins, isBuiltinCategory, isDefaultCategory, isHiddenCategory, balances, dayKey, defaultCategory, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type MoneyCategory, type Transaction } from '../shared/money';
 import { generateInboxKeys, openInbox, sealInbox, type InboxEntry } from './inbox';
 import { estimateStrength } from '../shared/strength';
 import {
@@ -212,6 +212,7 @@ export class VaultCore {
       transactions: [],
       accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })),
       moneyCategories: [],
+      moneyCategoryEdits: {},
       events: [],
       tasks: []
     };
@@ -370,13 +371,13 @@ export class VaultCore {
       const p =
         entry.k && entry.a
           ? { kind: entry.k, amount: entry.a, category: entry.c ?? '', note: entry.t, date: dayKey(day), accountId: entry.acc }
-          : parseQuick(entry.t, day, this.payload.accounts, this.payload.moneyCategories);
+          : parseQuick(entry.t, day, this.payload.accounts, this.payload.moneyCategories, this.payload.moneyCategoryEdits);
       if (!p) {
         unreadable.push(entry.t);
         continue;
       }
       try {
-        const t = validateTransactionInput({ ...p, id: m[1] }, this.payload.moneyCategories);
+        const t = validateTransactionInput({ ...p, id: m[1] }, this.payload.moneyCategories, this.payload.moneyCategoryEdits);
         if (t.accountId && !this.payload.accounts.some((a) => a.id === t.accountId)) delete t.accountId;
         records.push({ ...t, id: m[1]!, createdAt: isoOr(entry.at, now), updatedAt: now });
       } catch {
@@ -420,7 +421,7 @@ export class VaultCore {
     if (!isDayKey(day)) throw new ValidationError('day', 'Invalid date.');
     if (!parseQuick(text, parseDay(day))) throw new ValidationError('text', 'Add an amount, e.g. "lunch 150".');
     if (this.isUnlocked) {
-      const p = parseQuick(text, parseDay(day), this.payload!.accounts, this.payload!.moneyCategories)!;
+      const p = parseQuick(text, parseDay(day), this.payload!.accounts, this.payload!.moneyCategories, this.payload!.moneyCategoryEdits)!;
       await this.saveTransaction(p);
       return { queued: false };
     }
@@ -578,6 +579,7 @@ export class VaultCore {
       transactions: payload.transactions.map((t) => ({ ...t })),
       accounts: payload.accounts.map((a) => ({ ...a })),
       moneyCategories: payload.moneyCategories.map((c) => ({ ...c, words: [...c.words] })),
+      moneyCategoryEdits: structuredClone(payload.moneyCategoryEdits),
       events: payload.events.map(cloneEvent),
       tasks: payload.tasks.map(cloneTask),
       categories: this.categories(),
@@ -989,7 +991,7 @@ export class VaultCore {
     const note = typeof i.note === 'string' ? i.note.trim().slice(0, 120) : '';
     const date = isDayKey(i.date) ? i.date : dayKey(new Date());
     const tx = i.expense && typeof i.expense === 'object'
-      ? validateTransactionInput({ kind: 'expense', amount, category: (i.expense as Record<string, unknown>).category, note: note || card.title, date }, this.payload!.moneyCategories)
+      ? validateTransactionInput({ kind: 'expense', amount, category: (i.expense as Record<string, unknown>).category, note: note || card.title, date }, this.payload!.moneyCategories, this.payload!.moneyCategoryEdits)
       : null;
     const now = this.iso();
     const left = balance - (amount as number);
@@ -1012,8 +1014,23 @@ export class VaultCore {
     const { payload } = this.requireUnlocked();
     const v = validateMoneyCategoryInput(input);
     const norm = (n: string) => n.trim().toLowerCase();
-    const clash = [...MONEY_CATEGORIES, ...payload.moneyCategories].find((c) => c.id !== v.id && c.kind === v.kind && norm(c.name) === norm(v.name));
+    const shown = [...editedBuiltins(payload.moneyCategoryEdits).filter((c) => !isHiddenCategory(c.id, payload.moneyCategoryEdits)), ...payload.moneyCategories];
+    const clash = shown.find((c) => c.id !== v.id && c.kind === v.kind && norm(c.name) === norm(v.name));
     if (clash) throw new AppError('DUPLICATE', `There is already a category named “${clash.name}”.`);
+    if (v.id && isBuiltinCategory(v.id)) {
+      const id = v.id;
+      // A built-in keeps its id (records stay in it); only what the user sees changes.
+      await this.mutate((d) => {
+        const base = MONEY_CATEGORIES.find((c) => c.id === id)!;
+        const same = base.name === v.name && base.icon === v.icon && base.words.join('|') === v.words.join('|');
+        const rest = { ...d.moneyCategoryEdits };
+        // Saved back to how it came: no edit to remember.
+        if (same) delete rest[id];
+        else rest[id] = { name: v.name, icon: v.icon, words: v.words };
+        d.moneyCategoryEdits = rest;
+      });
+      return moneyCategory(id, [], this.payload!.moneyCategoryEdits);
+    }
     return this.mutate((d) => {
       if (v.id) {
         const c = d.moneyCategories.find((x) => x.id === v.id);
@@ -1032,6 +1049,19 @@ export class VaultCore {
   /** Delete one of the user's categories; its records move to Other (or Other income). */
   async deleteMoneyCategory(id: unknown): Promise<number> {
     const { payload } = this.requireUnlocked();
+    if (typeof id === 'string' && isBuiltinCategory(id)) {
+      if (isDefaultCategory(id)) throw new AppError('INVALID', '“Other” cannot be deleted: records from deleted categories go there.');
+      let moved = 0;
+      await this.mutate((d) => {
+        d.moneyCategoryEdits = { ...d.moneyCategoryEdits, [id]: { ...d.moneyCategoryEdits[id], hidden: true } };
+        for (const t of d.transactions) {
+          if (t.category !== id) continue;
+          t.category = defaultCategory(t.kind);
+          moved++;
+        }
+      });
+      return moved;
+    }
     const c = payload.moneyCategories.find((x) => x.id === id);
     if (!c) throw new AppError('NOT_FOUND', 'Category not found.');
     let moved = 0;
@@ -1046,8 +1076,19 @@ export class VaultCore {
     return moved;
   }
 
+  /** Put a built-in category back as it came (name, icon, words) and show it again. */
+  async restoreMoneyCategory(id: unknown): Promise<void> {
+    this.requireUnlocked();
+    if (typeof id !== 'string' || !isBuiltinCategory(id)) throw new AppError('NOT_FOUND', 'Category not found.');
+    await this.mutate((d) => {
+      const rest = { ...d.moneyCategoryEdits };
+      delete rest[id];
+      d.moneyCategoryEdits = rest;
+    });
+  }
+
   private saveTransactionNow(input: unknown): Promise<Transaction> {
-    const t = validateTransactionInput(input, this.payload!.moneyCategories);
+    const t = validateTransactionInput(input, this.payload!.moneyCategories, this.payload!.moneyCategoryEdits);
     const now = this.iso();
     return this.mutate((d) => {
       const accountId = t.accountId && d.accounts.some((a) => a.id === t.accountId) ? t.accountId : undefined;
@@ -1650,7 +1691,7 @@ export class VaultCore {
         type: t.kind,
         amount: t.amount / 100,
         currency: payload.settings.currency,
-        category: moneyCategory(t.category, payload.moneyCategories).name,
+        category: moneyCategory(t.category, payload.moneyCategories, payload.moneyCategoryEdits).name,
         note: t.note
       })),
       events: payload.events.map((e) => ({

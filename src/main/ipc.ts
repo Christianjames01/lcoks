@@ -212,6 +212,7 @@ export function registerIpc(d: IpcDeps): void {
   handle('vault.useGiftCard', (id: unknown, input: unknown) => d.vault.useGiftCard(id, input));
   handle('vault.saveMoneyCategory', (input: unknown) => d.vault.saveMoneyCategory(input));
   handle('vault.deleteMoneyCategory', (id: unknown) => d.vault.deleteMoneyCategory(id));
+  handle('vault.restoreMoneyCategory', (id: unknown) => d.vault.restoreMoneyCategory(id));
   handle('vault.deleteTransaction', (id: unknown) => d.vault.deleteTransaction(id));
   handle('vault.saveEvents', (save: unknown, remove: unknown) => d.vault.saveEvents(save, remove));
   handle('vault.saveTasks', (save: unknown, remove: unknown) => d.vault.saveTasks(save, remove));

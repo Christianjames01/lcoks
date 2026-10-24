@@ -1,4 +1,4 @@
-import { Bell, CalendarClock, CalendarDays, CircleAlert, ListTodo, ShieldAlert } from 'lucide-react';
+import { Bell, CalendarClock, CalendarDays, CheckCheck, CircleAlert, ListTodo, ShieldAlert } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { eventCategory, formatDay, formatTime, relativeDay, remindersBetween } from '../../shared/calendar';
 import { describeUpcoming, upcomingDates } from '../../shared/expiry';
@@ -8,25 +8,53 @@ import type { VaultSnapshot } from '../../shared/types';
 import { Dialog } from './Dialog';
 
 const SEEN_KEY = 'vaultlocks.notificationsSeen';
+const READ_KEY = 'vaultlocks.notificationsRead';
 const DAY = 86_400_000;
 /** How far back the notification history goes. */
 const HISTORY_DAYS = 730;
 /** History rows shown before "Show older". */
 const PAGE = 60;
 
-export function notificationsSeen(): number {
+/**
+ * Which notifications were read (on this device only; no titles, just keys):
+ * everything up to \`before\` ("Mark all as read"), plus single ones opened since.
+ */
+export interface ReadState {
+  before: number;
+  keys: Record<string, number>;
+}
+
+export function readState(): ReadState {
   try {
-    return Number(localStorage.getItem(SEEN_KEY)) || 0;
+    const raw = localStorage.getItem(READ_KEY);
+    if (raw) {
+      const p = JSON.parse(raw) as Partial<ReadState>;
+      if (p && typeof p.before === 'number' && p.keys && typeof p.keys === 'object') return { before: p.before, keys: { ...p.keys } };
+    }
+    // Before per-notification reads: everything up to the last time the panel was opened counts as read.
+    return { before: Number(localStorage.getItem(SEEN_KEY)) || 0, keys: {} };
   } catch {
-    return 0;
+    return { before: 0, keys: {} };
   }
 }
-function markSeen(): void {
+function saveRead(s: ReadState): void {
   try {
-    localStorage.setItem(SEEN_KEY, String(Date.now()));
+    // Keep it small: drop marks that "before" already covers or that left the history.
+    const oldest = Date.now() - HISTORY_DAYS * DAY;
+    const keys = Object.fromEntries(Object.entries(s.keys).filter(([, at]) => at > s.before && at > oldest));
+    localStorage.setItem(READ_KEY, JSON.stringify({ before: s.before, keys }));
   } catch {
     /* ignore */
   }
+}
+export const isUnread = (it: { key: string; at: number }, s: ReadState, now: number) => it.at > 0 && it.at <= now && it.at > s.before && !(it.key in s.keys);
+export function markRead(it: { key: string; at: number }): void {
+  const s = readState();
+  s.keys[it.key] = it.at;
+  saveRead(s);
+}
+export function markAllRead(now: number): void {
+  saveRead({ before: now, keys: {} });
 }
 
 export interface NoticeItem {
@@ -45,7 +73,7 @@ interface Targets {
 }
 
 /** Everything the bell shows, built from the vault (nothing extra is stored). */
-export function buildNotices(snap: VaultSnapshot, now: number, t: Targets) {
+export function buildNotices(snap: VaultSnapshot, now: number, t: Targets, since = 0) {
   // History includes reminders already dismissed: clear their "shown" marks for this view only.
   const events = snap.events.map((e) => ({ ...e, acks: [], snoozes: [] }));
   const tasks = snap.tasks.map((x) => ({ ...x, acks: [] }));
@@ -76,7 +104,7 @@ export function buildNotices(snap: VaultSnapshot, now: number, t: Targets) {
 
   // History: every reminder since the oldest event / task (up to two years back).
   // Nothing is dropped; the panel groups it by day.
-  const oldest = Math.max(now - HISTORY_DAYS * DAY, Math.min(now, ...[...snap.events, ...snap.tasks].map((x) => made(x.createdAt))));
+  const oldest = Math.max(since, now - HISTORY_DAYS * DAY, Math.min(now, ...[...snap.events, ...snap.tasks].map((x) => made(x.createdAt))));
   const earlier = [...ev(oldest, now), ...tk(oldest, now)].sort((a, b) => b.at - a.at);
   const soon = [...ev(now, now + DAY), ...tk(now, now + DAY)].sort((a, b) => a.at - b.at).slice(0, 20);
   const overdue: NoticeItem[] = snap.tasks
@@ -102,28 +130,29 @@ export function buildNotices(snap: VaultSnapshot, now: number, t: Targets) {
   return { earlier, soon, overdue, expiring };
 }
 
-/** Number on the bell: reminders that rang since the panel was last opened. */
+const NO_TARGETS: Targets = { onOpenEvent: () => undefined, onOpenTask: () => undefined, onOpenEntry: () => undefined };
+
+/** Number on the bell: reminders that rang and were not read yet. */
 export function unreadCount(snap: VaultSnapshot, now: number): number {
-  const seen = notificationsSeen();
-  const from = Math.max(seen, now - 7 * DAY);
-  if (from >= now) return 0;
-  const events = snap.events.map((e) => ({ ...e, acks: [], snoozes: [] }));
-  const tasks = snap.tasks.map((x) => ({ ...x, acks: [] }));
-  return remindersBetween(events, from, now).length + taskRemindersBetween(tasks, from, now).length;
+  const s = readState();
+  return buildNotices(snap, now, NO_TARGETS, s.before).earlier.filter((it) => isUnread(it, s, now)).length;
 }
 
 export function NotificationCenter({ snap, onClose, ...targets }: Targets & { snap: VaultSnapshot; onClose: () => void }) {
   const now = useMemo(() => Date.now(), []);
-  const seen = useMemo(() => notificationsSeen(), []);
+  const [read, setRead] = useState(readState);
   const n = useMemo(() => buildNotices(snap, now, targets), [snap, now]); // eslint-disable-line react-hooks/exhaustive-deps
-  const close = () => {
-    markSeen();
-    onClose();
-  };
+  const unread = n.earlier.filter((it) => isUnread(it, read, now)).length;
+  // Closing keeps unread ones unread; opening one marks just that one as read.
+  const close = onClose;
   const go = (it: NoticeItem) => {
-    markSeen();
+    if (it.at > 0) markRead(it);
     onClose();
     it.open();
+  };
+  const readAll = () => {
+    markAllRead(now);
+    setRead(readState());
   };
   const time = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const today = dayKey(new Date(now));
@@ -144,7 +173,7 @@ export function NotificationCenter({ snap, onClose, ...targets }: Targets & { sn
 
   const row = (it: NoticeItem, stamp: boolean, withDay = false) => (
     <li key={it.key}>
-      <button type="button" className={`nc-item ${stamp && it.at > seen ? 'new' : ''}`} onClick={() => go(it)}>
+      <button type="button" className={`nc-item ${stamp && isUnread(it, read, now) ? 'new' : ''}`} onClick={() => go(it)}>
         <span className="nc-icon">{it.icon}</span>
         <span className="nc-main">
           <span className="nc-item-title">{it.title}</span>
@@ -201,6 +230,14 @@ ${time(it.at)}` : time(it.at)}</span>}
         </div>
       ) : (
         <div className="nc">
+          <div className="nc-readbar">
+            <span className={unread ? 'nc-unread-n' : 'dim small'}>{unread ? `${unread} unread` : 'All caught up'}</span>
+            {unread > 0 && (
+              <button type="button" className="btn sm" onClick={readAll}>
+                <CheckCheck size={14} aria-hidden /> Mark all as read
+              </button>
+            )}
+          </div>
           <div className="nc-days" role="group" aria-label="Pick a day">
             <button type="button" className="evc-chip" aria-pressed={day === null} onClick={() => setDay(null)}>
               All

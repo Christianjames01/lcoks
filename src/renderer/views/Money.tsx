@@ -64,6 +64,7 @@ import {
   type AccountKind,
   type MoneyAccount,
   type MoneyCategory,
+  type MoneyCategoryEdit,
   type MoneyIcon,
   type Transaction,
   type TxKind
@@ -73,8 +74,9 @@ import { COFFEE, coffeeBudgetNudge, coffeeMonth, usualCoffee } from '../../share
 import type { VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
+import { CategoryDetail } from '../components/CategoryDetail';
 import { CoffeeCorner } from '../components/CoffeeCorner';
-import { MoneyCategoryEditor, MoneyCategoryList } from '../components/MoneyCategories';
+import { EditedBuiltins, MoneyCategoryEditor, MoneyCategoryList, useCategoryActions } from '../components/MoneyCategories';
 import { ColorPicker } from '../components/ColorPicker';
 import { HoldArea } from '../components/HoldActions';
 import { useToast } from '../components/Toast';
@@ -189,6 +191,9 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   const parsed = useMemo(() => parseQuick(quick, new Date(), snap.accounts), [quick, snap.accounts]);
   const accountBalances = useMemo(() => balances(snap.accounts, snap.transactions), [snap.accounts, snap.transactions]);
   const [managing, setManaging] = useState(false);
+  const [categoryView, setCategoryView] = useState<string | null>(null);
+  // Hold a category row (or use the buttons on its page) to edit or delete it.
+  const breakdownActions = useCategoryActions(onChanged, () => setCategoryView(null));
   const [viewingAccount, setViewingAccount] = useState<string | null>(null);
   const delTx = useDeleteTx(onChanged);
   const delAccount = useDeleteAccount(onChanged, snap.transactions);
@@ -449,7 +454,9 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
         ) : (
           <ul className="card breakdown">
             {breakdown.map(([cat, amount]) => (
-              <li key={cat} className="bd-row">
+              <li key={cat}>
+                <HoldArea className="bd-hold" title={moneyCategory(cat).name} items={breakdownActions.itemsFor(moneyCategory(cat))}>
+                <button type="button" className="bd-row bd-btn" onClick={() => setCategoryView(cat)} aria-label={`${moneyCategory(cat).name}: ${money(amount)}. Show details`}>
                 <span className="bd-icon">
                   <MoneyIconFor category={cat} />
                 </span>
@@ -463,6 +470,9 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
                   </span>
                 </span>
                 <span className="bd-pct">{Math.round((amount / Math.max(1, sums.expense)) * 100)}%</span>
+                <ChevronRight size={16} className="bd-chev" aria-hidden />
+                </button>
+                </HoldArea>
               </li>
             ))}
           </ul>
@@ -477,6 +487,19 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
         />
       </div>
 
+      {categoryView && (
+        <CategoryDetail
+          category={categoryView}
+          month={month}
+          transactions={snap.transactions}
+          accounts={snap.accounts}
+          currency={currency}
+          onClose={() => setCategoryView(null)}
+          onOpenTx={(t) => setEditing({ tx: t, date: t.date, kind: t.kind })}
+          actions={breakdownActions.itemsFor(moneyCategory(categoryView))}
+        />
+      )}
+      {breakdownActions.dialogs}
       {editing && (
         <TxEditor
           onCategoriesChanged={onChanged}
@@ -531,7 +554,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
       )}
       {delTx.dialog}
       {delAccount.dialog}
-      {setup && <MoneySetup moneyCategories={snap.moneyCategories} currency={currency} budget={monthlyBudget} coffeeBudget={coffeeBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
+      {setup && <MoneySetup moneyCategories={snap.moneyCategories} moneyCategoryEdits={snap.moneyCategoryEdits} currency={currency} budget={monthlyBudget} coffeeBudget={coffeeBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
     </div>
   );
 }
@@ -721,6 +744,9 @@ function TxEditor({
   const [confirm, setConfirm] = useState(false);
   const cats = allMoneyCategories().filter((c) => c.kind === kind);
   const [newCategory, setNewCategory] = useState(false);
+  const catActions = useCategoryActions(onCategoriesChanged, (c) => {
+    if (category === c.id) setCategory(defaultCategory(kind));
+  });
 
   const switchKind = (k: TxKind) => {
     setKind(k);
@@ -801,10 +827,13 @@ function TxEditor({
             <span className="label">Category</span>
             <div className="cat-picker" role="radiogroup" aria-label="Category">
               {cats.map((c) => (
-                <button key={c.id} type="button" role="radio" aria-checked={category === c.id} className="cat-chip" onClick={() => setCategory(c.id)}>
-                  <MoneyIconFor category={c.id} size={15} />
-                  {c.name}
-                </button>
+                // Press and hold a category to edit or delete it.
+                <HoldArea key={c.id} className="cat-hold" title={c.name} items={catActions.itemsFor(c)}>
+                  <button type="button" role="radio" aria-checked={category === c.id} className="cat-chip" onClick={() => setCategory(c.id)}>
+                    <MoneyIconFor category={c.id} size={15} />
+                    {c.name}
+                  </button>
+                </HoldArea>
               ))}
               <button type="button" className="cat-chip add" onClick={() => setNewCategory(true)} aria-label={`New ${kind} category`}>
                 <Plus size={15} aria-hidden />
@@ -891,6 +920,7 @@ function TxEditor({
           }}
         />
       )}
+      {catActions.dialogs}
       {newCategory && (
         <MoneyCategoryEditor
           kind={kind}
@@ -909,6 +939,7 @@ function TxEditor({
 
 function MoneySetup({
   moneyCategories,
+  moneyCategoryEdits,
   currency,
   budget,
   coffeeBudget,
@@ -917,6 +948,7 @@ function MoneySetup({
   onSaved
 }: {
   moneyCategories: MoneyCategory[];
+  moneyCategoryEdits: Record<string, MoneyCategoryEdit>;
   currency: string;
   budget: number;
   coffeeBudget: number;
@@ -1020,6 +1052,7 @@ function MoneySetup({
       </div>
       <div className="setup-sep" />
       <MoneyCategoryList list={moneyCategories} onChanged={onSaved} />
+      <EditedBuiltins edits={moneyCategoryEdits} onChanged={onSaved} />
       <QuickAddSettings balancesOn={balancesOn} onSaved={onSaved} />
     </Dialog>
   );
