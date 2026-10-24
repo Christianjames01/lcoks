@@ -1,7 +1,9 @@
 import { AlarmClock, Coffee, PiggyBank } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { formatTime } from '../../shared/calendar';
-import { coffeeBreakEvent, coffeeMonth, findCoffeeBreak } from '../../shared/coffee';
+import { WEEKDAYS, coffeeBreakEvent, coffeeMonth, describeDays, findCoffeeBreak } from '../../shared/coffee';
+import type { CalendarEvent } from '../../shared/calendar';
+import { Dialog } from './Dialog';
 import { addMonths, parseDay } from '../../shared/money';
 import type { VaultSnapshot } from '../../shared/types';
 import { api, errorMessage, unwrap } from '../lib/api';
@@ -23,8 +25,6 @@ export function CoffeeCorner({
   onBudget: () => void;
   onChanged: () => Promise<void>;
 }) {
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
   const now = useMemo(() => coffeeMonth(snap.transactions, month), [snap.transactions, month]);
   const before = useMemo(() => coffeeMonth(snap.transactions, addMonths(month, -1)), [snap.transactions, month]);
   const coffeeBreak = findCoffeeBreak(snap.events);
@@ -35,24 +35,7 @@ export function CoffeeCorner({
   const left = budget - now.total;
   const diff = now.total - before.total;
 
-  const toggleBreak = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      if (coffeeBreak) {
-        await unwrap(api.vault.saveEvents([], [coffeeBreak.id]));
-        toast('Coffee-break reminder removed.');
-      } else {
-        await unwrap(api.vault.saveEvents([coffeeBreakEvent()], []));
-        toast('Coffee break added to your calendar: weekdays at 3:00 PM.');
-      }
-      await onChanged();
-    } catch (err) {
-      toast(errorMessage(err), 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const [breakOpen, setBreakOpen] = useState(false);
 
   return (
     <section className="coffee-corner" aria-label={`Coffee, ${monthName(month)}`}>
@@ -102,13 +85,94 @@ export function CoffeeCorner({
         </p>
       )}
 
-      <button type="button" className={`cc-break ${coffeeBreak ? 'on' : ''}`} onClick={toggleBreak} disabled={busy} aria-pressed={!!coffeeBreak}>
+      <button type="button" className={`cc-break ${coffeeBreak ? 'on' : ''}`} onClick={() => setBreakOpen(true)} aria-pressed={!!coffeeBreak}>
         <AlarmClock size={15} aria-hidden />
         <span className="grow">
-          {coffeeBreak ? `Coffee break · weekdays ${formatTime(coffeeBreak.startTime)}` : 'Remind me to take a coffee break'}
+          {coffeeBreak ? `Coffee break · ${describeDays(coffeeBreak.repeat?.weekdays)} ${formatTime(coffeeBreak.startTime)}` : 'Remind me to take a coffee break'}
         </span>
-        <span className="cc-break-state">{coffeeBreak ? 'On' : 'Add'}</span>
+        <span className="cc-break-state">{coffeeBreak ? 'Change' : 'Add'}</span>
       </button>
+      {breakOpen && <CoffeeBreakDialog current={coffeeBreak} onClose={() => setBreakOpen(false)} onChanged={onChanged} />}
     </section>
+  );
+}
+
+const DAY_LETTERS: [number, string, string][] = [
+  [1, 'M', 'Monday'],
+  [2, 'T', 'Tuesday'],
+  [3, 'W', 'Wednesday'],
+  [4, 'T', 'Thursday'],
+  [5, 'F', 'Friday'],
+  [6, 'S', 'Saturday'],
+  [0, 'S', 'Sunday']
+];
+
+/** Pick the coffee-break time and days; it is a repeating event in Calendar with a reminder at the time. */
+function CoffeeBreakDialog({ current, onClose, onChanged }: { current?: CalendarEvent; onClose: () => void; onChanged: () => Promise<void> }) {
+  const toast = useToast();
+  const [time, setTime] = useState(current?.startTime || '15:00');
+  const [days, setDays] = useState<number[]>(current?.repeat?.weekdays?.length ? [...current.repeat.weekdays] : [...WEEKDAYS]);
+  const [busy, setBusy] = useState(false);
+  const flip = (d: number) => setDays((x) => (x.includes(d) ? x.filter((y) => y !== d) : [...x, d]));
+  const run = async (remove: boolean) => {
+    setBusy(true);
+    try {
+      if (remove && current) {
+        await unwrap(api.vault.saveEvents([], [current.id]));
+        toast('Coffee-break reminder removed.');
+      } else {
+        const ev = coffeeBreakEvent(new Date(), time, days);
+        // Changing keeps the same event (and its place in Calendar).
+        await unwrap(api.vault.saveEvents([current ? { ...ev, id: current.id, start: current.start <= ev.start ? current.start : ev.start } : ev], []));
+        toast(`Coffee break: ${describeDays(days)} at ${formatTime(time)}.`);
+      }
+      await onChanged();
+      onClose();
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog
+      placement="center"
+      size="narrow"
+      title="Coffee break"
+      subtitle="A reminder in Calendar at this time"
+      onClose={onClose}
+      busy={busy}
+      footer={
+        <>
+          {current && (
+            <button type="button" className="btn danger left" onClick={() => void run(true)} disabled={busy}>
+              Remove
+            </button>
+          )}
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="button" className="btn primary" onClick={() => void run(false)} disabled={busy || !days.length || !/^\d{2}:\d{2}$/.test(time)}>
+            {busy && <span className="spinner" aria-hidden />}
+            Save
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label htmlFor="cb-time">Time</label>
+        <input id="cb-time" type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} />
+      </div>
+      <div className="field" style={{ marginBottom: 0 }}>
+        <span className="label">Days</span>
+        <div className="cb-days" role="group" aria-label="Days">
+          {DAY_LETTERS.map(([d, letter, name]) => (
+            <button key={d} type="button" className="cb-day" aria-pressed={days.includes(d)} aria-label={name} title={name} onClick={() => flip(d)}>
+              {letter}
+            </button>
+          ))}
+        </div>
+        <span className="help-text">{days.length ? `Every ${describeDays(days) === 'weekdays' ? 'weekday' : describeDays(days) === 'every day' ? 'day' : describeDays(days)}` : 'Pick at least one day.'}</span>
+      </div>
+    </Dialog>
   );
 }

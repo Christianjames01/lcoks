@@ -162,7 +162,17 @@ export type MoneyIcon =
   | 'wallet'
   | 'briefcase'
   | 'gift'
-  | 'trending';
+  | 'trending'
+  // Extra icons for the user's own categories
+  | 'gamepad'
+  | 'cashout'
+  | 'phone'
+  | 'paw'
+  | 'plane'
+  | 'dumbbell'
+  | 'music'
+  | 'baby'
+  | 'tag';
 
 export interface MoneyCategory {
   id: string;
@@ -220,7 +230,32 @@ export const MONEY_CATEGORIES: readonly MoneyCategory[] = [
 
 export const MONEY_CATEGORY_IDS: ReadonlySet<string> = new Set(MONEY_CATEGORIES.map((c) => c.id));
 
-export const moneyCategory = (id: string): MoneyCategory => MONEY_CATEGORIES.find((c) => c.id === id) ?? MONEY_CATEGORIES.find((c) => c.id === 'other')!;
+/** Icons the user can pick for their own categories. */
+export const CUSTOM_MONEY_ICONS: readonly MoneyIcon[] = ['tag', 'gamepad', 'cashout', 'phone', 'paw', 'plane', 'dumbbell', 'music', 'baby', 'film', 'bag', 'food', 'car', 'gift', 'wallet', 'briefcase', 'health', 'book', 'sparkles', 'home'];
+export const MAX_MONEY_CATEGORIES = 40;
+
+/**
+ * The user's own categories (stored in the vault). The renderer registers the
+ * unlocked vault's list here so names and icons show everywhere; the vault core
+ * passes its list explicitly instead.
+ */
+let customMoney: readonly MoneyCategory[] = [];
+export function setCustomMoneyCategories(list: readonly MoneyCategory[]): void {
+  customMoney = list;
+}
+/** Built-in categories, the user's own ones before "Other". */
+export function allMoneyCategories(custom: readonly MoneyCategory[] = customMoney): MoneyCategory[] {
+  const out: MoneyCategory[] = [];
+  for (const kind of ['expense', 'income'] as const) {
+    const base = MONEY_CATEGORIES.filter((c) => c.kind === kind);
+    const other = base.filter((c) => c.id === defaultCategory(kind));
+    out.push(...base.filter((c) => c.id !== defaultCategory(kind)), ...custom.filter((c) => c.kind === kind), ...other);
+  }
+  return out;
+}
+
+export const moneyCategory = (id: string, custom: readonly MoneyCategory[] = customMoney): MoneyCategory =>
+  MONEY_CATEGORIES.find((c) => c.id === id) ?? custom.find((c) => c.id === id) ?? MONEY_CATEGORIES.find((c) => c.id === 'other')!;
 
 export const defaultCategory = (kind: TxKind) => (kind === 'income' ? 'other-income' : 'other');
 
@@ -309,7 +344,7 @@ const AMOUNT_RE = /(^|\s)([+-]?)(?:₱|php|p|\$|usd|€|£|¥)?\s?(\d{1,3}(?:,\d
  * "cash in gcash 500" or "salary 30k". Returns null when no amount is found.
  * `accounts`: names to look for ("gcash", "maya"…); the match becomes accountId.
  */
-export function parseQuick(text: string, today: Date = new Date(), accounts: readonly MoneyAccount[] = []): QuickParse | null {
+export function parseQuick(text: string, today: Date = new Date(), accounts: readonly MoneyAccount[] = [], custom: readonly MoneyCategory[] = customMoney): QuickParse | null {
   let rest = ` ${text.trim()} `;
   if (!rest.trim()) return null;
 
@@ -349,7 +384,8 @@ export function parseQuick(text: string, today: Date = new Date(), accounts: rea
   }
 
   const kind: TxKind = sign === '+' || (sign !== '-' && INCOME_HINT.test(text.trim())) ? 'income' : 'expense';
-  const match = MONEY_CATEGORIES.filter((c) => c.kind === kind).find((c) => c.words.some((w) => hasWord(rest, w)));
+  // The user's own categories first: their words are more specific ("ml", "cashout").
+  const match = [...custom, ...MONEY_CATEGORIES].filter((c) => c.kind === kind).find((c) => c.words.some((w) => hasWord(rest, w)));
   const note = rest.replace(/\s+/g, ' ').trim();
   return {
     kind,

@@ -72,7 +72,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
   const [readingFiles, setReadingFiles] = useState(false);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   // Fields filled from a camera scan (highlighted until the user edits them).
-  const [scanned, setScanned] = useState<{ keys: string[]; checked: string[] } | null>(null);
+  const [scanned, setScanned] = useState<{ keys: string[]; checked: string[]; viaQr: boolean } | null>(null);
   const toast = useToast();
 
   const applyScan = (r: ScanResult) => {
@@ -88,7 +88,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
       return next;
     });
     if (!title.trim() && r.title) setTitle(r.title);
-    setScanned({ keys, checked: r.checked });
+    setScanned({ keys, checked: r.checked, viaQr: !!r.viaQr });
     setErrors({});
     api.app.haptic('success');
   };
@@ -293,7 +293,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
           {def.label}
           {scanned?.keys.includes(def.key) && (
             <span className="scan-tag">
-              <Check size={11} aria-hidden /> {scanned.checked.includes(def.key) ? 'Checked' : 'From photo'}
+              <Check size={11} aria-hidden /> {scanned.viaQr ? 'From QR code' : scanned.checked.includes(def.key) ? 'Checked' : 'From photo'}
             </span>
           )}
         </label>
@@ -379,7 +379,9 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
               <div className="notice scan-notice span-2" role="status">
                 <ScanLine size={16} aria-hidden />
                 <span>
-                  Filled {scanned.keys.length} field{scanned.keys.length === 1 ? '' : 's'} from the photo. Check each one before saving.
+                  {scanned.viaQr
+                    ? `Filled ${scanned.keys.length} field${scanned.keys.length === 1 ? '' : 's'} from the QR code.`
+                    : `Filled ${scanned.keys.length} field${scanned.keys.length === 1 ? '' : 's'} from the photo. Check each one before saving.`}
                   {(categoryId === 'cards' || categoryId === 'giftcards') && ' CVV and PIN are never read — type them yourself.'}
                 </span>
               </div>

@@ -3,7 +3,6 @@ import {
   Bell,
   CalendarClock,
   Circle,
-  CircleAlert,
   CircleCheck,
   Flag,
   ListTodo,
@@ -12,6 +11,7 @@ import {
   Plus,
   Repeat,
   Search,
+  SlidersHorizontal,
   Square,
   SquareCheck,
   Tag,
@@ -19,7 +19,7 @@ import {
   Undo2,
   X
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, formatDay, formatTime } from '../../shared/calendar';
 import { dayKey } from '../../shared/money';
 import {
@@ -189,6 +189,9 @@ export function TasksView({
     }
   };
 
+  const [showTools, setShowTools] = useState(false);
+  // Sort / priority / category changed from their defaults.
+  const toolCount = (sort !== 'due' ? 1 : 0) + (priority !== 'all' ? 1 : 0) + (category !== 'all' ? 1 : 0);
   const filtered = query.trim() !== '' || group !== 'all' || priority !== 'all' || category !== 'all';
   const today = dayKey(now);
   // "All", sorted by date and not searching: grouped like the iPhone Reminders app.
@@ -255,91 +258,90 @@ export function TasksView({
           </div>
           <button
             type="button"
-            className={`tk-bell ${group === 'reminders' ? 'on' : ''}`}
-            onClick={() => setGroup(group === 'reminders' ? 'all' : 'reminders')}
-            aria-pressed={group === 'reminders'}
-            aria-label={`${reminderCount} task${reminderCount === 1 ? '' : 's'} with reminders. Show them`}
-            title="Tasks with reminders"
+            className={`tk-filter-btn ${showTools || toolCount ? 'on' : ''}`}
+            onClick={() => setShowTools((v) => !v)}
+            aria-expanded={showTools}
+            aria-label={toolCount ? `Sort and filter, ${toolCount} on` : 'Sort and filter'}
+            title="Sort and filter"
           >
-            <Bell size={18} aria-hidden />
-            {reminderCount > 0 && <span className="tk-bell-count">{reminderCount}</span>}
+            <SlidersHorizontal size={18} aria-hidden />
+            {toolCount > 0 && <span className="tk-bell-count">{toolCount}</span>}
           </button>
-          <button type="button" className="btn primary tk-new" onClick={() => setEditor({ input: emptyTask() })} aria-label="New Task">
-            <Plus size={16} aria-hidden /> <span className="tk-new-text">New Task</span>
-          </button>
-        </div>
-
-        <div className="tk-summary" role="group" aria-label="Task summary">
-          {(
-            [
-              ['today', 'Today', counts.today, <CalendarClock key="i" size={17} aria-hidden />],
-              ['upcoming', 'Upcoming', counts.upcoming, <ListTodo key="i" size={17} aria-hidden />],
-              ['overdue', 'Overdue', counts.overdue, <CircleAlert key="i" size={17} aria-hidden />],
-              ['completed', 'Completed', counts.completed, <CircleCheck key="i" size={17} aria-hidden />]
-            ] as [TaskGroup, string, number, ReactNode][]
-          ).map(([g, label, n, icon]) => (
-            <button key={g} type="button" className={`tk-stat ${g}`} aria-pressed={group === g} onClick={() => setGroup(group === g ? 'all' : g)} aria-label={`${label}: ${n}. Show these tasks`}>
-              <span className="tk-stat-top">
-                <span className="tk-stat-icon" aria-hidden>
-                  {icon}
-                </span>
-                <span className="tk-stat-n">{n}</span>
-              </span>
-              <span className="tk-stat-label">{label}</span>
+          {/* Phones add tasks with the + in the bottom bar. */}
+          {!mobile && (
+            <button type="button" className="btn primary tk-new" onClick={() => setEditor({ input: emptyTask() })} aria-label="New Task">
+              <Plus size={16} aria-hidden /> <span className="tk-new-text">New Task</span>
             </button>
-          ))}
+          )}
         </div>
 
-        <div className="evc-filters" role="group" aria-label="Filter tasks">
+        <div className="evc-filters tk-chips" role="group" aria-label="Show tasks">
           {(
             [
-              ['all', 'All Tasks'],
-              ['today', 'Today'],
-              ['upcoming', 'Upcoming'],
-              ['overdue', 'Overdue'],
-              ['completed', 'Completed']
-            ] as [TaskGroup, string][]
-          ).map(([g, label]) => (
-            <button key={g} type="button" className="evc-chip" aria-pressed={group === g} onClick={() => setGroup(g)}>
+              ['all', 'All', null],
+              ['today', 'Today', counts.today],
+              ['upcoming', 'Upcoming', counts.upcoming],
+              ['overdue', 'Overdue', counts.overdue],
+              ['reminders', 'Reminders', reminderCount],
+              ['completed', 'Done', counts.completed]
+            ] as [TaskGroup, string, number | null][]
+          ).map(([g, label, n]) => (
+            <button key={g} type="button" className={`evc-chip ${g === 'overdue' && n ? 'warn' : ''}`} aria-pressed={group === g} onClick={() => setGroup(g)}>
               {label}
+              {n ? <span className="tk-chip-n">{n}</span> : null}
             </button>
           ))}
         </div>
 
-        <div className="tk-tools">
-          <label className="tk-select">
-            <span className="sr-only">Sort by</span>
-            <select className="input" value={sort} onChange={(e) => setSort(e.target.value as TaskSort)} aria-label="Sort tasks">
-              <option value="due">Sort: Due date</option>
-              <option value="priority">Sort: Priority</option>
-              <option value="created">Sort: Recently created</option>
-              <option value="updated">Sort: Recently updated</option>
-              <option value="title">Sort: A–Z</option>
-            </select>
-          </label>
-          <label className="tk-select">
-            <span className="sr-only">Priority</span>
-            <select className="input" value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority | 'all')} aria-label="Filter by priority">
-              <option value="all">All priorities</option>
-              {PRIORITIES.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} priority
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="tk-select">
-            <span className="sr-only">Category</span>
-            <select className="input" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter by category">
-              <option value="all">All categories</option>
-              {[...TASK_CATEGORIES, ...custom].map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        {showTools && (
+          <div className="tk-tools">
+            <label className="tk-select">
+              <span className="sr-only">Sort by</span>
+              <select className="input" value={sort} onChange={(e) => setSort(e.target.value as TaskSort)} aria-label="Sort tasks">
+                <option value="due">Sort: Due date</option>
+                <option value="priority">Sort: Priority</option>
+                <option value="created">Sort: Recently created</option>
+                <option value="updated">Sort: Recently updated</option>
+                <option value="title">Sort: A–Z</option>
+              </select>
+            </label>
+            <label className="tk-select">
+              <span className="sr-only">Priority</span>
+              <select className="input" value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority | 'all')} aria-label="Filter by priority">
+                <option value="all">All priorities</option>
+                {PRIORITIES.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} priority
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="tk-select">
+              <span className="sr-only">Category</span>
+              <select className="input" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter by category">
+                <option value="all">All categories</option>
+                {[...TASK_CATEGORIES, ...custom].map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {toolCount > 0 && (
+              <button
+                type="button"
+                className="btn sm ghost"
+                onClick={() => {
+                  setSort('due');
+                  setPriority('all');
+                  setCategory('all');
+                }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        )}
 
         {needsPermission && (
           <div className="tk-banner" role="note">

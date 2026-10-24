@@ -2,6 +2,7 @@ import { CalendarDays, CopyCheck, ListTodo, House, Layers, Lock, Wallet, Menu, P
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarNotifications } from '../../shared/calendar';
 import { setLinkedLooks } from '../../shared/cards';
+import { setCustomMoneyCategories } from '../../shared/money';
 import { taskNotifications } from '../../shared/tasks';
 import { buildReminders } from '../../shared/expiry';
 import { searchEntries } from '../../shared/search';
@@ -471,6 +472,7 @@ export function VaultApp({ version }: { version: string }) {
   const bellCount = unreadCount(snap, bellNow);
   // Vault cards use the colour/style chosen for the Expenses card with the same name.
   setLinkedLooks(snap.accounts);
+  setCustomMoneyCategories(snap.moneyCategories);
 
   return (
     <EntryActionsProvider value={actions}>

@@ -1,11 +1,31 @@
 import { Camera, Image as ImageIcon, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
-import { parseScan, type ScanKind, type ScanResult } from '../../shared/scan';
+import jsQR from 'jsqr';
+import { parseScan, parseScanQr, type ScanKind, type ScanResult } from '../../shared/scan';
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
 import { useToast } from './Toast';
 
-/** Upright JPEG, at most 1800 px on the long side (enough to read a card, small to pass to the phone). */
-async function photoForScan(file: File): Promise<string> {
+/** A QR code in the picture (tried at two sizes; small codes need the bigger one). */
+function findQr(img: HTMLImageElement): string | null {
+  for (const max of [900, 1600]) {
+    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    c.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const ctx = c.getContext('2d', { willReadFrequently: true })!;
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    const code = jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts: 'attemptBoth' });
+    c.width = c.height = 0;
+    if (code?.data) return code.data;
+  }
+  return null;
+}
+
+/**
+ * Upright JPEG, at most 1800 px on the long side (enough to read a card, small to
+ * pass to the phone), and any QR code in it.
+ */
+async function photoForScan(file: File): Promise<{ jpeg: string; qr: string | null }> {
   // A data: URL (the app's content policy allows no blob: images), like attachments.
   const url = await new Promise<string>((resolve, reject) => {
     const r = new FileReader();
@@ -27,7 +47,13 @@ async function photoForScan(file: File): Promise<string> {
     c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
     const data = c.toDataURL('image/jpeg', 0.9);
     c.width = c.height = 0;
-    return data.slice(data.indexOf(',') + 1);
+    let qr: string | null = null;
+    try {
+      qr = findQr(img);
+    } catch {
+      /* no QR code */
+    }
+    return { jpeg: data.slice(data.indexOf(',') + 1), qr };
   }
 }
 
@@ -35,7 +61,7 @@ async function photoForScan(file: File): Promise<string> {
  * Take (or choose) one photo and read it into a JPEG before the app resumes:
  * resuming deletes the camera's temporary file (suspendAutoLock).
  */
-async function takePhoto(source: 'camera' | 'gallery'): Promise<string | null> {
+async function takePhoto(source: 'camera' | 'gallery'): Promise<{ jpeg: string; qr: string | null } | null> {
   api.app.suspendAutoLock(true);
   try {
     const file = await new Promise<File | null>((resolve) => {
@@ -74,8 +100,9 @@ export function ScanButton({ kind, onResult }: { kind: ScanKind; onResult: (r: S
     try {
       const photo = await takePhoto(source);
       if (!photo) return;
-      const lines = await unwrap(api.app.recognizeText(photo));
-      const r = parseScan(kind, lines);
+      // An exact QR code (router sticker, gift card) wins over reading the printed text.
+      const fromQr = parseScanQr(kind, photo.qr);
+      const r = fromQr ?? parseScan(kind, await unwrap(api.app.recognizeText(photo.jpeg)));
       if (!Object.keys(r.fields).length) toast(`Nothing readable found. Try again with the ${WHAT[kind]} flat, in good light.`, 'error');
       else onResult(r);
     } catch (e) {

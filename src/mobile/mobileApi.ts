@@ -327,6 +327,8 @@ export function createMobileApi(native: NativeVault): VaultApi {
       deleteCategory: (id) => wrap(() => vault.deleteCategory(id)),
       saveTransaction: (i) => wrap(() => vault.saveTransaction(i)),
       useGiftCard: (id, i) => wrap(() => vault.useGiftCard(id, i)),
+      saveMoneyCategory: (i) => wrap(() => vault.saveMoneyCategory(i)),
+      deleteMoneyCategory: (id) => wrap(() => vault.deleteMoneyCategory(id)),
       deleteTransaction: (id) => wrap(() => vault.deleteTransaction(id)),
       saveEvents: (save, remove) => wrap(() => vault.saveEvents(save, remove)),
       saveTasks: (save, remove) => wrap(() => vault.saveTasks(save, remove)),

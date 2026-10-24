@@ -40,3 +40,36 @@ export function wifiOf(e: { categoryId: string; fields: Record<string, string>; 
   }
   return null;
 }
+
+/** Read a "join this Wi-Fi" QR code (WIFI:T:WPA;S:name;P:pass;H:true;;), e.g. from a router sticker. */
+export function parseWifiQr(text: string): { ssid: string; password: string; security: string; hidden: boolean } | null {
+  const t = text.trim();
+  if (!/^WIFI:/i.test(t)) return null;
+  const fields: Record<string, string> = {};
+  let key = '';
+  let val = '';
+  let inKey = true;
+  for (let i = 5; i < t.length; i++) {
+    const c = t[i]!;
+    if (c === '\\' && i + 1 < t.length) {
+      if (inKey) key += t[++i];
+      else val += t[++i];
+    } else if (inKey && c === ':') inKey = false;
+    else if (!inKey && c === ';') {
+      if (key) fields[key.toUpperCase()] = val;
+      key = val = '';
+      inKey = true;
+    } else if (inKey) key += c;
+    else val += c;
+  }
+  if (!inKey && key) fields[key.toUpperCase()] = val;
+  const ssid = fields.S ?? '';
+  if (!ssid) return null;
+  const type = (fields.T ?? '').toUpperCase();
+  return {
+    ssid,
+    password: fields.P ?? '',
+    security: type === 'WEP' ? 'WEP' : type === 'NOPASS' || (!type && !fields.P) ? 'None (open)' : 'WPA / WPA2 / WPA3',
+    hidden: /^true$/i.test(fields.H ?? '')
+  };
+}

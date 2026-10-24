@@ -8798,3 +8798,176 @@ button.vl-pill {
   flex: 1;
   min-width: 0;
 }
+
+/* Tasks toolbar: search, one sort-and-filter button, then the chips. */
+.tk-filter-btn {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  border: 1px solid var(--lg-border);
+  background: var(--lg-field);
+  color: var(--fg);
+  cursor: pointer;
+}
+.tk-filter-btn.on {
+  border-color: var(--lg-border-strong, var(--fg-2));
+}
+.tk-chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.tk-chips::-webkit-scrollbar {
+  display: none;
+}
+.tk-chips .evc-chip {
+  flex: none;
+}
+.tk-chip-n {
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.evc-chip[aria-pressed='true'] .tk-chip-n {
+  background: color-mix(in srgb, var(--bg) 22%, transparent);
+}
+.evc-chip.warn:not([aria-pressed='true']) .tk-chip-n {
+  background: var(--danger);
+  color: #fff;
+}
+@media (max-width: 720px) {
+  .tk-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Notification panel: day picker and full history */
+.nc-days {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+  margin-bottom: 10px;
+}
+.nc-days::-webkit-scrollbar {
+  display: none;
+}
+.nc-days .evc-chip {
+  flex: none;
+}
+.nc-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+.nc-pick span {
+  flex: 1;
+}
+.nc-pick .input {
+  width: auto;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+.nc-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nc-day-n {
+  font-weight: 600;
+  color: var(--fg-3, var(--fg-2));
+}
+.nc-none {
+  text-align: center;
+  color: var(--fg-2);
+  padding: 24px 8px;
+}
+.nc-more {
+  margin-top: 6px;
+}
+
+/* Expenses: the user's own categories */
+.cat-chip.add {
+  border-style: dashed;
+  color: var(--fg-2);
+}
+.mc-icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 8px;
+}
+.mc-icon {
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid var(--lg-border, var(--border));
+  background: var(--lg-field, var(--input-bg));
+  color: var(--fg);
+  cursor: pointer;
+}
+.mc-icon[aria-checked='true'] {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+.mc-list-wrap {
+  margin-top: 4px;
+}
+.mc-list {
+  list-style: none;
+  margin: 6px 0 10px;
+  padding: 0;
+}
+.mc-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.mc-list .grow {
+  flex: 1;
+  min-width: 0;
+}
+.setup-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0 12px;
+}
+.cb-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.cb-day {
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--lg-border, var(--border));
+  background: var(--lg-field, var(--input-bg));
+  color: var(--fg);
+  font: 650 14px var(--font);
+  cursor: pointer;
+}
+.cb-day[aria-pressed='true'] {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}

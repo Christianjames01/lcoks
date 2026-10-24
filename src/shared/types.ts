@@ -1,7 +1,7 @@
 // Shared data model. Imported by main, preload (types only) and renderer.
 
 import type { CalendarEvent } from './calendar';
-import type { MoneyAccount, Transaction } from './money';
+import type { MoneyAccount, MoneyCategory, Transaction } from './money';
 import type { Task, TaskCategory } from './tasks';
 
 export type FieldType =
@@ -286,6 +286,8 @@ export interface VaultPayload {
   transactions: Transaction[];
   /** Money accounts (Cash, GCash…). */
   accounts: MoneyAccount[];
+  /** The user's own expense / income categories. */
+  moneyCategories: MoneyCategory[];
   /** Calendar events with their reminders. */
   events: CalendarEvent[];
   /** To-dos. */
@@ -322,6 +324,7 @@ export interface VaultSnapshot {
   entries: EntryView[];
   transactions: Transaction[];
   accounts: MoneyAccount[];
+  moneyCategories: MoneyCategory[];
   events: CalendarEvent[];
   tasks: Task[];
   categories: CategoryDef[];

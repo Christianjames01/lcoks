@@ -9,8 +9,16 @@ import {
   Car,
   ChevronLeft,
   ChevronRight,
+  Baby,
   Clapperboard,
   Coffee,
+  Dumbbell,
+  Gamepad2,
+  HandCoins,
+  Music,
+  PawPrint,
+  Plane,
+  Tag,
   Ellipsis,
   Landmark,
   Smartphone,
@@ -37,7 +45,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import {
   CURRENCIES,
   MAX_AMOUNT,
-  MONEY_CATEGORIES,
+  allMoneyCategories,
   addMonths,
   dayKey,
   defaultCategory,
@@ -55,6 +63,7 @@ import {
   balances,
   type AccountKind,
   type MoneyAccount,
+  type MoneyCategory,
   type MoneyIcon,
   type Transaction,
   type TxKind
@@ -65,6 +74,7 @@ import type { VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
 import { CoffeeCorner } from '../components/CoffeeCorner';
+import { MoneyCategoryEditor, MoneyCategoryList } from '../components/MoneyCategories';
 import { ColorPicker } from '../components/ColorPicker';
 import { HoldArea } from '../components/HoldActions';
 import { useToast } from '../components/Toast';
@@ -88,11 +98,24 @@ const ICONS: Record<MoneyIcon, LucideIcon> = {
   wallet: Wallet,
   briefcase: Briefcase,
   gift: Gift,
-  trending: TrendingUp
+  trending: TrendingUp,
+  gamepad: Gamepad2,
+  cashout: HandCoins,
+  phone: Smartphone,
+  paw: PawPrint,
+  plane: Plane,
+  dumbbell: Dumbbell,
+  music: Music,
+  baby: Baby,
+  tag: Tag
 };
 
 export function MoneyIconFor({ category, size = 16 }: { category: string; size?: number }) {
-  const C = ICONS[moneyCategory(category).icon];
+  return <MoneyIconOf icon={moneyCategory(category).icon} size={size} />;
+}
+
+export function MoneyIconOf({ icon, size = 16 }: { icon: MoneyIcon; size?: number }) {
+  const C = ICONS[icon] ?? Tag;
   return <C size={size} strokeWidth={1.8} aria-hidden />;
 }
 
@@ -456,6 +479,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
 
       {editing && (
         <TxEditor
+          onCategoriesChanged={onChanged}
           editing={editing}
           currency={currency}
           accounts={snap.accounts}
@@ -507,7 +531,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
       )}
       {delTx.dialog}
       {delAccount.dialog}
-      {setup && <MoneySetup currency={currency} budget={monthlyBudget} coffeeBudget={coffeeBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
+      {setup && <MoneySetup moneyCategories={snap.moneyCategories} currency={currency} budget={monthlyBudget} coffeeBudget={coffeeBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
     </div>
   );
 }
@@ -669,7 +693,8 @@ function TxEditor({
   money,
   onClose,
   onSave,
-  onDelete
+  onDelete,
+  onCategoriesChanged
 }: {
   editing: NonNullable<Editing>;
   currency: string;
@@ -679,6 +704,8 @@ function TxEditor({
   onClose: () => void;
   onSave: (input: { id?: string; kind: TxKind; amount: number; category: string; note: string; date: string; accountId?: string }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  /** A category was added from the picker: reload the vault so it shows. */
+  onCategoriesChanged: () => Promise<void>;
 }) {
   const existing = editing.tx?.id ? editing.tx : undefined;
   const [kind, setKind] = useState<TxKind>(editing.tx?.kind ?? editing.kind);
@@ -692,7 +719,8 @@ function TxEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
-  const cats = MONEY_CATEGORIES.filter((c) => c.kind === kind);
+  const cats = allMoneyCategories().filter((c) => c.kind === kind);
+  const [newCategory, setNewCategory] = useState(false);
 
   const switchKind = (k: TxKind) => {
     setKind(k);
@@ -778,6 +806,10 @@ function TxEditor({
                   {c.name}
                 </button>
               ))}
+              <button type="button" className="cat-chip add" onClick={() => setNewCategory(true)} aria-label={`New ${kind} category`}>
+                <Plus size={15} aria-hidden />
+                New
+              </button>
             </div>
           </div>
           {accounts.length > 0 && (
@@ -859,6 +891,16 @@ function TxEditor({
           }}
         />
       )}
+      {newCategory && (
+        <MoneyCategoryEditor
+          kind={kind}
+          onClose={() => setNewCategory(false)}
+          onSaved={async (c) => {
+            await onCategoriesChanged();
+            setCategory(c.id);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -866,6 +908,7 @@ function TxEditor({
 // ------------------------------------------------------------ budget setup --
 
 function MoneySetup({
+  moneyCategories,
   currency,
   budget,
   coffeeBudget,
@@ -873,6 +916,7 @@ function MoneySetup({
   onClose,
   onSaved
 }: {
+  moneyCategories: MoneyCategory[];
   currency: string;
   budget: number;
   coffeeBudget: number;
@@ -907,7 +951,7 @@ function MoneySetup({
 
   return (
     <Dialog
-      title="Budget & currency"
+      title="Budget & categories"
       size="narrow"
       onClose={onClose}
       busy={busy}
@@ -974,6 +1018,8 @@ function MoneySetup({
           <div className="help-text">A gentle heads-up at 80% and when you pass it. Coffee you type (“latte 180”, “starbucks 210”) counts.</div>
         )}
       </div>
+      <div className="setup-sep" />
+      <MoneyCategoryList list={moneyCategories} onChanged={onSaved} />
       <QuickAddSettings balancesOn={balancesOn} onSaved={onSaved} />
     </Dialog>
   );

@@ -25,7 +25,7 @@ import type {
 import type { CalendarEvent, CalendarEventInput } from './calendar';
 import type { PhoneCalendarInfo, PhoneCalendarItem } from './phoneCalendar';
 import type { Task, TaskInput } from './tasks';
-import type { AccountKind, MoneyAccount, Transaction, TransactionInput } from './money';
+import type { AccountKind, MoneyAccount, MoneyCategory, Transaction, TransactionInput, TxKind } from './money';
 
 export interface VaultApi {
   app: {
@@ -79,6 +79,9 @@ export interface VaultApi {
     deleteCategory(id: string): Promise<Result<void>>;
     /** Add (no id) or update an expense / income record. */
     saveTransaction(input: TransactionInput): Promise<Result<Transaction>>;
+    /** The user's own Expenses categories. Deleting moves their records to Other; returns how many moved. */
+    saveMoneyCategory(input: { id?: string; name: string; kind: TxKind; icon: string; words: string[] }): Promise<Result<MoneyCategory>>;
+    deleteMoneyCategory(id: string): Promise<Result<number>>;
     /** Gift card: use part of the balance; optionally record it as an expense. */
     useGiftCard(id: string, input: { amount: number; note: string; date: string; expense?: { category: string } }): Promise<Result<{ balance: number; transaction: Transaction | null }>>;
     deleteTransaction(id: string): Promise<Result<void>>;

@@ -73,13 +73,17 @@ export function coffeeBudgetNudge(spentBefore: number, added: number, budget: nu
 /** The coffee-break event VaultLocks made, if it is still there. */
 export const findCoffeeBreak = (events: readonly CalendarEvent[]) => events.find((e) => e.title === COFFEE_BREAK_TITLE && e.repeat);
 
-/** A 15-minute coffee break on weekdays at `time` (HH:MM), with a reminder at the time. */
-export function coffeeBreakEvent(today: Date = new Date(), time = '15:00'): CalendarEventInput {
+export const WEEKDAYS: readonly number[] = [1, 2, 3, 4, 5];
+
+/** A 15-minute coffee break at `time` (HH:MM) on these days of the week (0 = Sunday), with a reminder at the time. */
+export function coffeeBreakEvent(today: Date = new Date(), time = '15:00', days: readonly number[] = WEEKDAYS): CalendarEventInput {
+  const weekdays = [...new Set(days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort();
+  const on = weekdays.length ? weekdays : [...WEEKDAYS];
   const [h, m] = time.split(':').map(Number) as [number, number];
   const endMin = Math.min(23 * 60 + 59, h * 60 + m + 15);
-  // Start on a weekday so the first occurrence is a real one.
+  // Start on one of the chosen days so the first occurrence is a real one.
   const start = new Date(today);
-  while (start.getDay() === 0 || start.getDay() === 6) start.setDate(start.getDate() + 1);
+  while (!on.includes(start.getDay())) start.setDate(start.getDate() + 1);
   const day = dayKey(start);
   return {
     ...newEventInput(day, { reminders: [0] }),
@@ -87,6 +91,17 @@ export function coffeeBreakEvent(today: Date = new Date(), time = '15:00'): Cale
     notes: 'Added from Expenses · Coffee',
     startTime: time,
     endTime: `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`,
-    repeat: { freq: 'weekly', interval: 1, weekdays: [1, 2, 3, 4, 5] }
+    repeat: { freq: 'weekly', interval: 1, weekdays: on }
   };
+}
+
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** "weekdays", "every day", "weekends" or "Mon, Wed, Fri". */
+export function describeDays(days: readonly number[] | undefined): string {
+  const d = [...new Set(days ?? WEEKDAYS)].sort();
+  const key = d.join(',');
+  if (key === '0,1,2,3,4,5,6') return 'every day';
+  if (key === '1,2,3,4,5') return 'weekdays';
+  if (key === '0,6') return 'weekends';
+  return d.map((x) => DAY_SHORT[x]).join(', ');
 }

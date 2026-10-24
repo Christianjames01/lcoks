@@ -5,6 +5,7 @@
 // those. (A router sticker's Wi-Fi key is the exception: reading it is the point.)
 
 import { detectBrand } from './cards';
+import { parseWifiQr } from './wifi';
 
 export type ScanKind = 'cards' | 'ids' | 'giftcards' | 'loyalty' | 'wifiNetwork';
 export const SCAN_KINDS: ReadonlySet<string> = new Set<ScanKind>(['cards', 'ids', 'giftcards', 'loyalty', 'wifiNetwork']);
@@ -13,8 +14,26 @@ export interface ScanResult {
   fields: Record<string, string>;
   /** Suggested item title (e.g. "BPI Debit"), '' when nothing fits. */
   title: string;
-  /** Card numbers that passed the Luhn check. */
+  /** Card numbers that passed the Luhn check, and fields read from a QR code. */
   checked: string[];
+  /** Read from a QR code (exact), not from printed text. */
+  viaQr?: boolean;
+}
+
+/** A QR code found in the photo: a router's "join Wi-Fi" code, or a gift card's number. */
+export function parseScanQr(kind: ScanKind, qr: string | null): ScanResult | null {
+  if (!qr) return null;
+  if (kind === 'wifiNetwork') {
+    const w = parseWifiQr(qr);
+    if (!w) return null;
+    const fields: Record<string, string> = { ssid: w.ssid, security: w.security, hidden: w.hidden ? 'Yes' : 'No' };
+    if (w.password) fields.password = w.password;
+    return { fields, title: w.ssid, checked: Object.keys(fields), viaQr: true };
+  }
+  if ((kind === 'giftcards' || kind === 'loyalty') && /^\d{8,24}$/.test(qr.trim())) {
+    return { fields: { cardNumber: qr.trim() }, title: '', checked: ['cardNumber'], viaQr: true };
+  }
+  return null;
 }
 
 /** Common OCR mix-ups inside a run of digits. */
@@ -53,16 +72,43 @@ function expiry(text: string): string {
   return `${last.mm}/${last.yy}`;
 }
 
-const NOT_NAME = /\b(visa|master ?card|debit|credit|prepaid|valid|thru|from|good|member|since|bank|card|platinum|gold|classic|electronic|use|only|signature|authorized|international|rewards|gift|republic|philippines|pilipinas|expires?|date|birth|sex|address|nationality|number|no\.?)\b/i;
+/** Words printed on cards that are never part of the holder's name. */
+const NOT_NAME_WORDS = new Set(
+  (
+    'visa mastercard master debit credit prepaid valid thru from good until month year expires expiry member since bank card platinum gold classic ' +
+    'titanium signature infinite world elite premier prestige rewards reward electronic use only authorized international philippines pilipinas ' +
+    'republic savings account customer service hotline thank you not transferable property of holder name number no date birth sex address ' +
+    'nationality amore cashback contactless paypass union pay gift voucher points stars loyalty www com ph inc corp atm cirrus maestro plus'
+  ).split(' ')
+);
 
-/** A person's name printed on a card: 2–4 capitalised words, letters only. */
-function personName(lines: string[], skip: (l: string) => boolean = () => false): string {
-  for (const raw of lines) {
+/**
+ * A person's name printed on a card: 2–4 words of letters, in capitals or Title Case.
+ * Lines below the card number are preferred (that is where cards print the name).
+ */
+function personName(lines: string[], opts: { skip?: (l: string) => boolean; after?: number } = {}): string {
+  let best = '';
+  let bestScore = -Infinity;
+  lines.forEach((raw, i) => {
     const l = raw.trim().replace(/\s+/g, ' ');
-    if (skip(l) || NOT_NAME.test(l)) continue;
-    if (/^[A-ZÑ][A-ZÑ.'-]*(?: [A-ZÑ][A-ZÑ.'-]*){1,3}$/.test(l) && l.length >= 5 && l.length <= 40) return l;
-  }
-  return '';
+    if (l.length < 5 || l.length > 40 || opts.skip?.(l) || detectBrand(l)) return;
+    if (!/^[A-Za-zÑñ.'-]+(?: [A-Za-zÑñ.'-]+){1,3}$/.test(l)) return;
+    const words = l.split(' ');
+    if (words.some((w) => NOT_NAME_WORDS.has(w.toLowerCase().replace(/[.'-]/g, '')))) return;
+    const caps = l === l.toUpperCase();
+    const title = words.every((w) => /^[A-ZÑ]/.test(w));
+    if (!caps && !title) return;
+    let score = 0;
+    if (opts.after !== undefined && opts.after >= 0) score += i > opts.after ? 4 - Math.min(3, i - opts.after - 1) : -2;
+    if (caps) score += 1;
+    if (words.length >= 2 && words.length <= 3) score += 1;
+    if (words.filter((w) => w.replace(/\./g, '').length === 1).length > 1) score -= 2;
+    if (score > bestScore) {
+      bestScore = score;
+      best = l;
+    }
+  });
+  return best;
 }
 
 /** "2027-05-31", "2027/05/31", "05/31/2027", "31 MAY 2027" → YYYY-MM-DD. */
@@ -111,22 +157,51 @@ function idName(lines: string[]): string {
   return personName(lines);
 }
 
-/** Router stickers: "SSID: …", "Wi-Fi name", "WLAN key / Password / PSK: …". */
+/**
+ * Router stickers, e.g. "Wireless Network Name (SSID): PLDTHOMEFIBR_a1b2",
+ * "WLAN Name 5G: …", "SSID" on one line and the name on the next, "WLAN Key: …".
+ * Router admin logins on the same sticker ("Username/Password: admin") are skipped.
+ */
+const SSID_LABEL = /\b(?:ssid|wi-?fi name|wifi network|network name|wlan name|wireless network name|wireless name)\b/i;
+const KEY_LABEL_STRONG = /\b(?:wlan key|wi-?fi key|wi-?fi password|wireless password|wireless key|wpa2? ?key|wpa ?psk|network key|psk|security key|passphrase)\b/i;
+const KEY_LABEL_WEAK = /\b(?:password|pass ?word|pwd|key)\b/i;
+const ADMIN = /\b(?:admin|user ?name|login|web|telnet|gui|management|default access|ip)\b/i;
+
+/** What follows the label: after the colon behind it, else right after it (minus "(2.4G)" / "(SSID)"). */
+function afterLabel(line: string, label: RegExp): string {
+  const m = label.exec(line);
+  if (!m) return '';
+  const rest = line.slice(m.index + m[0].length);
+  const colon = rest.search(/[:：]/);
+  if (colon >= 0) return rest.slice(colon + 1).trim();
+  return rest
+    .replace(/^\s*(?:\((?:ssid|[\d.]+\s*g(?:hz)?)\)|[\d.]+\s*g(?:hz)?)\s*/i, '')
+    .replace(/^[\s=-]+/, '')
+    .trim();
+}
+
 function wifiSticker(lines: string[]): Record<string, string> {
-  const pick = (re: RegExp) => {
+  const pick = (label: RegExp, skip?: RegExp) => {
     for (let i = 0; i < lines.length; i++) {
-      const m = re.exec(lines[i]!);
-      if (!m) continue;
-      const v = (m[1] ?? '').trim() || (lines[i + 1] ?? '').trim();
-      if (v) return v;
+      const l = lines[i]!;
+      if (!label.test(l) || (skip && skip.test(l))) continue;
+      let v = afterLabel(l, label);
+      // Label alone on its line: the value is on the next line.
+      if (!v) {
+        const next = (lines[i + 1] ?? '').trim();
+        if (next && !SSID_LABEL.test(next) && !KEY_LABEL_WEAK.test(next)) v = next;
+      }
+      v = v.replace(/\s+/g, ' ').trim();
+      if (v && v.length <= 64) return v;
     }
     return '';
   };
-  const ssid = pick(/(?:ssid|wi-?fi name|network name|wlan name)(?:\s*\(?\d(?:\.\d)?\s*g(?:hz)?\)?)?\s*[:：]?\s*(.*)$/i);
-  const password = pick(/(?:wlan key|wi-?fi key|wpa ?key|network key|wireless key|psk|key|password|pass ?word|pwd)\s*[:：]\s*(.*)$/i);
+  const ssid = pick(SSID_LABEL);
+  const password = pick(KEY_LABEL_STRONG) || pick(KEY_LABEL_WEAK, ADMIN);
   const out: Record<string, string> = {};
-  if (ssid) out.ssid = ssid;
-  if (password) out.password = password;
+  // Network names have no spaces on most stickers; OCR sometimes inserts one around "_" / "-".
+  if (ssid) out.ssid = ssid.replace(/\s*([_-])\s*/g, '$1');
+  if (password) out.password = password.replace(/\s+/g, '');
   return out;
 }
 
@@ -176,7 +251,8 @@ export function parseScan(kind: ScanKind, lines: readonly string[]): ScanResult 
     if (type) fields.cardType = type;
     const exp = expiry(text);
     if (exp) fields.expiry = exp;
-    const name = personName(ls, (l) => !!brand && l.toLowerCase().includes(brand.toLowerCase()));
+    const numLine = num ? ls.findIndex((l) => fixDigits(l).replace(/[^\d]/g, '').includes(num.number.slice(-4))) : -1;
+    const name = personName(ls, { skip: (l) => !!brand && l.toLowerCase().includes(brand.toLowerCase()), after: numLine });
     if (name) fields.cardholder = name;
     const net = num ? network(num.number) : '';
     title = [brand, type || net].filter(Boolean).join(' ');
@@ -189,7 +265,7 @@ export function parseScan(kind: ScanKind, lines: readonly string[]): ScanResult 
     title = brand ? `${brand} Gift Card` : '';
   } else {
     if (brand) fields.brand = brand;
-    const name = personName(ls, (l) => !!brand && detectBrand(l) === brand);
+    const name = personName(ls, { skip: (l) => !!brand && detectBrand(l) === brand });
     if (name) fields.memberName = name;
     title = brand ? `${brand} Rewards` : '';
   }
