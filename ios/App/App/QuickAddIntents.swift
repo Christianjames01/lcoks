@@ -167,10 +167,90 @@ struct AddCashIntent: AppIntent {
     }
 }
 
+/**
+ * Kloud through Siri: "Hey Siri, Kloud in VaultLocks" → "What should I add?" →
+ * "lunch 150 from GCash" / "remind me to pay rent tomorrow at 9". The sentence is
+ * stored encrypted (QuickAddStore.addVoice) and understood by the app on unlock;
+ * the reply only repeats what was said, so nothing private is spoken.
+ */
+@available(iOS 17.0, *)
+struct KloudIntent: AppIntent {
+    static let title: LocalizedStringResource = "Ask Kloud"
+    static let description = IntentDescription("Tell Kloud an expense or a reminder, like “lunch 150 from GCash” or “remind me to pay rent tomorrow at 9”. Works from the lock screen; it stays encrypted until you unlock VaultLocks.")
+    static let openAppWhenRun = false
+    static let authenticationPolicy: IntentAuthenticationPolicy = .alwaysAllowed
+
+    @Parameter(title: "What to add", requestValueDialog: "What should I add?")
+    var request: String
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard QuickAddStore.isReady else { return .result(dialog: "Open VaultLocks and unlock it once to turn on Kloud.") }
+        let reply = kloudReply(request, accounts: QuickAddStore.meta().accounts.map { $0.name }, currency: QuickAddStore.meta().currency)
+        guard reply.save else { return .result(dialog: "\(reply.text)") }
+        do {
+            try QuickAddStore.addVoice(request)
+        } catch let failure as QuickAddStore.Failure {
+            return .result(dialog: "\(failure.message)")
+        } catch {
+            return .result(dialog: "Couldn't save. Please try again.")
+        }
+        return .result(dialog: "\(reply.text)")
+    }
+}
+
+/** What Kloud says back on the lock screen (same rules as KloudSay.java). */
+func kloudReply(_ said: String, accounts: [String], currency: String) -> (text: String, save: Bool) {
+    var t = said.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let wake = t.range(of: "^\\s*(?:hey\\s+|ok(?:ay)?\\s+|hi\\s+)?(?:kloud|cloud|claude|clod)[\\s,]*", options: [.regularExpression, .caseInsensitive]) {
+        t.removeSubrange(wake)
+    }
+    if t.isEmpty { return ("I didn't catch that.", false) }
+    let lower = t.lowercased()
+    if let task = t.range(of: "^(?:please\\s+)?(?:remind me(?: to)?|set a reminder(?: to)?|add (?:a )?(?:task|to ?do|reminder)(?: to)?|new task|create (?:a )?task|task|to ?do|don'?t forget(?: to)?|paalala)\\s+", options: [.regularExpression, .caseInsensitive]) {
+        let what = String(t[task.upperBound...])
+        return ("Okay. I'll remind you: \(what). It's set as soon as you unlock VaultLocks.", true)
+    }
+    guard let amountRange = t.range(of: "(\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d{1,2})?\\s?(?:k\\b)?", options: [.regularExpression, .caseInsensitive]) else {
+        return ("While your phone is locked I can add expenses and reminders, like “lunch 150” or “remind me to call Mama at 7”.", false)
+    }
+    var raw = String(t[amountRange]).lowercased().replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces)
+    let value: Double
+    if raw.hasSuffix("k") {
+        raw.removeLast()
+        value = (Double(raw.trimmingCharacters(in: .whitespaces)) ?? 0) * 1000
+    } else {
+        value = Double(raw) ?? 0
+    }
+    let income = lower.range(of: "^\\+|\\b(salary|sweldo|sahod|income|bonus|allowance|baon|received|refund|cashback|sold|cash ?in|top ?up|deposit)\\b", options: .regularExpression) != nil
+    let account = accounts.first { name in
+        lower.range(of: "\\b\(NSRegularExpression.escapedPattern(for: name.lowercased()))\\b", options: .regularExpression) != nil
+    }
+    var what = t
+    what.removeSubrange(amountRange)
+    what = what.replacingOccurrences(of: "\\b(i spent|spent|i paid|paid|add|log|pesos?|php|from|using|with|via|sa|on|for|cash ?in|top ?up)\\b", with: " ", options: [.regularExpression, .caseInsensitive])
+    if let account { what = what.replacingOccurrences(of: account, with: " ", options: .caseInsensitive) }
+    what = what.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+    let money = NumberFormatter()
+    money.numberStyle = .currency
+    money.currencyCode = currency
+    money.maximumFractionDigits = value.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 2
+    let amount = money.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+    if income {
+        return ("Done. Added \(amount)\(account.map { " to \($0)" } ?? "").", true)
+    }
+    return ("Done. \(amount)\(what.isEmpty ? "" : " for \(what)")\(account.map { " from \($0)" } ?? "").", true)
+}
+
 /** Ready-made shortcuts: they show up in the Shortcuts app and Back Tap right after install. */
 @available(iOS 17.0, *)
 struct VaultLocksShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: KloudIntent(),
+            phrases: ["Kloud in \(.applicationName)", "Talk to Kloud in \(.applicationName)", "Ask Kloud in \(.applicationName)"],
+            shortTitle: "Ask Kloud",
+            systemImageName: "waveform.circle.fill"
+        )
         AppShortcut(
             intent: AddExpenseIntent(),
             phrases: ["Add expense in \(.applicationName)", "Add an expense to \(.applicationName)"],

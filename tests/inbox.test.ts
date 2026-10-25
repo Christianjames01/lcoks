@@ -115,3 +115,26 @@ describe('pop-up entries and accounts', () => {
     expect(v.snapshot().accounts.map((a) => a.id)).toEqual(['cash', 'gcash', 'bank']);
   });
 });
+
+describe('Kloud on the lock screen', () => {
+  it('spoken sentences become expenses or reminders on unlock, understood as of when they were said', async () => {
+    const v = new VaultService(path.join(vaultDir, 'vault.vault'));
+    await v.create(PW, null);
+    v.lock();
+    await v.unlock(PW);
+    v.lock();
+    const pub = (await fs.readFile(path.join(vaultDir, 'inbox.pub'), 'utf8')).trim();
+    const said = new Date(2026, 9, 25, 9, 30); // Sunday morning
+    const put = async (id: string, t: string) =>
+      fs.writeFile(path.join(vaultDir, `inbox-${id}.box`), await sealInbox(pub, { t, x: 'voice', day: '2026-10-25', at: said.toISOString() }));
+    await put('11111111-1111-4111-8111-111111111111', 'Kloud, lunch 150 from gcash');
+    await put('22222222-2222-4222-8222-222222222222', 'remind me to pay rent tomorrow at 9');
+    await put('33333333-3333-4333-8333-333333333333', 'banana');
+
+    await v.unlock(PW);
+    const s = v.snapshot();
+    expect(s.transactions.map((t) => [t.note, t.amount, t.category, t.accountId, t.date])).toEqual([['Lunch', 15000, 'food', 'gcash', '2026-10-25']]);
+    expect(s.tasks.map((t) => [t.title, t.due, t.dueTime, t.reminder])).toEqual([['Pay rent', '2026-10-26', '09:00', { type: 'before', minutes: 0 }]]);
+    expect(await v.takeInboxReport()).toEqual({ added: 2, unreadable: ['banana'] });
+  });
+});

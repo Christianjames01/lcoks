@@ -60,6 +60,13 @@ export interface NativeVault {
   setKnock(on: boolean, sensitivity: number): Promise<void>;
   /** Read the text in a photo on the device (ML Kit on Android, Vision on iPhone); lines top to bottom. */
   recognizeText(imageB64: string): Promise<string[]>;
+  /** Kloud: speech on the phone. */
+  kloudStatus(): Promise<{ available: boolean; onDevice: boolean; mic: boolean; onKnock: boolean }>;
+  kloudRequestMic(): Promise<{ available: boolean; onDevice: boolean; mic: boolean; onKnock: boolean }>;
+  kloudListen(onEvent: (e: { partial?: string; level?: number }) => void): Promise<string>;
+  kloudStop(): Promise<void>;
+  kloudSpeak(text: string): Promise<void>;
+  setKloudOnKnock(on: boolean): Promise<void>;
   /** Open the add-expense pop-up now. */
   openQuickAdd(): Promise<void>;
   openQuickAddPermissions(which: 'overlay' | 'fullscreen' | 'app'): Promise<void>;
@@ -119,6 +126,13 @@ interface VaultNativePlugin {
   openQuickAddPermissions(o: { which: string }): Promise<void>;
   setVaultState(o: { unlocked: boolean }): Promise<void>;
   addListener(event: 'quickAdd', cb: (data: { cash?: boolean }) => void): Promise<unknown>;
+  addListener(event: 'kloud', cb: (data: { partial?: string; level?: number }) => void): Promise<{ remove: () => Promise<void> }>;
+  kloudStatus(): Promise<{ available?: boolean; onDevice?: boolean; mic?: boolean; onKnock?: boolean }>;
+  kloudRequestMic(): Promise<{ available?: boolean; onDevice?: boolean; mic?: boolean; onKnock?: boolean }>;
+  kloudListen(): Promise<{ text?: string }>;
+  kloudStop(): Promise<void>;
+  kloudSpeak(o: { text: string }): Promise<void>;
+  setKloudOnKnock(o: { on: boolean }): Promise<void>;
 }
 
 const Plugin = registerPlugin<VaultNativePlugin>('VaultNative');
@@ -173,5 +187,24 @@ export const capacitorNative: NativeVault = {
   recognizeText: async (data) => (await Plugin.recognizeText({ data })).lines ?? [],
   openQuickAddPermissions: (which) => Plugin.openQuickAddPermissions({ which }),
   setVaultState: (unlocked) => Plugin.setVaultState({ unlocked }),
-  onQuickAdd: (cb) => void Plugin.addListener('quickAdd', (d) => cb(d?.cash === true))
+  onQuickAdd: (cb) => void Plugin.addListener('quickAdd', (d) => cb(d?.cash === true)),
+  kloudStatus: async () => {
+    const s = await Plugin.kloudStatus();
+    return { available: s.available === true, onDevice: s.onDevice === true, mic: s.mic === true, onKnock: s.onKnock === true };
+  },
+  kloudRequestMic: async () => {
+    const s = await Plugin.kloudRequestMic();
+    return { available: s.available === true, onDevice: s.onDevice === true, mic: s.mic === true, onKnock: s.onKnock === true };
+  },
+  kloudListen: async (onEvent) => {
+    const sub = await Plugin.addListener('kloud', (d) => onEvent(d ?? {}));
+    try {
+      return (await Plugin.kloudListen()).text ?? '';
+    } finally {
+      void sub.remove();
+    }
+  },
+  kloudStop: () => Plugin.kloudStop(),
+  kloudSpeak: (text) => Plugin.kloudSpeak({ text }),
+  setKloudOnKnock: (on) => Plugin.setKloudOnKnock({ on })
 };

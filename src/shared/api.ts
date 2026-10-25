@@ -27,6 +27,16 @@ import type { PhoneCalendarInfo, PhoneCalendarItem } from './phoneCalendar';
 import type { Task, TaskInput } from './tasks';
 import type { AccountKind, MoneyAccount, MoneyCategory, Transaction, TransactionInput, TxKind } from './money';
 
+export interface KloudStatus {
+  /** Can listen on this device (phones only). */
+  available: boolean;
+  /** Speech is turned into text on the device (nothing leaves the phone). */
+  onDevice: boolean;
+  /** Microphone (and on iPhone, speech recognition) allowed. */
+  mic: boolean;
+  onKnock: boolean;
+}
+
 export interface VaultApi {
   app: {
     getState(): Promise<AppState>;
@@ -128,6 +138,18 @@ export interface VaultApi {
     list(): Promise<Result<PhoneCalendarInfo[]>>;
     /** Open the phone's calendar app at today. */
     open(): Promise<Result<void>>;
+  };
+  /** Kloud, the voice assistant: listening and speaking on phones (desktop types; the renderer speaks). */
+  kloud: {
+    status(): Promise<KloudStatus>;
+    requestMic(): Promise<KloudStatus>;
+    /** Listen once. onEvent gets partial text and loudness while listening. */
+    listen(onEvent: (e: { partial?: string; level?: number }) => void): Promise<Result<string>>;
+    stop(): void;
+    /** Say this out loud ('' stops talking). */
+    speak(text: string): void;
+    /** Android: the double tap on the back opens Kloud instead of the add-expense pop-up. */
+    setOnKnock(on: boolean): Promise<void>;
   };
   /** Phone reminders for expiry / renewal / due dates (Android). */
   notifications: {

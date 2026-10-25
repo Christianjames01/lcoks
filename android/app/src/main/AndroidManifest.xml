@@ -35,6 +35,18 @@
 
         </activity>
 
+        <!-- Kloud, the voice assistant, over the lock screen (vault stays locked; see KloudActivity.java). -->
+        <activity
+            android:name=".KloudActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.vaultlocks.app.kloud"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/QuickAddTheme" />
+
         <!-- "Add expense" pop-up over the lock screen (vault stays locked; see QuickAdd.java). -->
         <activity
             android:name=".QuickAddActivity"
@@ -114,4 +126,14 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Kloud: speech recognition and text-to-speech services the app may use. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
 </manifest>

@@ -33,6 +33,8 @@ export interface InboxEntry {
   a?: number;
   c?: string;
   acc?: string;
+  /** "voice": a sentence said to Kloud on the lock screen (money, or a task / reminder). */
+  x?: 'voice';
 }
 
 export interface InboxKeys {
@@ -83,7 +85,8 @@ export async function openInbox(priv: JsonWebKey, box: string): Promise<InboxEnt
   const plain = await subtle().decrypt({ name: 'AES-GCM', iv: iv as BufferSource, additionalData: enc.encode(INBOX_INFO) }, aes, ct as BufferSource);
   const e = JSON.parse(new TextDecoder().decode(plain)) as Partial<InboxEntry>;
   if (typeof e.t !== 'string' || typeof e.day !== 'string') throw new Error('bad entry');
-  const out: InboxEntry = { t: e.t.slice(0, 200), day: e.day, at: typeof e.at === 'string' ? e.at : '' };
+  const out: InboxEntry = { t: e.t.slice(0, e.x === 'voice' ? 300 : 200), day: e.day, at: typeof e.at === 'string' ? e.at : '' };
+  if (e.x === 'voice') out.x = 'voice';
   if ((e.k === 'expense' || e.k === 'income') && Number.isInteger(e.a)) {
     out.k = e.k;
     out.a = e.a;

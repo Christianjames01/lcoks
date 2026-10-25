@@ -58,6 +58,26 @@ enum QuickAddStore {
         return (accounts, currency)
     }
 
+    /** A sentence for Kloud, stored encrypted like any quick-add entry. */
+    static func addVoice(_ text: String) throws {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { throw Failure.badAmount }
+        let dir = vaultDir()
+        let pubURL = dir.appendingPathComponent("inbox.pub")
+        guard let pubText = try? String(contentsOf: pubURL, encoding: .utf8),
+              let pub = Data(base64Encoded: pubText.trimmingCharacters(in: .whitespacesAndNewlines)), pub.count == 65
+        else { throw Failure.notReady }
+        let pending = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasPrefix("inbox-") && $0.hasSuffix(".box") }
+        guard pending.count < maxPending else { throw Failure.tooMany }
+        do {
+            let box = try QuickAddCrypto.boxJSON(pubRaw: pub, plaintext: try QuickAddCrypto.voiceJSON(text: t))
+            let target = dir.appendingPathComponent("inbox-\(UUID().uuidString.lowercased()).box")
+            try box.write(to: target, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        } catch {
+            throw Failure.writeFailed
+        }
+    }
+
     /** kind: "expense" | "income"; amount in minor units (centavos). */
     static func add(kind: String, amount: Int64, category: String, accountId: String?, note: String) throws {
         guard amount > 0, amount <= 100_000_000_000_000 else { throw Failure.badAmount }

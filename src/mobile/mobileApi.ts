@@ -437,6 +437,29 @@ export function createMobileApi(native: NativeVault): VaultApi {
           await withExternalUi(() => native.openPhoneCalendar());
         })
     },
+    kloud: {
+      status: async () => {
+        try {
+          return await native.kloudStatus();
+        } catch {
+          return { available: false, onDevice: false, mic: false, onKnock: false };
+        }
+      },
+      requestMic: async () => {
+        try {
+          return await native.kloudRequestMic();
+        } catch {
+          return { available: false, onDevice: false, mic: false, onKnock: false };
+        }
+      },
+      // The microphone sheet / permission prompt must not lock the vault.
+      listen: (onEvent) => wrap(() => withExternalUi(() => native.kloudListen(onEvent))),
+      stop: () => void native.kloudStop().catch(() => undefined),
+      speak: (text) => void native.kloudSpeak(text).catch(() => undefined),
+      setOnKnock: async (on) => {
+        await native.setKloudOnKnock(on).catch(() => undefined);
+      }
+    },
     notifications: {
       status: async () => {
         try {

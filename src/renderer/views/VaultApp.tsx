@@ -1,4 +1,4 @@
-import { CalendarDays, CopyCheck, ListTodo, House, Layers, Lock, Wallet, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
+import { AudioLines, CalendarDays, CopyCheck, ListTodo, House, Layers, Lock, Wallet, Menu, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarNotifications } from '../../shared/calendar';
 import { setLinkedLooks } from '../../shared/cards';
@@ -12,6 +12,7 @@ import { ConfirmDialog } from '../components/Dialog';
 import { EntryActionsProvider, EntryMenu, passwordKeyOf, usernameOf, websiteOf, type EntryActions } from '../components/EntryActions';
 import { GeneratorDialog } from '../components/Generator';
 import { BellButton, NotificationCenter, unreadCount } from '../components/NotificationCenter';
+import { KloudPanel } from '../components/KloudPanel';
 import { ReminderAlerts } from '../components/ReminderAlerts';
 import { TabBar } from '../components/TabBar';
 import { syncPhoneCalendar } from '../lib/phoneCalendarSync';
@@ -82,6 +83,7 @@ export function VaultApp({ version }: { version: string }) {
   const [taskFocus, setTaskFocus] = useState<TaskFocus | null>(null);
   // Notification bell: past and upcoming reminders; the count refreshes every minute.
   const [notifOpen, setNotifOpen] = useState(false);
+  const [kloudOpen, setKloudOpen] = useState(false);
   const [bellNow, setBellNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setBellNow(Date.now()), 60_000);
@@ -496,6 +498,9 @@ export function VaultApp({ version }: { version: string }) {
             <button type="button" className="icon-btn" onClick={() => go({ view: 'settings' })} aria-label="Settings" title="Settings" aria-current={route.view === 'settings' ? 'page' : undefined}>
               <SettingsIcon size={19} />
             </button>
+            <button type="button" className="icon-btn kloud-btn" onClick={() => setKloudOpen(true)} aria-label="Talk to Kloud" title="Kloud">
+              <AudioLines size={19} />
+            </button>
             <BellButton count={bellCount} onClick={() => setNotifOpen(true)} />
             <button type="button" className="icon-btn" onClick={lock} aria-label="Lock vault" title="Lock vault">
               <Lock size={19} />
@@ -566,6 +571,9 @@ export function VaultApp({ version }: { version: string }) {
                 <Plus size={14} aria-hidden /> <span className="btn-text">New item</span>
               </button>
             )}
+            <button type="button" className="btn sm kloud-btn" onClick={() => setKloudOpen(true)} title="Kloud assistant" aria-label="Kloud assistant">
+              <AudioLines size={14} aria-hidden /> <span className="btn-text">Kloud</span>
+            </button>
             <BellButton count={bellCount} onClick={() => setNotifOpen(true)} size={16} />
             <button type="button" className="btn sm" onClick={lock} title="Lock vault (Ctrl+L)" aria-label="Lock vault">
               <Lock size={14} aria-hidden /> <span className="btn-text">Lock</span>
@@ -711,6 +719,15 @@ export function VaultApp({ version }: { version: string }) {
         </TabBar>
       )}
 
+      {kloudOpen && (
+        <KloudPanel
+          snap={snap}
+          onClose={() => setKloudOpen(false)}
+          onChanged={refresh}
+          onOpenEntry={(id) => openEntry(id)}
+          onOpenView={(v) => go(v === 'vault' ? { view: 'dashboard' } : { view: v })}
+        />
+      )}
       {notifOpen && (
         <NotificationCenter
           snap={snap}

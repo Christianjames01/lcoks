@@ -9244,3 +9244,164 @@ button.vl-pill {
 .mc-list-wrap + .mc-list-wrap {
   margin-top: 16px;
 }
+
+/* ----------------------------------------------------------- Kloud */
+.kloud {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.kloud-orb {
+  --lvl: 0;
+  position: relative;
+  align-self: center;
+  width: 150px;
+  height: 150px;
+  margin: 4px 0 2px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.kloud-core {
+  position: absolute;
+  inset: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 46%, var(--fg) 0 9%, color-mix(in srgb, var(--fg) 55%, transparent) 20%, color-mix(in srgb, var(--fg) 12%, transparent) 48%, transparent 70%);
+  box-shadow: 0 0 50px color-mix(in srgb, var(--fg) 22%, transparent);
+  transform: scale(calc(1 + var(--lvl) * 0.35));
+  transition: transform 90ms linear;
+  animation: kloud-breathe 2.6s ease-in-out infinite;
+}
+.kloud-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--fg) 45%, transparent);
+}
+.kloud-ring.a {
+  inset: 18px;
+  border-top-color: transparent;
+  border-left-color: transparent;
+  animation: kloud-spin 3.2s linear infinite;
+}
+.kloud-ring.b {
+  inset: 2px;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--fg) 18%, transparent);
+  animation: kloud-spin 9s linear infinite reverse;
+}
+.kloud-orb.on .kloud-ring.a {
+  animation-duration: 1.1s;
+  border-color: color-mix(in srgb, var(--fg) 75%, transparent);
+  border-top-color: transparent;
+  border-left-color: transparent;
+}
+@keyframes kloud-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes kloud-breathe {
+  50% {
+    filter: brightness(1.18);
+  }
+}
+.kloud-state {
+  text-align: center;
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+  font-weight: 700;
+  min-height: 16px;
+}
+.kloud-partial {
+  text-align: center;
+  font-size: 19px;
+  font-weight: 700;
+}
+.kloud-turns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 38vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.kloud-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.kloud-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 88%;
+  padding: 10px 13px;
+  border-radius: 18px;
+  border: 1px solid var(--lg-border, var(--border));
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+.kloud-turn.you {
+  align-self: flex-start;
+  border-bottom-left-radius: 6px;
+  background: var(--lg-card, var(--surface));
+}
+.kloud-turn.kloud {
+  align-self: flex-end;
+  border-bottom-right-radius: 6px;
+  background: color-mix(in srgb, var(--fg) 10%, var(--lg-card, var(--surface)));
+}
+.kloud-who {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+  font-weight: 700;
+}
+.kloud-undo {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+.kloud-type {
+  display: flex;
+  gap: 8px;
+}
+.kloud-type .input {
+  flex: 1;
+}
+.kloud-bar {
+  display: flex;
+  gap: 8px;
+}
+.kloud-bar .btn {
+  flex: 1;
+}
+.kloud-bar:empty {
+  display: none;
+}
+.kloud-knock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+.kloud-knock .grow {
+  flex: 1;
+}
+.kloud-note {
+  margin: 0;
+  text-align: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kloud-core,
+  .kloud-ring {
+    animation: none !important;
+  }
+}

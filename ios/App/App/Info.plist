@@ -68,6 +68,10 @@
 	<string>Show your VaultLocks events and tasks in the iPhone's Calendar widgets on the lock screen and home screen.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Show your VaultLocks events and tasks in the iPhone's Calendar widgets on the lock screen and home screen.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Talk to Kloud, the VaultLocks assistant: say an expense or a reminder.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Kloud turns what you say into text, on this iPhone when possible.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock your vault with Face ID.</string>
 	<key>NSCameraUsageDescription</key>

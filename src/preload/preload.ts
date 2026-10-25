@@ -91,6 +91,15 @@ const api: VaultApi = {
     open: async () => unsupported,
     list: async () => unsupported
   },
+  // Desktop: Kloud is typed to (no speech service here); the renderer speaks with the system voice.
+  kloud: {
+    status: async () => ({ available: false, onDevice: false, mic: false, onKnock: false }),
+    requestMic: async () => ({ available: false, onDevice: false, mic: false, onKnock: false }),
+    listen: async () => ({ ok: false, code: 'UNSUPPORTED', message: 'Talking to Kloud works in the phone app. Type here instead.' }),
+    stop: () => undefined,
+    speak: () => undefined,
+    setOnKnock: async () => undefined
+  },
   // Desktop notifications come from the main process while the app runs (no permission prompt).
   notifications: {
     status: async () => {

@@ -16,6 +16,8 @@ import Security
 import UIKit
 import UniformTypeIdentifiers
 import Vision
+import Speech
+import AVFoundation
 
 @objc(VaultNativePlugin)
 public class VaultNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteractionControllerDelegate {
@@ -27,7 +29,7 @@ public class VaultNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteracti
         "copySecret", "clearClipboard", "readClipboard", "takeSharedText", "purgeCaptures",
         "biometricStatus", "bioEncrypt", "bioDecrypt", "deviceEncrypt", "deviceDecrypt", "resetKey",
         "phoneCalendarStatus", "requestPhoneCalendar", "syncPhoneCalendar", "openPhoneCalendar",
-        "recognizeText"
+        "recognizeText", "kloudStatus", "kloudRequestMic", "kloudListen", "kloudStop", "kloudSpeak", "setKloudOnKnock"
     ].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
 
     private static let safeName = try! NSRegularExpression(pattern: "^[A-Za-z0-9._-]{1,100}$")
@@ -510,5 +512,180 @@ public class VaultNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteracti
 class VaultBridgeViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(VaultNativePlugin())
+    }
+}
+
+// MARK: - Kloud (voice assistant)
+
+/**
+ * Kloud's ears and voice on iPhone: Apple's speech recognition (on the device
+ * when the language model is there, so nothing leaves the phone) and Apple's
+ * text-to-speech. The app (src/shared/kloud.ts) decides what to do and say.
+ */
+final class KloudEars: NSObject {
+    static let shared = KloudEars()
+    private let engine = AVAudioEngine()
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var task: SFSpeechRecognitionTask?
+    private var heard = ""
+    private var finished = true
+    private var silence: Timer?
+    private var limit: Timer?
+    private var done: ((String?, String?) -> Void)?
+    private var lastLevel = Date.distantPast
+    let voice = AVSpeechSynthesizer()
+
+    var micGranted: Bool {
+        AVAudioSession.sharedInstance().recordPermission == .granted && SFSpeechRecognizer.authorizationStatus() == .authorized
+    }
+
+    /** Listen until a short silence; done(text, nil) or done(nil, message). onEvent gets partial text and loudness. */
+    func listen(onEvent: @escaping ([String: Any]) -> Void, done: @escaping (String?, String?) -> Void) {
+        stop(deliver: false)
+        guard let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer(), recognizer.isAvailable else {
+            done(nil, "Speech recognition isn't available right now.")
+            return
+        }
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            done(nil, "The microphone is busy. Try again in a moment.")
+            return
+        }
+        let req = SFSpeechAudioBufferRecognitionRequest()
+        req.shouldReportPartialResults = true
+        if recognizer.supportsOnDeviceRecognition { req.requiresOnDeviceRecognition = true }
+        request = req
+        heard = ""
+        finished = false
+        self.done = done
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        input.removeTap(onBus: 0)
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+            req.append(buffer)
+            guard let self, let data = buffer.floatChannelData?[0] else { return }
+            let n = Int(buffer.frameLength)
+            var sum: Float = 0
+            for i in 0..<n { sum += data[i] * data[i] }
+            let rms = n > 0 ? sqrt(sum / Float(n)) : 0
+            let db = 20 * log10(max(rms, 0.000_01)) + 60 // about 0…60
+            let now = Date()
+            if now.timeIntervalSince(self.lastLevel) > 0.08 {
+                self.lastLevel = now
+                DispatchQueue.main.async { onEvent(["level": Double(db / 5)]) }
+            }
+        }
+        engine.prepare()
+        do {
+            try engine.start()
+        } catch {
+            stop(deliver: false)
+            done(nil, "Couldn't start the microphone. Try again.")
+            return
+        }
+        task = recognizer.recognitionTask(with: req) { [weak self] result, error in
+            DispatchQueue.main.async {
+                guard let self, !self.finished else { return }
+                if let result {
+                    self.heard = result.bestTranscription.formattedString
+                    onEvent(["partial": self.heard])
+                    self.armSilence()
+                    if result.isFinal { self.stop(deliver: true) }
+                }
+                if error != nil { self.stop(deliver: true) }
+            }
+        }
+        limit = Timer.scheduledTimer(withTimeInterval: 12, repeats: false) { [weak self] _ in self?.stop(deliver: true) }
+    }
+
+    private func armSilence() {
+        silence?.invalidate()
+        silence = Timer.scheduledTimer(withTimeInterval: 1.6, repeats: false) { [weak self] _ in self?.stop(deliver: true) }
+    }
+
+    /** Stop listening; deliver what was heard (or "didn't catch that"). */
+    func stop(deliver: Bool) {
+        silence?.invalidate()
+        limit?.invalidate()
+        silence = nil
+        limit = nil
+        if engine.isRunning { engine.stop() }
+        engine.inputNode.removeTap(onBus: 0)
+        request?.endAudio()
+        task?.cancel()
+        request = nil
+        task = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        let wasFinished = finished
+        finished = true
+        let cb = done
+        done = nil
+        guard deliver, !wasFinished, let cb else { return }
+        let text = heard.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty { cb(nil, "I didn't catch that. Try again.") } else { cb(text, nil) }
+    }
+
+    func speak(_ text: String) {
+        voice.stopSpeaking(at: .immediate)
+        guard !text.isEmpty else { return }
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+        let u = AVSpeechUtterance(string: text)
+        u.voice = AVSpeechSynthesisVoice(language: Locale.current.identifier.replacingOccurrences(of: "_", with: "-")) ?? AVSpeechSynthesisVoice(language: "en-US")
+        u.pitchMultiplier = 0.95
+        voice.speak(u)
+    }
+}
+
+extension VaultNativePlugin {
+    @objc func kloudStatus(_ call: CAPPluginCall) {
+        let r = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer()
+        call.resolve([
+            "available": r?.isAvailable ?? false,
+            "onDevice": r?.supportsOnDeviceRecognition ?? false,
+            "mic": KloudEars.shared.micGranted,
+            "onKnock": false
+        ])
+    }
+
+    @objc func kloudRequestMic(_ call: CAPPluginCall) {
+        SFSpeechRecognizer.requestAuthorization { _ in
+            AVAudioSession.sharedInstance().requestRecordPermission { _ in
+                DispatchQueue.main.async { self.kloudStatus(call) }
+            }
+        }
+    }
+
+    @objc func kloudListen(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard KloudEars.shared.micGranted else {
+                call.reject("Allow the microphone and speech recognition for Kloud first", "NO_PERMISSION")
+                return
+            }
+            KloudEars.shared.listen(onEvent: { [weak self] e in
+                self?.notifyListeners("kloud", data: e)
+            }, done: { text, error in
+                if let text { call.resolve(["text": text]) } else { call.reject(error ?? "I didn't catch that.", "KLOUD") }
+            })
+        }
+    }
+
+    @objc func kloudStop(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { KloudEars.shared.stop(deliver: true) }
+        call.resolve()
+    }
+
+    @objc func kloudSpeak(_ call: CAPPluginCall) {
+        let text = call.getString("text") ?? ""
+        DispatchQueue.main.async { KloudEars.shared.speak(text) }
+        call.resolve()
+    }
+
+    /** iPhone has no back-tap pop-up of its own (Back Tap runs the "Ask Kloud" shortcut instead). */
+    @objc func setKloudOnKnock(_ call: CAPPluginCall) {
+        call.resolve()
     }
 }

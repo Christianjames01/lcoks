@@ -46,6 +46,44 @@ public final class QuickAdd {
 
     private QuickAdd() {}
 
+    /** File name of the last box written (for Kloud's Undo). */
+    static String lastBox;
+    private static final String PREF_KNOCK_KLOUD = "knockKloud";
+
+    /** Double tap on the back opens Kloud (voice) instead of the add-expense pop-up. */
+    static boolean knockOpensKloud(Context c) {
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_KNOCK_KLOUD, false);
+    }
+
+    static void setKnockOpensKloud(Context c, boolean on) {
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(PREF_KNOCK_KLOUD, on).apply();
+    }
+
+    /** The lock-screen pop-up the double tap opens. */
+    static Intent popupIntent(Context c) {
+        return new Intent(c, knockOpensKloud(c) ? KloudActivity.class : QuickAddActivity.class);
+    }
+
+    /** A sentence said to Kloud while locked ("lunch 150 gcash", "remind me to …"): understood by the app on unlock. */
+    static String addVoice(Context c, String text) {
+        String t = text == null ? "" : text.trim();
+        if (t.isEmpty() || t.length() > 300) return "I didn't catch that.";
+        try {
+            JSONObject entry = new JSONObject();
+            entry.put("t", t);
+            entry.put("x", "voice");
+            return writeBox(c, entry);
+        } catch (Exception e) {
+            return "Could not save. Please try again";
+        }
+    }
+
+    /** Undo: delete a box that was just written (only inbox boxes, by exact name). */
+    static boolean removeBox(Context c, String name) {
+        if (name == null || !name.matches("^inbox-[0-9a-f-]{36}\\.box$")) return false;
+        return new File(vaultDir(c), name).delete();
+    }
+
     static boolean isOn(Context c) {
         return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_ON, false);
     }
@@ -116,6 +154,9 @@ public final class QuickAdd {
         Intent cash = new Intent(c, QuickAddActivity.class).putExtra("cash", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent cashPi = PendingIntent.getActivity(c, 5, cash, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         NotificationCompat.Action addCash = new NotificationCompat.Action.Builder(R.drawable.ic_stat_vault, "+ Add cash", cashPi).build();
+        Intent kloud = new Intent(c, KloudActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent kloudPi = PendingIntent.getActivity(c, 6, kloud, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        NotificationCompat.Action talk = new NotificationCompat.Action.Builder(R.drawable.ic_stat_vault, "🎙 Kloud", kloudPi).build();
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(c, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_vault)
@@ -130,7 +171,7 @@ public final class QuickAdd {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(popupPi)
             .addAction(open)
-            .addAction(addCash)
+            .addAction(talk)
             .addAction(action);
         try {
             NotificationManagerCompat.from(c).notify(NOTIFICATION_ID, b.build());
@@ -195,6 +236,7 @@ public final class QuickAdd {
         box.put("ct", Base64.encodeToString(s.ct, Base64.NO_WRAP));
 
         File target = new File(dir, "inbox-" + UUID.randomUUID() + ".box");
+        lastBox = target.getName();
         File tmp = new File(dir, "." + target.getName() + ".tmp");
         try (FileOutputStream out = new FileOutputStream(tmp)) {
             out.write(box.toString().getBytes(StandardCharsets.UTF_8));

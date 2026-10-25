@@ -423,6 +423,21 @@ public class QuickAddActivity extends Activity {
         titles.addView(sub);
         head.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
+        // Talk instead: opens Kloud over the lock screen.
+        FrameLayout mic = new FrameLayout(this);
+        mic.setBackground(glassTile(14));
+        mic.setContentDescription("Talk to Kloud");
+        mic.setOnClickListener(v -> {
+            startActivity(new android.content.Intent(this, KloudActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+            finish();
+        });
+        TextView micText = text("🎙", 13, fg, 400);
+        micText.setGravity(Gravity.CENTER);
+        mic.addView(micText, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER));
+        LinearLayout.LayoutParams micLp = new LinearLayout.LayoutParams(dp(28), dp(28));
+        micLp.rightMargin = dp(8);
+        head.addView(mic, micLp);
+
         FrameLayout close = new FrameLayout(this);
         close.setBackground(glassTile(14));
         close.setContentDescription("Close");

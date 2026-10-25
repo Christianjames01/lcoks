@@ -141,7 +141,7 @@ public class KnockService extends Service implements SensorEventListener {
             ch.setShowBadge(false);
             nm.createNotificationChannel(ch);
         }
-        Intent popup = new Intent(this, QuickAddActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Intent popup = QuickAdd.popupIntent(this).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         PendingIntent pi = PendingIntent.getActivity(this, 3, popup, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         return new NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_vault)
@@ -176,7 +176,7 @@ public class KnockService extends Service implements SensorEventListener {
         // VaultLocks is open and unlocked: use its own add form (no app switch, so no re-lock).
         if (VaultNativePlugin.openInApp(false)) return;
         if (!QuickAdd.ready(this)) return;
-        Intent popup = new Intent(this, QuickAddActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        Intent popup = QuickAdd.popupIntent(this).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         if (canPopUp(this)) {
             try {
                 startActivity(popup);
