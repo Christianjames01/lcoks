@@ -74,7 +74,8 @@
                 android:textColor="#B3FFFFFF"
                 android:textSize="11.5sp" />
         </LinearLayout>
-        <View
+        <!-- Divider: widgets only allow layout classes, not a plain View. -->
+        <FrameLayout
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:layout_marginStart="10dp"
