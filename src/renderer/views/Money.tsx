@@ -71,7 +71,8 @@ import {
 } from '../../shared/money';
 import type { KnockInfo } from '../../shared/api';
 import { COFFEE, usualCoffee } from '../../shared/coffee';
-import { budgetFor, budgetNudge, goalAccountMoves } from '../../shared/plans';
+import { accountMoves, budgetFor, budgetNudge, type Transfer } from '../../shared/plans';
+import { ExpenseSearch, ReceiptButton, SplitBill, TransferEditor, TransferRow, useReceiptScan } from '../components/MoneyMore';
 import { PlanDialogs, PlansBar, type PlanView } from '../components/MoneyPlans';
 import type { VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
@@ -83,7 +84,7 @@ import { ColorPicker } from '../components/ColorPicker';
 import { HoldArea } from '../components/HoldActions';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
-import { isAndroid, isIOS } from '../lib/platform';
+import { isAndroid, isIOS, isPhone } from '../lib/platform';
 
 const ICONS: Record<MoneyIcon, LucideIcon> = {
   coffee: Coffee,
@@ -191,7 +192,11 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   }, [inMonth]);
 
   const parsed = useMemo(() => parseQuick(quick, new Date(), snap.accounts), [quick, snap.accounts]);
-  const accountBalances = useMemo(() => balances(snap.accounts, snap.transactions, goalAccountMoves(snap.goals)), [snap.accounts, snap.transactions, snap.goals]);
+  const accountBalances = useMemo(() => balances(snap.accounts, snap.transactions, accountMoves(snap)), [snap]);
+  const [transfer, setTransfer] = useState<{ t?: Transfer } | null>(null);
+  const [split, setSplit] = useState<{ total?: number; note?: string; category?: string; accountId?: string; date?: string } | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const dayTransfers = snap.transfers.filter((t) => t.date === selected);
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [managing, setManaging] = useState(false);
   const [categoryView, setCategoryView] = useState<string | null>(null);
@@ -403,6 +408,9 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
               Today
             </button>
           )}
+          <button type="button" className="icon-btn" onClick={() => setSearchOpen(true)} aria-label="Search expenses" title="Search expenses">
+            <Search size={18} />
+          </button>
           <button type="button" className="icon-btn" onClick={() => setSetup(true)} aria-label="Budget and currency" title="Budget and currency">
             <Settings2 size={18} />
           </button>
@@ -431,7 +439,16 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
                 <Plus size={14} aria-hidden /> Add
               </button>
             </div>
-            {dayList.length === 0 ? (
+            {dayTransfers.length > 0 && (
+              <ul className="tx-list">
+                {dayTransfers.map((t) => (
+                  <li key={t.id}>
+                    <TransferRow t={t} snap={snap} onOpen={() => setTransfer({ t })} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {dayList.length === 0 && dayTransfers.length === 0 ? (
               <div className="day-empty">
                 <CalendarDays size={20} aria-hidden />
                 <span>Nothing recorded on this day.</span>
@@ -495,6 +512,18 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
         />
       </div>
 
+      {transfer && <TransferEditor snap={snap} initial={transfer.t} onClose={() => setTransfer(null)} onChanged={onChanged} />}
+      {split && <SplitBill snap={snap} initial={split} onClose={() => setSplit(null)} onChanged={onChanged} />}
+      {searchOpen && (
+        <ExpenseSearch
+          snap={snap}
+          onClose={() => setSearchOpen(false)}
+          onOpenTx={(t) => {
+            setSearchOpen(false);
+            setEditing({ tx: t, date: t.date, kind: t.kind });
+          }}
+        />
+      )}
       {plan && (
         <PlanDialogs
           view={plan}
@@ -522,6 +551,15 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
       {breakdownActions.dialogs}
       {editing && (
         <TxEditor
+          snap={snap}
+          onTransfer={() => {
+            setEditing(null);
+            setTransfer({});
+          }}
+          onSplit={(v) => {
+            setEditing(null);
+            setSplit(v);
+          }}
           onCategoriesChanged={onChanged}
           editing={editing}
           currency={currency}
@@ -737,8 +775,14 @@ function TxEditor({
   onClose,
   onSave,
   onDelete,
-  onCategoriesChanged
+  onCategoriesChanged,
+  snap,
+  onTransfer,
+  onSplit
 }: {
+  snap: VaultSnapshot;
+  onTransfer: () => void;
+  onSplit: (v: { total?: number; note?: string; category?: string; accountId?: string; date?: string }) => void;
   editing: NonNullable<Editing>;
   currency: string;
   accounts: MoneyAccount[];
@@ -764,6 +808,8 @@ function TxEditor({
   const [confirm, setConfirm] = useState(false);
   const cats = allMoneyCategories().filter((c) => c.kind === kind);
   const [newCategory, setNewCategory] = useState(false);
+  const receipt = useReceiptScan(snap);
+  const [scanned, setScanned] = useState(false);
   const catActions = useCategoryActions(onCategoriesChanged, (c) => {
     if (category === c.id) setCategory(defaultCategory(kind));
   });
@@ -819,7 +865,39 @@ function TxEditor({
             <button type="button" aria-pressed={kind === 'income'} onClick={() => switchKind('income')}>
               + Add cash
             </button>
+            {!existing && accounts.length > 1 && (
+              <button type="button" aria-pressed={false} onClick={onTransfer}>
+                ⇄ Transfer
+              </button>
+            )}
           </div>
+          {!existing && kind === 'expense' && isPhone() && (
+            <ReceiptButton
+              busy={receipt.busy}
+              onClick={async () => {
+                const r = await receipt.scan();
+                if (!r) return;
+                if (r.amount) setAmount(fromMinor(r.amount));
+                if (r.store) setNote(r.store);
+                if (r.date) setDate(r.date);
+                if (r.accountId) setAccountId(r.accountId);
+                // Category from the store's name (quick-entry words: "jollibee" → Food & Drinks).
+                const guess = r.store ? parseQuick(`${r.store} 1`, new Date(), [])?.category : undefined;
+                if (guess && guess !== 'other') setCategory(guess);
+                setScanned(true);
+              }}
+            />
+          )}
+          {scanned && <div className="notice scan-notice">Filled from the receipt. Check the amount, store and date before saving.</div>}
+          {!existing && kind === 'expense' && (
+            <button
+              type="button"
+              className="btn sm split-link"
+              onClick={() => onSplit({ total: toMinor(amount) ?? undefined, note, category, accountId, date })}
+            >
+              <Users size={14} aria-hidden /> Split with friends
+            </button>
+          )}
           <div className="field amount-field">
             <label htmlFor="tx-amount">Amount ({currency})</label>
             <input

@@ -2,7 +2,7 @@
 // renderer and records read back from the decrypted payload.
 
 import { MAX_AMOUNT, isDayKey } from '../shared/money';
-import type { Bill, BillInput, BillPaid, Debt, DebtInput, DebtPayment, Goal, GoalInput, GoalMove } from '../shared/plans';
+import type { Bill, BillInput, BillPaid, Debt, DebtInput, DebtPayment, Goal, GoalInput, GoalMove, Transfer, TransferInput } from '../shared/plans';
 import { ValidationError } from './schema';
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -11,7 +11,7 @@ const text = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s
 const optId = (v: unknown) => (typeof v === 'string' && ID_RE.test(v) ? v : undefined);
 const iso = (v: unknown, fallback: string) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : fallback);
 
-export const LIMITS_PLANS = { debts: 2000, bills: 200, goals: 100, payments: 500 } as const;
+export const LIMITS_PLANS = { debts: 2000, bills: 200, goals: 100, payments: 500, transfers: 20000 } as const;
 
 function idOf(i: Record<string, unknown>): string | undefined {
   if (i.id === undefined || i.id === null) return undefined;
@@ -32,7 +32,8 @@ export function validateDebtInput(input: unknown): DebtInput {
     amount: i.amount,
     note: text(i.note, 120),
     date: isDayKey(i.date) ? i.date : new Date().toISOString().slice(0, 10),
-    due: isDayKey(i.due) ? i.due : ''
+    due: isDayKey(i.due) ? i.due : '',
+    ...(optId(i.accountId) ? { accountId: optId(i.accountId) } : {})
   };
 }
 
@@ -122,6 +123,30 @@ export function validateGoal(raw: unknown, now: string): Goal | null {
       moves.push({ date: q.date, amount: q.amount as number, note: text(q.note, 80), ...(accountId ? { accountId } : {}) });
     }
     return { ...v, id: v.id, moves, createdAt: iso(r.createdAt, now), updatedAt: iso(r.updatedAt, now) };
+  } catch {
+    return null;
+  }
+}
+
+export function validateTransferInput(input: unknown): TransferInput {
+  if (!input || typeof input !== 'object') throw new ValidationError('form', 'Invalid transfer.');
+  const i = input as Record<string, unknown>;
+  const from = optId(i.from);
+  const to = optId(i.to);
+  if (!from || !to) throw new ValidationError('from', 'Pick both accounts.');
+  if (from === to) throw new ValidationError('to', 'Pick two different accounts.');
+  if (!isAmount(i.amount)) throw new ValidationError('amount', 'Enter an amount.');
+  if (i.fee !== undefined && i.fee !== 0 && !isAmount(i.fee)) throw new ValidationError('fee', 'Enter the fee, or leave it empty.');
+  return { ...(idOf(i) ? { id: idOf(i) } : {}), from, to, amount: i.amount, fee: isAmount(i.fee) ? i.fee : 0, note: text(i.note, 120), date: isDayKey(i.date) ? i.date : new Date().toISOString().slice(0, 10) };
+}
+
+export function validateTransfer(raw: unknown, now: string): Transfer | null {
+  try {
+    const v = validateTransferInput(raw);
+    const r = raw as Record<string, unknown>;
+    if (!v.id) return null;
+    const feeTxId = optId(r.feeTxId);
+    return { id: v.id, from: v.from, to: v.to, amount: v.amount, note: v.note, date: v.date, ...(feeTxId ? { feeTxId } : {}), createdAt: iso(r.createdAt, now), updatedAt: iso(r.updatedAt, now) };
   } catch {
     return null;
   }

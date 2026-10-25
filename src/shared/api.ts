@@ -26,7 +26,7 @@ import type { CalendarEvent, CalendarEventInput } from './calendar';
 import type { PhoneCalendarInfo, PhoneCalendarItem } from './phoneCalendar';
 import type { Task, TaskInput } from './tasks';
 import type { AccountKind, MoneyAccount, MoneyCategory, Transaction, TransactionInput, TxKind } from './money';
-import type { Bill, BillInput, Debt, DebtInput, Goal, GoalInput } from './plans';
+import type { Bill, BillInput, Debt, DebtInput, Goal, GoalInput, SplitInput, Transfer, TransferInput } from './plans';
 
 export interface WidgetData {
   /** YYYY-MM-DD the numbers are for. */
@@ -153,6 +153,9 @@ export interface VaultApi {
     saveGoal(input: GoalInput): Promise<Result<Goal>>;
     deleteGoal(id: string): Promise<Result<void>>;
     moveGoal(id: string, input: { amount: number; date: string; accountId?: string; note: string }): Promise<Result<Goal>>;
+    saveTransfer(input: TransferInput): Promise<Result<Transfer>>;
+    deleteTransfer(id: string): Promise<Result<void>>;
+    splitBill(input: SplitInput): Promise<Result<{ transaction: Transaction | null; debts: Debt[] }>>;
   };
   /** Save a file the user asked for (monthly report PDF): save dialog on desktop, share sheet on phones. */
   files: {

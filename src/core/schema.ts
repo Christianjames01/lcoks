@@ -21,7 +21,7 @@ import {
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../shared/categories';
 import { MAX_TASK_CATEGORIES, TASK_CATEGORY_IDS, type Task, type TaskCategory, type TaskInput, type TaskReminder } from '../shared/tasks';
 import { CUSTOM_MONEY_ICONS, DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, isHexColor, MONEY_CATEGORY_IDS, defaultCategory, isDayKey, type AccountKind, type MoneyAccount, type MoneyCategory, type MoneyCategoryEdit, type MoneyIcon, type Transaction, type TransactionInput } from '../shared/money';
-import { LIMITS_PLANS, validateBill, validateCategoryBudgets, validateDebt, validateGoal } from './plansSchema';
+import { LIMITS_PLANS, validateBill, validateCategoryBudgets, validateDebt, validateGoal, validateTransfer } from './plansSchema';
 import {
   ACCENT_COLORS,
   DEFAULT_SETTINGS,
@@ -348,6 +348,7 @@ export function validatePayload(v: unknown): VaultPayload {
   const debts = plans(p.debts, LIMITS_PLANS.debts, validateDebt);
   const bills = plans(p.bills, LIMITS_PLANS.bills, validateBill);
   const goals = plans(p.goals, LIMITS_PLANS.goals, validateGoal);
+  const transfers = plans(p.transfers, LIMITS_PLANS.transfers, validateTransfer);
   const moneyCategories: MoneyCategory[] = [];
   for (const raw of Array.isArray(p.moneyCategories) ? p.moneyCategories.slice(0, MAX_MONEY_CATEGORIES) : []) {
     try {
@@ -422,6 +423,7 @@ export function validatePayload(v: unknown): VaultPayload {
     debts,
     bills,
     goals,
+    transfers,
     events,
     tasks,
     ...(validInboxKey(p.inboxKey) ? { inboxKey: { priv: { ...p.inboxKey.priv }, pub: p.inboxKey.pub } } : {})

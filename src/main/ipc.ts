@@ -218,6 +218,9 @@ export function registerIpc(d: IpcDeps): void {
   handle('plans.unpayBill', (a: unknown, b: unknown) => (d.vault.unpayBill as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
   handle('plans.saveGoal', (a: unknown, b: unknown) => (d.vault.saveGoal as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
   handle('plans.deleteGoal', (a: unknown, b: unknown) => (d.vault.deleteGoal as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  handle('plans.saveTransfer', (a: unknown) => d.vault.saveTransfer(a));
+  handle('plans.deleteTransfer', (a: unknown) => d.vault.deleteTransfer(a));
+  handle('plans.splitBill', (a: unknown) => d.vault.splitBill(a));
   handle('plans.moveGoal', (a: unknown, b: unknown) => (d.vault.moveGoal as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
   /** SECURITY: explicit save of a file the app made for the user (report PDF) — user picks the place. */
   handle('files.save', async (name: unknown, data: unknown, _mime: unknown) => {

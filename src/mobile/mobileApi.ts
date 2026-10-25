@@ -447,7 +447,10 @@ export function createMobileApi(native: NativeVault): VaultApi {
       unpayBill: (id, p) => wrap(() => vault.unpayBill(id, p)),
       saveGoal: (i) => wrap(() => vault.saveGoal(i)),
       deleteGoal: (id) => wrap(() => vault.deleteGoal(id)),
-      moveGoal: (id, i) => wrap(() => vault.moveGoal(id, i))
+      moveGoal: (id, i) => wrap(() => vault.moveGoal(id, i)),
+      saveTransfer: (i) => wrap(() => vault.saveTransfer(i)),
+      deleteTransfer: (id) => wrap(() => vault.deleteTransfer(id)),
+      splitBill: (i) => wrap(() => vault.splitBill(i))
     },
     files: {
       save: (name, data, _mime) =>

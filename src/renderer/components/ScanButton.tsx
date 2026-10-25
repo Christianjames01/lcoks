@@ -61,7 +61,7 @@ async function photoForScan(file: File): Promise<{ jpeg: string; qr: string | nu
  * Take (or choose) one photo and read it into a JPEG before the app resumes:
  * resuming deletes the camera's temporary file (suspendAutoLock).
  */
-async function takePhoto(source: 'camera' | 'gallery'): Promise<{ jpeg: string; qr: string | null } | null> {
+export async function takePhoto(source: 'camera' | 'gallery'): Promise<{ jpeg: string; qr: string | null } | null> {
   api.app.suspendAutoLock(true);
   try {
     const file = await new Promise<File | null>((resolve) => {

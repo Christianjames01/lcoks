@@ -2,7 +2,7 @@
 
 import type { CalendarEvent } from './calendar';
 import type { MoneyAccount, MoneyCategory, MoneyCategoryEdit, Transaction } from './money';
-import type { Bill, Debt, Goal } from './plans';
+import type { Bill, Debt, Goal, Transfer } from './plans';
 import type { Task, TaskCategory } from './tasks';
 
 export type FieldType =
@@ -303,6 +303,8 @@ export interface VaultPayload {
   bills: Bill[];
   /** Savings goals. */
   goals: Goal[];
+  /** Money moved between accounts. */
+  transfers: Transfer[];
   /** Calendar events with their reminders. */
   events: CalendarEvent[];
   /** To-dos. */
@@ -344,6 +346,7 @@ export interface VaultSnapshot {
   debts: Debt[];
   bills: Bill[];
   goals: Goal[];
+  transfers: Transfer[];
   events: CalendarEvent[];
   tasks: Task[];
   categories: CategoryDef[];

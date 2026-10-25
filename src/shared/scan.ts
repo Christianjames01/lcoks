@@ -271,3 +271,74 @@ export function parseScan(kind: ScanKind, lines: readonly string[]): ScanResult 
   }
   return { fields, title, checked };
 }
+
+// ---------------------------------------------------------------- receipts --
+
+export interface ReceiptResult {
+  /** Minor units; null when no total was found. */
+  amount: number | null;
+  store: string;
+  /** YYYY-MM-DD or ''. */
+  date: string;
+  /** How it was paid, as an account id the user has (GCash, Maya, Cash…). */
+  accountId?: string;
+  /** Category the store suggests ('' = none). */
+  category: string;
+}
+
+const MONEY = /(?:₱|php|p)?\s?(\d{1,3}(?:[,\s]\d{3})+|\d+)[.,](\d{2})(?!\d)/i;
+const TOTAL_LINE = /\b(?:grand\s*total|total\s*(?:amount|due|sales?)?|amount\s*due|amt\s*due|total\s*php|net\s*amount|balance\s*due)\b/i;
+const NOT_TOTAL = /\b(?:sub\s*-?\s*total|vat(?:able)?|vat-?exempt|discount|change|tendered|cash\s*tendered|items?|qty|zero[- ]rated|service\s*charge)\b/i;
+const NOT_STORE = /\b(?:official\s*receipt|sales\s*invoice|invoice|receipt|tin|vat|reg|non-?vat|min|sn|s\/n|pos|cashier|tel|phone|address|st\.|street|brgy|city|branch|date|time|thank|welcome|store\s*#|or\s*#|si\s*#|table|order)\b/i;
+
+const amountOf = (line: string): number | null => {
+  const m = MONEY.exec(line.replace(/O(?=\d)|(?<=\d)O/g, '0'));
+  if (!m) return null;
+  const v = Number(m[1]!.replace(/[,\s]/g, '')) * 100 + Number(m[2]);
+  return v > 0 && v < 100_000_000 ? v : null;
+};
+
+/** Store name: the first line near the top that reads like a name (letters, not an address or label). */
+function storeOf(lines: string[]): string {
+  for (const raw of lines.slice(0, 8)) {
+    const l = raw.trim().replace(/\s+/g, ' ');
+    if (l.length < 3 || l.length > 40 || NOT_STORE.test(l) || /\d{3,}/.test(l)) continue;
+    if ((l.match(/[A-Za-zÑñ]/g) ?? []).length < l.replace(/\s/g, '').length * 0.7) continue;
+    const brand = detectBrand(l);
+    if (brand) return brand;
+    // Title Case it ("JOLLIBEE" → "Jollibee").
+    return l.toLowerCase().replace(/\b[a-zñ]/g, (c) => c.toUpperCase()).replace(/\bSm\b/g, 'SM');
+  }
+  return '';
+}
+
+/**
+ * A photographed receipt → expense fields. The total is the amount on a "TOTAL /
+ * AMOUNT DUE" line (not subtotal / VAT / change), else the largest amount on it.
+ */
+export function parseReceipt(lines: readonly string[], accounts: readonly { id: string; name: string }[] = [], now: Date = new Date()): ReceiptResult {
+  const ls = lines.map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  let amount: number | null = null;
+  // Labelled total: the value on the same line, else on the next line. The last such line wins (after a subtotal).
+  for (let i = 0; i < ls.length; i++) {
+    const l = ls[i]!;
+    if (!TOTAL_LINE.test(l) || NOT_TOTAL.test(l)) continue;
+    const v = amountOf(l) ?? (ls[i + 1] && !TOTAL_LINE.test(ls[i + 1]!) ? amountOf(ls[i + 1]!) : null);
+    if (v !== null) amount = v;
+  }
+  if (amount === null) {
+    const all = ls.filter((l) => !NOT_TOTAL.test(l)).map(amountOf).filter((v): v is number => v !== null);
+    if (all.length) amount = Math.max(...all);
+  }
+  const text = ls.join('\n');
+  const today = now.toISOString().slice(0, 10);
+  // Receipt date: the latest one that isn't in the future (valid-until dates on receipts are years ahead).
+  const dates = isoDates(text)
+    .concat([...text.matchAll(/(?<!\d)(\d{1,2})[/-](\d{1,2})[/-](\d{2})(?!\d)/g)].map((m) => `20${m[3]}-${m[1]!.padStart(2, '0')}-${m[2]!.padStart(2, '0')}`))
+    .filter((d) => /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(d) && d <= today && d >= `${Number(today.slice(0, 4)) - 2}-01-01`)
+    .sort();
+  const store = storeOf(ls);
+  const lower = ` ${text.toLowerCase()} `;
+  const pay = accounts.find((a) => a.name.length > 1 && new RegExp(`[^a-z]${a.name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^a-z]`).test(lower));
+  return { amount, store, date: dates.pop() ?? '', ...(pay ? { accountId: pay.id } : {}), category: '' };
+}

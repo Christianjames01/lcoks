@@ -67,6 +67,8 @@ export interface Debt {
   date: string;
   /** Day to collect / pay back ('' = none); a reminder rings at 09:00. */
   due: string;
+  /** Paid out of this account for them (a split bill): the account's balance includes it. */
+  accountId?: string;
   payments: DebtPayment[];
   createdAt: string;
   updatedAt: string;
@@ -295,4 +297,72 @@ export function planNotifications(
     });
   }
   return out.sort((a, b) => a.at - b.at);
+}
+
+// ------------------------------------------------------------- transfers --
+
+/** Money moved between two accounts (not spending or income). */
+export interface Transfer {
+  id: string;
+  from: string;
+  to: string;
+  amount: number;
+  note: string;
+  date: string;
+  /** The fee, recorded as an expense (its id), if there was one. */
+  feeTxId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type TransferInput = { id?: string; from: string; to: string; amount: number; fee: number; note: string; date: string };
+
+export const transferMoves = (list: readonly Transfer[]) =>
+  list.flatMap((t) => [
+    { accountId: t.from, amount: -t.amount },
+    { accountId: t.to, amount: t.amount }
+  ]);
+
+/**
+ * Money lent out of an account (a split bill paid for others): it leaves the account
+ * when lent and comes back with each payment made into an account.
+ */
+export const debtAccountMoves = (list: readonly Debt[]) =>
+  list
+    .filter((d) => d.accountId)
+    .flatMap((d) => [
+      { accountId: d.accountId!, amount: d.direction === 'owedToMe' ? -d.amount : d.amount },
+      ...d.payments.filter((p) => p.accountId).map((p) => ({ accountId: p.accountId!, amount: d.direction === 'owedToMe' ? p.amount : -p.amount }))
+    ]);
+
+/** Every balance change that is not an Expenses record: goals, transfers, money lent. */
+export const accountMoves = (s: { goals: readonly Goal[]; transfers: readonly Transfer[]; debts: readonly Debt[] }) => [
+  ...goalAccountMoves(s.goals),
+  ...transferMoves(s.transfers),
+  ...debtAccountMoves(s.debts)
+];
+
+// ------------------------------------------------------------ split bill --
+
+/** Split a total into n equal shares (minor units); the first shares take the leftover centavos. */
+export function equalShares(total: number, n: number): number[] {
+  if (n <= 0) return [];
+  const base = Math.floor(total / n);
+  const extra = total - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+export interface SplitInput {
+  total: number;
+  note: string;
+  date: string;
+  category: string;
+  /** Account the whole bill was paid from. */
+  accountId?: string;
+  /** Your share (an expense). */
+  mine: number;
+  /** The others' shares: each becomes an utang owed to you. */
+  people: { person: string; amount: number }[];
+  /** Reminder day to collect ('' = none). */
+  due: string;
 }

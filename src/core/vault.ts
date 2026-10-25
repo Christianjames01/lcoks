@@ -21,8 +21,8 @@ import { BUILTIN_CATEGORIES } from '../shared/categories';
 import { categoryName, type Task } from '../shared/tasks';
 import { detectCardNetwork } from '../shared/cards';
 import { GIFT_CATEGORY, addHistory, amountText, parseAmountText } from '../shared/giftcards';
-import { LIMITS_PLANS, validateBillInput, validateDebtInput, validateGoalInput } from './plansSchema';
-import { debtLeft, debtTransaction, goalAccountMoves, goalSaved, type Bill, type Debt, type Goal } from '../shared/plans';
+import { LIMITS_PLANS, validateBillInput, validateDebtInput, validateGoalInput, validateTransferInput } from './plansSchema';
+import { accountMoves, debtLeft, debtTransaction, goalSaved, type Bill, type Debt, type Goal, type Transfer } from '../shared/plans';
 import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, accountColor, editedBuiltins, isBuiltinCategory, isDefaultCategory, isHiddenCategory, balances, dayKey, defaultCategory, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type MoneyCategory, type Transaction } from '../shared/money';
 import { generateInboxKeys, openInbox, sealInbox, type InboxEntry } from './inbox';
 import { estimateStrength } from '../shared/strength';
@@ -218,6 +218,7 @@ export class VaultCore {
       debts: [],
       bills: [],
       goals: [],
+      transfers: [],
       events: [],
       tasks: []
     };
@@ -588,6 +589,7 @@ export class VaultCore {
       debts: structuredClone(payload.debts),
       bills: structuredClone(payload.bills),
       goals: structuredClone(payload.goals),
+      transfers: structuredClone(payload.transfers),
       events: payload.events.map(cloneEvent),
       tasks: payload.tasks.map(cloneTask),
       categories: this.categories(),
@@ -1126,11 +1128,82 @@ export class VaultCore {
       const accountId = typeof i.accountId === 'string' && d.accounts.some((a) => a.id === i.accountId) ? i.accountId : undefined;
       e.payments.push({ date, amount, ...(accountId ? { accountId } : {}) });
       e.updatedAt = now;
-      if (accountId || i.record === true) {
+      // Money lent out of an account (split bill): the payment puts it back there (no income record).
+      if (!e.accountId && (accountId || i.record === true)) {
         if (d.transactions.length >= LIMITS.transactions) throw new AppError('LIMIT', 'Too many records.');
         d.transactions.push({ ...debtTransaction(e, amount, date, accountId), id: globalThis.crypto.randomUUID(), createdAt: now, updatedAt: now });
       }
       return structuredClone(e);
+    });
+  }
+
+  /** Move money between two accounts; a fee becomes an expense. One encrypted save. */
+  async saveTransfer(input: unknown): Promise<Transfer> {
+    const v = validateTransferInput(input);
+    const now = this.iso();
+    return this.mutate((d) => {
+      if (!d.accounts.some((a) => a.id === v.from) || !d.accounts.some((a) => a.id === v.to)) throw new AppError('NOT_FOUND', 'Account not found.');
+      const name = (id: string) => d.accounts.find((a) => a.id === id)!.name;
+      let rec: Transfer;
+      if (v.id) {
+        const t = d.transfers.find((x) => x.id === v.id);
+        if (!t) throw new AppError('NOT_FOUND', 'Transfer not found.');
+        if (t.feeTxId) d.transactions = d.transactions.filter((x) => x.id !== t.feeTxId);
+        delete t.feeTxId;
+        Object.assign(t, { from: v.from, to: v.to, amount: v.amount, note: v.note, date: v.date, updatedAt: now });
+        rec = t;
+      } else {
+        if (d.transfers.length >= LIMITS_PLANS.transfers) throw new AppError('LIMIT', 'Too many transfers.');
+        rec = { id: globalThis.crypto.randomUUID(), from: v.from, to: v.to, amount: v.amount, note: v.note, date: v.date, createdAt: now, updatedAt: now };
+        d.transfers.push(rec);
+      }
+      if (v.fee > 0) {
+        const fee: Transaction = { id: globalThis.crypto.randomUUID(), kind: 'expense', amount: v.fee, category: 'other', note: `Transfer fee · ${name(v.from)} → ${name(v.to)}`, date: v.date, accountId: v.from, createdAt: now, updatedAt: now };
+        d.transactions.push(fee);
+        rec.feeTxId = fee.id;
+      }
+      return structuredClone(rec);
+    });
+  }
+
+  async deleteTransfer(id: unknown): Promise<void> {
+    await this.mutate((d) => {
+      const t = d.transfers.find((x) => x.id === id);
+      if (!t) throw new AppError('NOT_FOUND', 'Transfer not found.');
+      if (t.feeTxId) d.transactions = d.transactions.filter((x) => x.id !== t.feeTxId);
+      d.transfers = d.transfers.filter((x) => x !== t);
+    });
+  }
+
+  /** Split a bill: your share is an expense; each other share is utang owed to you, lent from the account. */
+  async splitBill(input: unknown): Promise<{ transaction: Transaction | null; debts: Debt[] }> {
+    const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    const now = this.iso();
+    const total = i.total;
+    const mine = i.mine;
+    if (!Number.isInteger(total) || (total as number) <= 0 || (total as number) > MAX_AMOUNT) throw new AppError('INVALID', 'Enter the total.');
+    if (!Number.isInteger(mine) || (mine as number) < 0) throw new AppError('INVALID', 'Invalid share.');
+    const people = (Array.isArray(i.people) ? i.people : []).slice(0, 50).map((p) => validateDebtInput({ person: (p as Record<string, unknown>)?.person, amount: (p as Record<string, unknown>)?.amount, direction: 'owedToMe' }));
+    if (!people.length) throw new AppError('INVALID', 'Add at least one person.');
+    if ((mine as number) + people.reduce((a, p) => a + p.amount, 0) !== total) throw new AppError('INVALID', 'The shares must add up to the total.');
+    const note = typeof i.note === 'string' ? i.note.trim().slice(0, 120) : '';
+    const date = isDayKey(i.date) ? i.date : dayKey(this.now());
+    const due = isDayKey(i.due) ? i.due : '';
+    return this.mutate((d) => {
+      const accountId = typeof i.accountId === 'string' && d.accounts.some((a) => a.id === i.accountId) ? i.accountId : undefined;
+      if (d.debts.length + people.length > LIMITS_PLANS.debts) throw new AppError('LIMIT', 'Too many utang records.');
+      let tx: Transaction | null = null;
+      if ((mine as number) > 0) {
+        const t = validateTransactionInput({ kind: 'expense', amount: mine, category: i.category, note: note || 'Split bill', date, ...(accountId ? { accountId } : {}) }, d.moneyCategories, d.moneyCategoryEdits);
+        tx = { ...t, id: globalThis.crypto.randomUUID(), createdAt: now, updatedAt: now };
+        d.transactions.push(tx);
+      }
+      const debts = people.map((p) => {
+        const rec: Debt = { person: p.person, direction: 'owedToMe', amount: p.amount, note: note ? `${note} (split)` : 'Split bill', date, due, ...(accountId ? { accountId } : {}), id: globalThis.crypto.randomUUID(), payments: [], createdAt: now, updatedAt: now };
+        d.debts.push(rec);
+        return structuredClone(rec);
+      });
+      return { transaction: tx ? { ...tx } : null, debts };
     });
   }
 
@@ -1327,7 +1400,7 @@ export class VaultCore {
   private async writeInboxMeta(): Promise<void> {
     const { payload } = this.requireUnlocked();
     if (!payload.inboxKey) return;
-    const bal = payload.settings.quickAddBalances ? balances(payload.accounts, payload.transactions, goalAccountMoves(payload.goals)) : null;
+    const bal = payload.settings.quickAddBalances ? balances(payload.accounts, payload.transactions, accountMoves(payload)) : null;
     const meta = JSON.stringify({
       v: 1,
       currency: payload.settings.currency,

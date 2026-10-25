@@ -102,6 +102,9 @@ const api: VaultApi = {
     saveGoal: call('plans.saveGoal') as VaultApi['plans']['saveGoal'],
     deleteGoal: call('plans.deleteGoal') as VaultApi['plans']['deleteGoal'],
     moveGoal: call('plans.moveGoal') as VaultApi['plans']['moveGoal'],
+    saveTransfer: call('plans.saveTransfer') as VaultApi['plans']['saveTransfer'],
+    deleteTransfer: call('plans.deleteTransfer') as VaultApi['plans']['deleteTransfer'],
+    splitBill: call('plans.splitBill') as VaultApi['plans']['splitBill'],
   },
   files: {
     save: call('files.save') as VaultApi['files']['save']
