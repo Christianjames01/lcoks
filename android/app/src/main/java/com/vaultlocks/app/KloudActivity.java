@@ -100,7 +100,7 @@ public class KloudActivity extends Activity {
         main.removeCallbacks(autoClose);
         KloudVoice.hush();
         listening = true;
-        status.setText("LISTENING…");
+        status.setText("LISTENING… TAP DONE WHEN YOU FINISH");
         heard.setText("");
         reply.setText("");
         reply.setVisibility(View.GONE);

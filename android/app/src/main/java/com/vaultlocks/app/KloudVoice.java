@@ -27,10 +27,20 @@ final class KloudVoice {
         void onError(String message);
     }
 
+    /** Longest Kloud keeps listening in one go. */
+    private static final long MAX_LISTEN_MS = 30_000;
+
     private SpeechRecognizer recognizer;
     private Listener listener;
     private Context context;
     private int attempt;
+    // Phones end a recognition at the first short pause. Kloud keeps listening:
+    // each piece is added here and a new recognition starts, until the user taps
+    // Done, stays quiet (the phone's own no-speech timeout) or MAX_LISTEN_MS passes.
+    private final StringBuilder heard = new StringBuilder();
+    private boolean stopping;
+    private long startedAt;
+    private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
 
     static boolean available(Context c) {
         return SpeechRecognizer.isRecognitionAvailable(c) || onDevice(c);
@@ -44,6 +54,9 @@ final class KloudVoice {
         context = c.getApplicationContext();
         listener = l;
         attempt = 0;
+        heard.setLength(0);
+        stopping = false;
+        startedAt = System.currentTimeMillis();
         begin();
     }
 
@@ -62,6 +75,10 @@ final class KloudVoice {
         i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
         i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, attempt == 1 ? "en-US" : Locale.getDefault().toLanguageTag());
+        // Ask for longer pauses (many speech services ignore these; the restart below covers them).
+        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L);
+        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L);
+        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000L);
         recognizer.setRecognitionListener(new RecognitionListener() {
             @Override public void onReadyForSpeech(Bundle params) {}
             @Override public void onBeginningOfSpeech() {}
@@ -74,9 +91,14 @@ final class KloudVoice {
                 // No model for this language on the device: try the next way.
                 boolean language = error == 12 /* ERROR_LANGUAGE_NOT_SUPPORTED */ || error == 13 /* ERROR_LANGUAGE_UNAVAILABLE */;
                 boolean server = error == SpeechRecognizer.ERROR_SERVER || error == SpeechRecognizer.ERROR_CLIENT;
-                if ((language || server) && attempt < 2) {
+                if ((language || server) && attempt < 2 && heard.length() == 0) {
                     attempt++;
                     begin();
+                    return;
+                }
+                // Quiet after speaking (or Done was tapped): that's the end.
+                if (heard.length() > 0 || stopping) {
+                    finish();
                     return;
                 }
                 fail(message(error));
@@ -84,15 +106,25 @@ final class KloudVoice {
             @Override public void onResults(Bundle results) {
                 ArrayList<String> r = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 String text = r == null || r.isEmpty() ? "" : r.get(0).trim();
-                Listener l = listener;
-                destroy();
-                if (l == null) return;
-                if (text.isEmpty()) l.onError("I didn't catch that. Try again.");
-                else l.onResult(text);
+                if (!text.isEmpty()) {
+                    if (heard.length() > 0) heard.append(' ');
+                    heard.append(text);
+                }
+                if (listener == null) return;
+                if (stopping || System.currentTimeMillis() - startedAt > MAX_LISTEN_MS) {
+                    finish();
+                    return;
+                }
+                // A pause, not the end: keep listening for the rest of the sentence.
+                if (listener != null) listener.onPartial(heard.toString());
+                main.post(() -> {
+                    if (listener != null && !stopping) begin();
+                    else finish();
+                });
             }
             @Override public void onPartialResults(Bundle partial) {
                 ArrayList<String> r = partial.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (listener != null && r != null && !r.isEmpty()) listener.onPartial(r.get(0));
+                if (listener != null && r != null && !r.isEmpty()) listener.onPartial(heard.length() > 0 ? heard + " " + r.get(0) : r.get(0));
             }
             @Override public void onEvent(int eventType, Bundle params) {}
         });
@@ -101,6 +133,18 @@ final class KloudVoice {
         } catch (Exception e) {
             fail("Couldn't start listening. Try again.");
         }
+    }
+
+    /** Deliver everything heard so far. */
+    private void finish() {
+        Listener l = listener;
+        listener = null;
+        destroy();
+        String text = heard.toString().trim();
+        heard.setLength(0);
+        if (l == null) return;
+        if (text.isEmpty()) l.onError("I didn't catch that. Try again.");
+        else l.onResult(text);
     }
 
     private void fail(String msg) {
@@ -129,15 +173,22 @@ final class KloudVoice {
 
     /** Stop listening and use what was heard so far. */
     void stop() {
+        stopping = true;
         if (recognizer != null) {
             try {
                 recognizer.stopListening();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                finish();
+            }
+        } else {
+            finish();
         }
     }
 
     void cancel() {
         listener = null;
+        heard.setLength(0);
+        main.removeCallbacksAndMessages(null);
         destroy();
     }
 

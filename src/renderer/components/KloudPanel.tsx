@@ -212,7 +212,7 @@ export function KloudPanel({
           <span className="kloud-ring b" />
         </button>
         <div className="kloud-state" aria-live="polite">
-          {listening ? 'Listening…' : canTalk ? 'Tap the orb to talk' : ''}
+          {listening ? 'Listening… tap Done when you’re finished' : canTalk ? 'Tap the orb to talk' : ''}
         </div>
         {listening && partial && <div className="kloud-partial">“{partial}”</div>}
 

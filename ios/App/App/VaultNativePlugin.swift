@@ -539,7 +539,7 @@ final class KloudEars: NSObject {
         AVAudioSession.sharedInstance().recordPermission == .granted && SFSpeechRecognizer.authorizationStatus() == .authorized
     }
 
-    /** Listen until a short silence; done(text, nil) or done(nil, message). onEvent gets partial text and loudness. */
+    /** Listen until about 3 seconds of quiet after speaking (or Done, or 30 s); done(text, nil) or done(nil, message). */
     func listen(onEvent: @escaping ([String: Any]) -> Void, done: @escaping (String?, String?) -> Void) {
         stop(deliver: false)
         guard let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer(), recognizer.isAvailable else {
@@ -598,12 +598,12 @@ final class KloudEars: NSObject {
                 if error != nil { self.stop(deliver: true) }
             }
         }
-        limit = Timer.scheduledTimer(withTimeInterval: 12, repeats: false) { [weak self] _ in self?.stop(deliver: true) }
+        limit = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in self?.stop(deliver: true) }
     }
 
     private func armSilence() {
         silence?.invalidate()
-        silence = Timer.scheduledTimer(withTimeInterval: 1.6, repeats: false) { [weak self] _ in self?.stop(deliver: true) }
+        silence = Timer.scheduledTimer(withTimeInterval: 2.8, repeats: false) { [weak self] _ in self?.stop(deliver: true) }
     }
 
     /** Stop listening; deliver what was heard (or "didn't catch that"). */
