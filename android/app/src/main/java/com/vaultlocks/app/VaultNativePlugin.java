@@ -63,10 +63,7 @@ import java.util.regex.Pattern;
  */
 @CapacitorPlugin(
     name = "VaultNative",
-    permissions = {
-        @Permission(alias = "calendar", strings = { Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR }),
-        @Permission(alias = "microphone", strings = { Manifest.permission.RECORD_AUDIO })
-    }
+    permissions = { @Permission(alias = "calendar", strings = { Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR }) }
 )
 public class VaultNativePlugin extends Plugin {
 
@@ -90,95 +87,6 @@ public class VaultNativePlugin extends Plugin {
         ret.put("text", pendingSharedText == null ? JSObject.NULL : pendingSharedText);
         pendingSharedText = null;
         call.resolve(ret);
-    }
-
-    // -------------------------------------------------------------- Kloud --
-
-    private final KloudVoice kloud = new KloudVoice();
-
-    /** Can Kloud listen here: speech available, offline model, microphone allowed, double tap opens Kloud. */
-    @PluginMethod
-    public void kloudStatus(PluginCall call) {
-        JSObject r = new JSObject();
-        r.put("available", KloudVoice.available(getContext()));
-        r.put("onDevice", KloudVoice.onDevice(getContext()));
-        r.put("mic", getPermissionState("microphone") == PermissionState.GRANTED);
-        r.put("onKnock", QuickAdd.knockOpensKloud(getContext()));
-        call.resolve(r);
-    }
-
-    @PluginMethod
-    public void kloudRequestMic(PluginCall call) {
-        if (getPermissionState("microphone") == PermissionState.GRANTED) {
-            kloudStatus(call);
-            return;
-        }
-        requestPermissionForAlias("microphone", call, "kloudMicCallback");
-    }
-
-    @PermissionCallback
-    private void kloudMicCallback(PluginCall call) {
-        kloudStatus(call);
-    }
-
-    /** Listen once; resolves { text }. Partial text and loudness come as "kloud" events. */
-    @PluginMethod
-    public void kloudListen(PluginCall call) {
-        if (getPermissionState("microphone") != PermissionState.GRANTED) {
-            call.reject("Allow the microphone for Kloud first", "NO_PERMISSION");
-            return;
-        }
-        getActivity().runOnUiThread(() -> kloud.start(getContext(), new KloudVoice.Listener() {
-            private long lastLevel;
-
-            @Override public void onLevel(float rmsDb) {
-                long now = System.currentTimeMillis();
-                if (now - lastLevel < 80) return;
-                lastLevel = now;
-                JSObject e = new JSObject();
-                e.put("level", rmsDb);
-                notifyListeners("kloud", e);
-            }
-
-            @Override public void onPartial(String text) {
-                JSObject e = new JSObject();
-                e.put("partial", text);
-                notifyListeners("kloud", e);
-            }
-
-            @Override public void onResult(String text) {
-                JSObject r = new JSObject();
-                r.put("text", text);
-                call.resolve(r);
-            }
-
-            @Override public void onError(String message) {
-                call.reject(message, "KLOUD");
-            }
-        }));
-    }
-
-    /** Stop listening (what was heard so far is still returned). */
-    @PluginMethod
-    public void kloudStop(PluginCall call) {
-        getActivity().runOnUiThread(kloud::stop);
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void kloudSpeak(PluginCall call) {
-        String text = call.getString("text", "");
-        getActivity().runOnUiThread(() -> {
-            if (text == null || text.isEmpty()) KloudVoice.hush();
-            else KloudVoice.speak(getContext(), text);
-        });
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void setKloudOnKnock(PluginCall call) {
-        QuickAdd.setKnockOpensKloud(getContext(), Boolean.TRUE.equals(call.getBoolean("on", false)));
-        call.resolve();
     }
 
     /** Camera scan: the text in a photo (base64 JPEG), read on the device. */

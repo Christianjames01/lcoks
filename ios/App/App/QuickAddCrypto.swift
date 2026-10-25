@@ -45,23 +45,6 @@ enum QuickAddCrypto {
         return try JSONSerialization.data(withJSONObject: entry)
     }
 
-    /** A sentence said to Kloud ("lunch 150 gcash", "remind me to …"); the app understands it on unlock. */
-    static func voiceJSON(text: String, now: Date = Date()) throws -> Data {
-        let day = DateFormatter()
-        day.calendar = Calendar(identifier: .gregorian)
-        day.locale = Locale(identifier: "en_US_POSIX")
-        day.dateFormat = "yyyy-MM-dd"
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let entry: [String: Any] = [
-            "t": String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300)),
-            "x": "voice",
-            "day": day.string(from: now),
-            "at": iso.string(from: now)
-        ]
-        return try JSONSerialization.data(withJSONObject: entry)
-    }
-
     /** The JSON stored in inbox-<uuid>.box. */
     static func boxJSON(pubRaw: Data, plaintext: Data) throws -> Data {
         let s = try seal(pubRaw: pubRaw, plaintext: plaintext)

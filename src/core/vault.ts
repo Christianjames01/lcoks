@@ -21,8 +21,7 @@ import { BUILTIN_CATEGORIES } from '../shared/categories';
 import { categoryName, type Task } from '../shared/tasks';
 import { detectCardNetwork } from '../shared/cards';
 import { GIFT_CATEGORY, addHistory, amountText, parseAmountText } from '../shared/giftcards';
-import { taskInput, understand } from '../shared/kloud';
-import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, allMoneyCategories, accountColor, editedBuiltins, isBuiltinCategory, isDefaultCategory, isHiddenCategory, balances, dayKey, defaultCategory, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type MoneyCategory, type Transaction } from '../shared/money';
+import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, accountColor, editedBuiltins, isBuiltinCategory, isDefaultCategory, isHiddenCategory, balances, dayKey, defaultCategory, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type MoneyCategory, type Transaction } from '../shared/money';
 import { generateInboxKeys, openInbox, sealInbox, type InboxEntry } from './inbox';
 import { estimateStrength } from '../shared/strength';
 import {
@@ -354,7 +353,6 @@ export class VaultCore {
     if (!boxes.length) return;
     const done: string[] = [];
     const records: Transaction[] = [];
-    const newTasks: Task[] = [];
     const unreadable: string[] = [];
     const now = this.iso();
     for (const m of boxes) {
@@ -370,25 +368,8 @@ export class VaultCore {
       }
       done.push(m[0]);
       const day = isDayKey(entry.day) ? parseDay(entry.day) : this.now();
-      // Sentences said to Kloud: understood as of when they were said ("tomorrow at 9").
-      const said = Date.parse(entry.at);
-      const spoken =
-        entry.x === 'voice'
-          ? understand(entry.t, { accounts: this.payload.accounts, categories: allMoneyCategories(this.payload.moneyCategories, this.payload.moneyCategoryEdits), now: Number.isFinite(said) ? new Date(said) : day })
-          : null;
-      if (spoken?.type === 'task' && spoken.title) {
-        try {
-          const t = validateTaskInput(taskInput(spoken.title, spoken.when));
-          newTasks.push({ ...t, id: m[1]!, createdAt: isoOr(entry.at, now), updatedAt: now });
-        } catch {
-          unreadable.push(entry.t);
-        }
-        continue;
-      }
       const p =
-        spoken?.type === 'money'
-          ? spoken.entry
-          : entry.k && entry.a
+        entry.k && entry.a
           ? { kind: entry.k, amount: entry.a, category: entry.c ?? '', note: entry.t, date: dayKey(day), accountId: entry.acc }
           : parseQuick(entry.t, day, this.payload.accounts, this.payload.moneyCategories, this.payload.moneyCategoryEdits);
       if (!p) {
@@ -407,13 +388,11 @@ export class VaultCore {
     await this.mutate((d) => {
       const have = new Set(d.transactions.map((t) => t.id));
       for (const r of records) if (!have.has(r.id) && d.transactions.length < LIMITS.transactions) d.transactions.push(r);
-      const haveTasks = new Set(d.tasks.map((t) => t.id));
-      for (const t of newTasks) if (!haveTasks.has(t.id) && d.tasks.length < LIMITS.tasks) d.tasks.push(t);
     });
     for (const name of done) await this.storage.remove(name).catch(() => undefined);
     if (records.length) await this.writeInboxMeta().catch(() => undefined);
-    if (records.length || newTasks.length || unreadable.length) {
-      this.inboxReport = { added: (this.inboxReport?.added ?? 0) + records.length + newTasks.length, unreadable: [...(this.inboxReport?.unreadable ?? []), ...unreadable].slice(0, 50) };
+    if (records.length || unreadable.length) {
+      this.inboxReport = { added: (this.inboxReport?.added ?? 0) + records.length, unreadable: [...(this.inboxReport?.unreadable ?? []), ...unreadable].slice(0, 50) };
     }
   }
 
