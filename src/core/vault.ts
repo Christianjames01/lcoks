@@ -21,7 +21,9 @@ import { BUILTIN_CATEGORIES } from '../shared/categories';
 import { categoryName, type Task } from '../shared/tasks';
 import { detectCardNetwork } from '../shared/cards';
 import { GIFT_CATEGORY, addHistory, amountText, parseAmountText } from '../shared/giftcards';
-import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, accountColor, editedBuiltins, isBuiltinCategory, isDefaultCategory, isHiddenCategory, balances, dayKey, defaultCategory, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type MoneyCategory, type Transaction } from '../shared/money';
+import { LIMITS_PLANS, validateBillInput, validateDebtInput, validateGoalInput } from './plansSchema';
+import { debtLeft, debtTransaction, goalAccountMoves, goalSaved, type Bill, type Debt, type Goal } from '../shared/plans';
+import { DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, accountColor, editedBuiltins, isBuiltinCategory, isDefaultCategory, isHiddenCategory, balances, dayKey, defaultCategory, isDayKey, moneyCategory, parseDay, parseQuick, type MoneyAccount, type MoneyCategory, type Transaction } from '../shared/money';
 import { generateInboxKeys, openInbox, sealInbox, type InboxEntry } from './inbox';
 import { estimateStrength } from '../shared/strength';
 import {
@@ -213,6 +215,9 @@ export class VaultCore {
       accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })),
       moneyCategories: [],
       moneyCategoryEdits: {},
+      debts: [],
+      bills: [],
+      goals: [],
       events: [],
       tasks: []
     };
@@ -580,6 +585,9 @@ export class VaultCore {
       accounts: payload.accounts.map((a) => ({ ...a })),
       moneyCategories: payload.moneyCategories.map((c) => ({ ...c, words: [...c.words] })),
       moneyCategoryEdits: structuredClone(payload.moneyCategoryEdits),
+      debts: structuredClone(payload.debts),
+      bills: structuredClone(payload.bills),
+      goals: structuredClone(payload.goals),
       events: payload.events.map(cloneEvent),
       tasks: payload.tasks.map(cloneTask),
       categories: this.categories(),
@@ -1076,6 +1084,166 @@ export class VaultCore {
     return moved;
   }
 
+  // ------------------------------------------------------------ money plans --
+
+  /** Add or change an utang (who owes who). */
+  async saveDebt(input: unknown): Promise<Debt> {
+    const v = validateDebtInput(input);
+    const now = this.iso();
+    return this.mutate((d) => {
+      if (v.id) {
+        const e = d.debts.find((x) => x.id === v.id);
+        if (!e) throw new AppError('NOT_FOUND', 'Utang not found.');
+        Object.assign(e, { ...v, id: e.id, updatedAt: now });
+        return structuredClone(e);
+      }
+      if (d.debts.length >= LIMITS_PLANS.debts) throw new AppError('LIMIT', 'Too many utang records.');
+      const rec: Debt = { ...v, id: globalThis.crypto.randomUUID(), payments: [], createdAt: now, updatedAt: now };
+      d.debts.push(rec);
+      return structuredClone(rec);
+    });
+  }
+
+  async deleteDebt(id: unknown): Promise<void> {
+    await this.mutate((d) => {
+      if (!d.debts.some((x) => x.id === id)) throw new AppError('NOT_FOUND', 'Utang not found.');
+      d.debts = d.debts.filter((x) => x.id !== id);
+    });
+  }
+
+  /** Paid back (all or part): records the payment and, with an account or `record`, the money in Expenses. */
+  async payDebt(id: unknown, input: unknown): Promise<Debt> {
+    const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    const now = this.iso();
+    return this.mutate((d) => {
+      const e = d.debts.find((x) => x.id === id);
+      if (!e) throw new AppError('NOT_FOUND', 'Utang not found.');
+      const left = debtLeft(e);
+      if (!Number.isInteger(i.amount) || (i.amount as number) <= 0) throw new AppError('INVALID', 'Enter an amount.');
+      if ((i.amount as number) > left) throw new AppError('INVALID', 'That is more than what is left.');
+      const amount = i.amount as number;
+      const date = isDayKey(i.date) ? i.date : dayKey(this.now());
+      const accountId = typeof i.accountId === 'string' && d.accounts.some((a) => a.id === i.accountId) ? i.accountId : undefined;
+      e.payments.push({ date, amount, ...(accountId ? { accountId } : {}) });
+      e.updatedAt = now;
+      if (accountId || i.record === true) {
+        if (d.transactions.length >= LIMITS.transactions) throw new AppError('LIMIT', 'Too many records.');
+        d.transactions.push({ ...debtTransaction(e, amount, date, accountId), id: globalThis.crypto.randomUUID(), createdAt: now, updatedAt: now });
+      }
+      return structuredClone(e);
+    });
+  }
+
+  async saveBill(input: unknown): Promise<Bill> {
+    const v = validateBillInput(input);
+    const now = this.iso();
+    return this.mutate((d) => {
+      if (v.accountId && !d.accounts.some((a) => a.id === v.accountId)) delete v.accountId;
+      if (v.id) {
+        const e = d.bills.find((x) => x.id === v.id);
+        if (!e) throw new AppError('NOT_FOUND', 'Bill not found.');
+        const { accountId: _old, month: _m, ...keep } = e;
+        Object.assign(e, { ...keep, ...v, id: e.id, paid: e.paid, createdAt: e.createdAt, updatedAt: now });
+        if (!v.accountId) delete e.accountId;
+        if (v.freq !== 'yearly') delete e.month;
+        return structuredClone(e);
+      }
+      if (d.bills.length >= LIMITS_PLANS.bills) throw new AppError('LIMIT', 'Too many bills.');
+      const rec: Bill = { ...v, id: globalThis.crypto.randomUUID(), paid: [], createdAt: now, updatedAt: now };
+      d.bills.push(rec);
+      return structuredClone(rec);
+    });
+  }
+
+  async deleteBill(id: unknown): Promise<void> {
+    await this.mutate((d) => {
+      if (!d.bills.some((x) => x.id === id)) throw new AppError('NOT_FOUND', 'Bill not found.');
+      d.bills = d.bills.filter((x) => x.id !== id);
+    });
+  }
+
+  /** Mark a bill's period paid with the real amount; it goes into Expenses (one save). */
+  async payBill(id: unknown, input: unknown): Promise<{ bill: Bill; transaction: Transaction | null }> {
+    const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    const now = this.iso();
+    return this.mutate((d) => {
+      const b = d.bills.find((x) => x.id === id);
+      if (!b) throw new AppError('NOT_FOUND', 'Bill not found.');
+      if (typeof i.period !== 'string' || !/^\d{4}(-\d{2})?$/.test(i.period)) throw new AppError('INVALID', 'Invalid bill period.');
+      if (b.paid.some((p) => p.period === i.period)) throw new AppError('INVALID', 'This bill is already marked paid.');
+      if (!Number.isInteger(i.amount) || (i.amount as number) < 0 || (i.amount as number) > MAX_AMOUNT) throw new AppError('INVALID', 'Enter the amount you paid.');
+      const amount = i.amount as number;
+      const date = isDayKey(i.date) ? i.date : dayKey(this.now());
+      const accountId = typeof i.accountId === 'string' && d.accounts.some((a) => a.id === i.accountId) ? i.accountId : undefined;
+      let tx: Transaction | null = null;
+      if (amount > 0) {
+        if (d.transactions.length >= LIMITS.transactions) throw new AppError('LIMIT', 'Too many records.');
+        const t = validateTransactionInput({ kind: 'expense', amount, category: b.category, note: b.name, date, ...(accountId ? { accountId } : {}) }, d.moneyCategories, d.moneyCategoryEdits);
+        tx = { ...t, id: globalThis.crypto.randomUUID(), createdAt: now, updatedAt: now };
+        d.transactions.push(tx);
+      }
+      b.paid.push({ period: i.period, amount, date, ...(tx ? { txId: tx.id } : {}) });
+      b.paid = b.paid.slice(-LIMITS_PLANS.payments);
+      b.updatedAt = now;
+      return { bill: structuredClone(b), transaction: tx ? { ...tx } : null };
+    });
+  }
+
+  /** Take back "paid" (and its Expenses record) for a period. */
+  async unpayBill(id: unknown, period: unknown): Promise<void> {
+    await this.mutate((d) => {
+      const b = d.bills.find((x) => x.id === id);
+      if (!b) throw new AppError('NOT_FOUND', 'Bill not found.');
+      const p = b.paid.find((x) => x.period === period);
+      if (!p) return;
+      b.paid = b.paid.filter((x) => x !== p);
+      if (p.txId) d.transactions = d.transactions.filter((t) => t.id !== p.txId);
+      b.updatedAt = this.iso();
+    });
+  }
+
+  async saveGoal(input: unknown): Promise<Goal> {
+    const v = validateGoalInput(input);
+    const now = this.iso();
+    return this.mutate((d) => {
+      if (v.id) {
+        const g = d.goals.find((x) => x.id === v.id);
+        if (!g) throw new AppError('NOT_FOUND', 'Goal not found.');
+        Object.assign(g, { ...v, id: g.id, updatedAt: now });
+        return structuredClone(g);
+      }
+      if (d.goals.length >= LIMITS_PLANS.goals) throw new AppError('LIMIT', 'Too many goals.');
+      const rec: Goal = { ...v, id: globalThis.crypto.randomUUID(), moves: [], createdAt: now, updatedAt: now };
+      d.goals.push(rec);
+      return structuredClone(rec);
+    });
+  }
+
+  async deleteGoal(id: unknown): Promise<void> {
+    await this.mutate((d) => {
+      if (!d.goals.some((x) => x.id === id)) throw new AppError('NOT_FOUND', 'Goal not found.');
+      d.goals = d.goals.filter((x) => x.id !== id);
+    });
+  }
+
+  /** Put money into a goal (amount > 0) or take it out (< 0), from / back to an account. */
+  async moveGoal(id: unknown, input: unknown): Promise<Goal> {
+    const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    const now = this.iso();
+    return this.mutate((d) => {
+      const g = d.goals.find((x) => x.id === id);
+      if (!g) throw new AppError('NOT_FOUND', 'Goal not found.');
+      if (!Number.isInteger(i.amount) || i.amount === 0 || Math.abs(i.amount as number) > MAX_AMOUNT) throw new AppError('INVALID', 'Enter an amount.');
+      const amount = i.amount as number;
+      if (amount < 0 && -amount > goalSaved(g)) throw new AppError('INVALID', 'That is more than is saved in this goal.');
+      const accountId = typeof i.accountId === 'string' && d.accounts.some((a) => a.id === i.accountId) ? i.accountId : undefined;
+      if (g.moves.length >= LIMITS_PLANS.payments) throw new AppError('LIMIT', 'Too many entries in this goal.');
+      g.moves.push({ date: isDayKey(i.date) ? i.date : dayKey(this.now()), amount, note: typeof i.note === 'string' ? i.note.trim().slice(0, 80) : '', ...(accountId ? { accountId } : {}) });
+      g.updatedAt = now;
+      return structuredClone(g);
+    });
+  }
+
   /** Put a built-in category back as it came (name, icon, words) and show it again. */
   async restoreMoneyCategory(id: unknown): Promise<void> {
     this.requireUnlocked();
@@ -1159,7 +1327,7 @@ export class VaultCore {
   private async writeInboxMeta(): Promise<void> {
     const { payload } = this.requireUnlocked();
     if (!payload.inboxKey) return;
-    const bal = payload.settings.quickAddBalances ? balances(payload.accounts, payload.transactions) : null;
+    const bal = payload.settings.quickAddBalances ? balances(payload.accounts, payload.transactions, goalAccountMoves(payload.goals)) : null;
     const meta = JSON.stringify({
       v: 1,
       currency: payload.settings.currency,

@@ -80,6 +80,7 @@ function memoryNative() {
     takeSharedText: async () => null,
     purgeCaptures: async () => undefined,
     recognizeText: async () => ["BPI", "4111 1111 1111 1111"],
+    setWidgetData: async () => undefined,
     quickAddNotification: async () => false,
     setQuickAddNotification: async () => undefined,
     phoneCalendarStatus: async () => false,

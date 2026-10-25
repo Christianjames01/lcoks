@@ -91,6 +91,24 @@ const api: VaultApi = {
     open: async () => unsupported,
     list: async () => unsupported
   },
+  plans: {
+    saveDebt: call('plans.saveDebt') as VaultApi['plans']['saveDebt'],
+    deleteDebt: call('plans.deleteDebt') as VaultApi['plans']['deleteDebt'],
+    payDebt: call('plans.payDebt') as VaultApi['plans']['payDebt'],
+    saveBill: call('plans.saveBill') as VaultApi['plans']['saveBill'],
+    deleteBill: call('plans.deleteBill') as VaultApi['plans']['deleteBill'],
+    payBill: call('plans.payBill') as VaultApi['plans']['payBill'],
+    unpayBill: call('plans.unpayBill') as VaultApi['plans']['unpayBill'],
+    saveGoal: call('plans.saveGoal') as VaultApi['plans']['saveGoal'],
+    deleteGoal: call('plans.deleteGoal') as VaultApi['plans']['deleteGoal'],
+    moveGoal: call('plans.moveGoal') as VaultApi['plans']['moveGoal'],
+  },
+  files: {
+    save: call('files.save') as VaultApi['files']['save']
+  },
+  widget: {
+    update: async () => undefined
+  },
   // Desktop notifications come from the main process while the app runs (no permission prompt).
   notifications: {
     status: async () => {

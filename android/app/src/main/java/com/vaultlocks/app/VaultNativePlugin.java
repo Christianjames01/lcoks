@@ -89,6 +89,18 @@ public class VaultNativePlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** Home-screen widget summary from the app (plain text, no secrets); redraws the widgets. */
+    @PluginMethod
+    public void setWidgetData(PluginCall call) {
+        String data = call.getString("data", "");
+        if (data == null || data.length() > 8000) {
+            call.reject("Invalid widget data");
+            return;
+        }
+        TodayWidget.save(getContext(), data);
+        call.resolve();
+    }
+
     /** Camera scan: the text in a photo (base64 JPEG), read on the device. */
     @PluginMethod
     public void recognizeText(PluginCall call) {

@@ -35,6 +35,19 @@
 
         </activity>
 
+        <!-- "Today" home-screen widget: spent today and what's next (TodayWidget.java). -->
+        <receiver
+            android:name=".TodayWidget"
+            android:exported="true"
+            android:label="VaultLocks · Today">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
+        </receiver>
+
         <!-- "Add expense" pop-up over the lock screen (vault stays locked; see QuickAdd.java). -->
         <activity
             android:name=".QuickAddActivity"

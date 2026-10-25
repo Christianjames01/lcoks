@@ -70,7 +70,9 @@ import {
   type TxKind
 } from '../../shared/money';
 import type { KnockInfo } from '../../shared/api';
-import { COFFEE, coffeeBudgetNudge, coffeeMonth, usualCoffee } from '../../shared/coffee';
+import { COFFEE, usualCoffee } from '../../shared/coffee';
+import { budgetFor, budgetNudge, goalAccountMoves } from '../../shared/plans';
+import { PlanDialogs, PlansBar, type PlanView } from '../components/MoneyPlans';
 import type { VaultSnapshot } from '../../shared/types';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
@@ -81,7 +83,7 @@ import { ColorPicker } from '../components/ColorPicker';
 import { HoldArea } from '../components/HoldActions';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
-import { isIOS } from '../lib/platform';
+import { isAndroid, isIOS } from '../lib/platform';
 
 const ICONS: Record<MoneyIcon, LucideIcon> = {
   coffee: Coffee,
@@ -189,7 +191,8 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   }, [inMonth]);
 
   const parsed = useMemo(() => parseQuick(quick, new Date(), snap.accounts), [quick, snap.accounts]);
-  const accountBalances = useMemo(() => balances(snap.accounts, snap.transactions), [snap.accounts, snap.transactions]);
+  const accountBalances = useMemo(() => balances(snap.accounts, snap.transactions, goalAccountMoves(snap.goals)), [snap.accounts, snap.transactions, snap.goals]);
+  const [plan, setPlan] = useState<PlanView | null>(null);
   const [managing, setManaging] = useState(false);
   const [categoryView, setCategoryView] = useState<string | null>(null);
   // Hold a category row (or use the buttons on its page) to edit or delete it.
@@ -205,18 +208,21 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   };
 
   const save = async (input: { id?: string; kind: TxKind; amount: number; category: string; note: string; date: string; accountId?: string }) => {
-    // Coffee budget: spent in that month before this record (an edited record counts once).
-    const coffeeBefore =
-      input.kind === 'expense' && input.category === COFFEE ? coffeeMonth(snap.transactions.filter((t) => t.id !== input.id), monthOf(input.date)).total : 0;
+    // Category budget (coffee too): spent in that month before this record (an edited record counts once).
+    const budget = input.kind === 'expense' ? budgetFor(input.category, snap.settings) : 0;
+    const before = budget
+      ? snap.transactions.filter((t) => t.id !== input.id && t.kind === 'expense' && t.category === input.category && monthOf(t.date) === monthOf(input.date)).reduce((a, t) => a + t.amount, 0)
+      : 0;
     const r = await api.vault.saveTransaction(input);
     if (!r.ok) throw new Error(r.message);
     api.app.haptic('success');
     await onChanged();
-    const nudge = input.kind === 'expense' && input.category === COFFEE ? coffeeBudgetNudge(coffeeBefore, input.amount, coffeeBudget) : null;
+    const nudge = budgetNudge(before, input.amount, budget);
     if (nudge) {
-      const total = coffeeBefore + input.amount;
+      const total = before + input.amount;
+      const name = input.category === COFFEE ? '☕ Coffee' : moneyCategory(input.category).name;
       setTimeout(
-        () => toast(nudge === 'over' ? `☕ Coffee budget passed: ${money(total)} of ${money(coffeeBudget)} this month.` : `☕ Heads up: ${money(total)} of your ${money(coffeeBudget)} coffee budget used.`),
+        () => toast(nudge === 'over' ? `${name} budget passed: ${money(total)} of ${money(budget)} this month.` : `Heads up: ${money(total)} of your ${money(budget)} ${name} budget used.`),
         900
       );
     }
@@ -311,6 +317,8 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
             </button>
           )}
         </section>
+
+        <PlansBar snap={snap} onOpen={setPlan} />
 
         <form className="quick-entry" onSubmit={addQuick}>
           <input
@@ -487,6 +495,18 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
         />
       </div>
 
+      {plan && (
+        <PlanDialogs
+          view={plan}
+          snap={snap}
+          onClose={() => setPlan(null)}
+          onChanged={onChanged}
+          onOpenBudget={() => {
+            setPlan(null);
+            setSetup(true);
+          }}
+        />
+      )}
       {categoryView && (
         <CategoryDetail
           category={categoryView}
@@ -554,7 +574,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
       )}
       {delTx.dialog}
       {delAccount.dialog}
-      {setup && <MoneySetup moneyCategories={snap.moneyCategories} moneyCategoryEdits={snap.moneyCategoryEdits} currency={currency} budget={monthlyBudget} coffeeBudget={coffeeBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
+      {setup && <MoneySetup moneyCategories={snap.moneyCategories} moneyCategoryEdits={snap.moneyCategoryEdits} widgetDetails={snap.settings.widgetDetails} currency={currency} budget={monthlyBudget} coffeeBudget={coffeeBudget} balancesOn={snap.settings.quickAddBalances} onClose={() => setSetup(false)} onSaved={onChanged} />}
     </div>
   );
 }
@@ -940,6 +960,7 @@ function TxEditor({
 function MoneySetup({
   moneyCategories,
   moneyCategoryEdits,
+  widgetDetails,
   currency,
   budget,
   coffeeBudget,
@@ -949,6 +970,7 @@ function MoneySetup({
 }: {
   moneyCategories: MoneyCategory[];
   moneyCategoryEdits: Record<string, MoneyCategoryEdit>;
+  widgetDetails: boolean;
   currency: string;
   budget: number;
   coffeeBudget: number;
@@ -1053,8 +1075,39 @@ function MoneySetup({
       <div className="setup-sep" />
       <MoneyCategoryList list={moneyCategories} onChanged={onSaved} />
       <EditedBuiltins edits={moneyCategoryEdits} onChanged={onSaved} />
+      {isAndroid() && <WidgetSetting on={widgetDetails} onSaved={onSaved} />}
       <QuickAddSettings balancesOn={balancesOn} onSaved={onSaved} />
     </Dialog>
+  );
+}
+
+/** Android home-screen widget: show amounts and titles, or keep them hidden. */
+function WidgetSetting({ on, onSaved }: { on: boolean; onSaved: () => Promise<void> }) {
+  const toast = useToast();
+  return (
+    <>
+      <div className="setup-sep" />
+      <label className="mp-toggle">
+        <span className="grow">
+          <span style={{ display: 'block', fontWeight: 600 }}>Home-screen widget shows amounts and titles</span>
+          <span className="dim small">Long-press your home screen → Widgets → VaultLocks to add it. Off: it shows “••••” and “Event”.</span>
+        </span>
+        <input
+          type="checkbox"
+          className="switch"
+          checked={on}
+          onChange={async (e) => {
+            try {
+              await unwrap(api.vault.updateSettings({ widgetDetails: e.target.checked }));
+              await onSaved();
+              toast(e.target.checked ? 'The widget shows amounts and titles.' : 'The widget hides amounts and titles.');
+            } catch (err) {
+              toast(errorMessage(err), 'error');
+            }
+          }}
+        />
+      </label>
+    </>
   );
 }
 

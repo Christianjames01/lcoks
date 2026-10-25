@@ -60,6 +60,8 @@ export interface NativeVault {
   setKnock(on: boolean, sensitivity: number): Promise<void>;
   /** Read the text in a photo on the device (ML Kit on Android, Vision on iPhone); lines top to bottom. */
   recognizeText(imageB64: string): Promise<string[]>;
+  /** Android home-screen widget data (a small plain summary; see TodayWidget.java). */
+  setWidgetData(json: string): Promise<void>;
   /** Open the add-expense pop-up now. */
   openQuickAdd(): Promise<void>;
   openQuickAddPermissions(which: 'overlay' | 'fullscreen' | 'app'): Promise<void>;
@@ -115,6 +117,7 @@ interface VaultNativePlugin {
   knockStatus(): Promise<KnockStatus>;
   setKnock(o: { on: boolean; sensitivity: number }): Promise<void>;
   openQuickAdd(): Promise<void>;
+  setWidgetData(o: { data: string }): Promise<void>;
   recognizeText(o: { data: string }): Promise<{ lines?: string[] }>;
   openQuickAddPermissions(o: { which: string }): Promise<void>;
   setVaultState(o: { unlocked: boolean }): Promise<void>;
@@ -170,6 +173,7 @@ export const capacitorNative: NativeVault = {
   knockStatus: () => Plugin.knockStatus(),
   setKnock: (on, sensitivity) => Plugin.setKnock({ on, sensitivity }),
   openQuickAdd: () => Plugin.openQuickAdd(),
+  setWidgetData: (data) => Plugin.setWidgetData({ data }),
   recognizeText: async (data) => (await Plugin.recognizeText({ data })).lines ?? [],
   openQuickAddPermissions: (which) => Plugin.openQuickAddPermissions({ which }),
   setVaultState: (unlocked) => Plugin.setVaultState({ unlocked }),

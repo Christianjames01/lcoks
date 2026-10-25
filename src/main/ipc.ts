@@ -209,6 +209,25 @@ export function registerIpc(d: IpcDeps): void {
   handle('inbox.add', (text: unknown, day: unknown) => d.vault.quickAdd(text, day));
   handle('inbox.takeReport', () => d.vault.takeInboxReport());
   handle('vault.saveTransaction', (input: unknown) => d.vault.saveTransaction(input));
+  handle('plans.saveDebt', (a: unknown, b: unknown) => (d.vault.saveDebt as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  handle('plans.deleteDebt', (a: unknown, b: unknown) => (d.vault.deleteDebt as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  handle('plans.payDebt', (a: unknown, b: unknown) => (d.vault.payDebt as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  handle('plans.saveBill', (a: unknown, b: unknown) => (d.vault.saveBill as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  handle('plans.deleteBill', (a: unknown, b: unknown) => (d.vault.deleteBill as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  handle('plans.payBill', (a: unknown, b: unknown) => (d.vault.payBill as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  handle('plans.unpayBill', (a: unknown, b: unknown) => (d.vault.unpayBill as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  handle('plans.saveGoal', (a: unknown, b: unknown) => (d.vault.saveGoal as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  handle('plans.deleteGoal', (a: unknown, b: unknown) => (d.vault.deleteGoal as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  handle('plans.moveGoal', (a: unknown, b: unknown) => (d.vault.moveGoal as (a: unknown, b: unknown) => unknown).call(d.vault, a, b));
+  /** SECURITY: explicit save of a file the app made for the user (report PDF) — user picks the place. */
+  handle('files.save', async (name: unknown, data: unknown, _mime: unknown) => {
+    if (typeof name !== 'string' || !/^[\w .()-]{1,120}$/.test(name) || typeof data !== 'string' || data.length > 30_000_000) throw new VaultError('INVALID', 'Invalid file.');
+    const res = await dialog.showSaveDialog(d.getWindow()!, { title: 'Save report', defaultPath: path.join(app.getPath('documents'), name) });
+    if (res.canceled || !res.filePath) return null;
+    await writeFileAtomic(res.filePath, Buffer.from(data, 'base64'));
+    log('report.saved');
+    return res.filePath;
+  });
   handle('vault.useGiftCard', (id: unknown, input: unknown) => d.vault.useGiftCard(id, input));
   handle('vault.saveMoneyCategory', (input: unknown) => d.vault.saveMoneyCategory(input));
   handle('vault.deleteMoneyCategory', (id: unknown) => d.vault.deleteMoneyCategory(id));

@@ -437,6 +437,34 @@ export function createMobileApi(native: NativeVault): VaultApi {
           await withExternalUi(() => native.openPhoneCalendar());
         })
     },
+    plans: {
+      saveDebt: (i) => wrap(() => vault.saveDebt(i)),
+      deleteDebt: (id) => wrap(() => vault.deleteDebt(id)),
+      payDebt: (id, i) => wrap(() => vault.payDebt(id, i)),
+      saveBill: (i) => wrap(() => vault.saveBill(i)),
+      deleteBill: (id) => wrap(() => vault.deleteBill(id)),
+      payBill: (id, i) => wrap(() => vault.payBill(id, i)),
+      unpayBill: (id, p) => wrap(() => vault.unpayBill(id, p)),
+      saveGoal: (i) => wrap(() => vault.saveGoal(i)),
+      deleteGoal: (id) => wrap(() => vault.deleteGoal(id)),
+      moveGoal: (id, i) => wrap(() => vault.moveGoal(id, i))
+    },
+    files: {
+      save: (name, data, _mime) =>
+        wrap(async () => {
+          await native.clearExports();
+          const file = exportName(name);
+          const uri = await native.writeExportBase64(file, data);
+          await withExternalUi(() => Share.share({ title: name, dialogTitle: 'Save or share report', files: [uri] }).then(() => undefined));
+          setTimeout(() => void native.clearExports().catch(() => undefined), 60_000);
+          return file;
+        })
+    },
+    widget: {
+      update: async (data) => {
+        await native.setWidgetData(JSON.stringify(data)).catch(() => undefined);
+      }
+    },
     notifications: {
       status: async () => {
         try {

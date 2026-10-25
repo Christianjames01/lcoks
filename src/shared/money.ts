@@ -116,12 +116,14 @@ export const DEFAULT_ACCOUNTS: readonly MoneyAccount[] = [
 export const MAX_ACCOUNTS = 30;
 
 /** Current balance of every account: opening + money in − money out. */
-export function balances(accounts: readonly MoneyAccount[], list: readonly Transaction[]): Map<string, number> {
+export function balances(accounts: readonly MoneyAccount[], list: readonly Transaction[], moves: readonly { accountId: string; amount: number }[] = []): Map<string, number> {
   const m = new Map(accounts.map((a) => [a.id, a.opening]));
   for (const t of list) {
     if (!t.accountId || !m.has(t.accountId)) continue;
     m.set(t.accountId, m.get(t.accountId)! + (t.kind === 'income' ? t.amount : -t.amount));
   }
+  // Money moved between an account and a savings goal (not spending or income).
+  for (const mv of moves) if (m.has(mv.accountId)) m.set(mv.accountId, m.get(mv.accountId)! + mv.amount);
   return m;
 }
 

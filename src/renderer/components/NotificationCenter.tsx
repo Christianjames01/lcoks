@@ -1,8 +1,9 @@
-import { Bell, CalendarClock, CalendarDays, CheckCheck, CircleAlert, ListTodo, ShieldAlert } from 'lucide-react';
+import { Bell, CalendarClock, CalendarDays, CheckCheck, CircleAlert, HandCoins, ListTodo, Receipt, ShieldAlert } from 'lucide-react';
+import { billStatus, debtLeft, debtSettled } from '../../shared/plans';
 import { useMemo, useState, type ReactNode } from 'react';
-import { eventCategory, formatDay, formatTime, relativeDay, remindersBetween } from '../../shared/calendar';
-import { describeUpcoming, upcomingDates } from '../../shared/expiry';
-import { dayKey } from '../../shared/money';
+import { eventCategory, formatDay, formatTime, occurrenceBounds, occurrencesInRange, relativeDay, remindersBetween } from '../../shared/calendar';
+import { describeUpcoming, trackedDates, upcomingDates } from '../../shared/expiry';
+import { dayKey, formatMoney } from '../../shared/money';
 import { describeDue, isTaskOverdue, taskRemindersBetween } from '../../shared/tasks';
 import type { VaultSnapshot } from '../../shared/types';
 import { Dialog } from './Dialog';
@@ -47,7 +48,9 @@ function saveRead(s: ReadState): void {
     /* ignore */
   }
 }
-export const isUnread = (it: { key: string; at: number }, s: ReadState, now: number) => it.at > 0 && it.at <= now && it.at > s.before && !(it.key in s.keys);
+/** Unread: it happened after the last "mark all read", was not opened, and was not added afterwards (old events you enter later are history, not news). */
+export const isUnread = (it: { key: string; at: number; made?: number }, s: ReadState, now: number) =>
+  it.at > 0 && it.at <= now && it.at > s.before && it.at >= (it.made ?? 0) && !(it.key in s.keys);
 export function markRead(it: { key: string; at: number }): void {
   const s = readState();
   s.keys[it.key] = it.at;
@@ -60,6 +63,10 @@ export function markAllRead(now: number): void {
 export interface NoticeItem {
   key: string;
   at: number;
+  /** When the thing was created (for unread: entered after it happened = not news). */
+  made?: number;
+  /** A whole day (all-day event, expiry): no time of day to show. */
+  allDay?: boolean;
   title: string;
   detail: string;
   icon: ReactNode;
@@ -67,9 +74,92 @@ export interface NoticeItem {
 }
 
 interface Targets {
+  onOpenBills: () => void;
+  onOpenUtang: () => void;
   onOpenEvent: (eventId: string, day: string) => void;
   onOpenTask: (taskId: string) => void;
   onOpenEntry: (entryId: string) => void;
+}
+
+const localTime = (day: string, time: string) => {
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
+  const [h, mi] = (time || '09:00').split(':').map(Number) as [number, number];
+  return new Date(y, m - 1, d, h, mi).getTime();
+};
+
+/** Past events, tasks and expiry dates between `from` and `now`. */
+function pastNotices(snap: VaultSnapshot, now: number, from: number, t: Targets): NoticeItem[] {
+  const made = (iso: string) => Date.parse(iso) || 0;
+  const out: NoticeItem[] = [];
+  for (const o of occurrencesInRange(snap.events, dayKey(new Date(from)), dayKey(new Date(now)))) {
+    const at = occurrenceBounds(o).start.getTime();
+    if (at > now || at < from) continue;
+    const ev = o.event;
+    out.push({
+      key: `p|${o.key}`,
+      at,
+      made: made(ev.createdAt),
+      allDay: ev.allDay,
+      title: ev.title,
+      detail: `${ev.allDay ? `${relativeDay(o.day, now)} · all day` : `${relativeDay(o.day, now)}, ${formatTime(ev.startTime)}`} · ${eventCategory(ev.category).name}${o.done ? ' · done' : ''}`,
+      icon: <CalendarClock size={16} aria-hidden />,
+      open: () => t.onOpenEvent(ev.id, o.day)
+    });
+  }
+  for (const task of snap.tasks) {
+    // Each completed occurrence of a repeating task.
+    for (const h of task.history) {
+      const at = Date.parse(h.at);
+      if (!Number.isFinite(at) || at > now || at < from) continue;
+      out.push({ key: `c|${task.id}|${h.due}`, at, made: made(task.createdAt), title: task.title, detail: 'Task · done', icon: <ListTodo size={16} aria-hidden />, open: () => t.onOpenTask(task.id) });
+    }
+    if (!task.due) continue;
+    const at = localTime(task.due, task.dueTime);
+    if (at > now || at < from) continue;
+    out.push({
+      key: `d|${task.id}|${task.due}`,
+      at,
+      made: made(task.createdAt),
+      title: task.title,
+      detail: task.completed ? 'Task · done' : `Task · was due ${/^(Today|Yesterday|Tomorrow)$/.test(relativeDay(task.due, now)) ? relativeDay(task.due, now).toLowerCase() : relativeDay(task.due, now)}${task.dueTime ? `, ${formatTime(task.dueTime)}` : ''}`,
+      icon: task.completed ? <ListTodo size={16} aria-hidden /> : <CircleAlert size={16} aria-hidden />,
+      open: () => t.onOpenTask(task.id)
+    });
+  }
+  // Bills that came due (paid or not) and utang due days.
+  for (const b of snap.bills) {
+    for (const p of b.paid) {
+      const at = localTime(p.date, '12:00');
+      if (at > now || at < from) continue;
+      out.push({ key: `bp|${b.id}|${p.period}`, at, made: made(b.createdAt), allDay: true, title: b.name, detail: `Bill · paid ${formatMoney(p.amount, snap.settings.currency)}`, icon: <Receipt size={16} aria-hidden />, open: () => t.onOpenBills() });
+    }
+    const st = billStatus(b, dayKey(new Date(now)));
+    if (st.state === 'overdue' || st.state === 'today') {
+      const at = localTime(st.due, '09:00');
+      if (at <= now && at >= from) out.push({ key: `bd|${b.id}|${st.period}`, at, made: made(b.createdAt), title: b.name, detail: st.state === 'today' ? 'Bill · due today' : 'Bill · overdue', icon: <Receipt size={16} aria-hidden />, open: () => t.onOpenBills() });
+    }
+  }
+  for (const d of snap.debts) {
+    if (!d.due || debtSettled(d)) continue;
+    const at = localTime(d.due, '09:00');
+    if (at > now || at < from) continue;
+    out.push({ key: `du|${d.id}|${d.due}`, at, made: made(d.createdAt), title: d.person, detail: `Utang · ${d.direction === 'owedToMe' ? 'collect' : 'pay back'} ${formatMoney(debtLeft(d), snap.settings.currency)}`, icon: <HandCoins size={16} aria-hidden />, open: () => t.onOpenUtang() });
+  }
+  for (const u of trackedDates(snap.entries, snap.categories, new Date(now))) {
+    const at = u.date.getTime();
+    if (u.days >= 0 || at > now || at < from) continue;
+    out.push({
+      key: `x|${u.entry.id}|${u.label}|${dayKey(u.date)}`,
+      at,
+      made: made(u.entry.updatedAt),
+      allDay: true,
+      title: u.entry.title,
+      detail: `${u.kind === 'renews' ? 'Renewed' : u.kind === 'due' ? 'Was due' : 'Expired'} · ${u.label}`,
+      icon: <ShieldAlert size={16} aria-hidden />,
+      open: () => t.onOpenEntry(u.entry.id)
+    });
+  }
+  return out;
 }
 
 /** Everything the bell shows, built from the vault (nothing extra is stored). */
@@ -102,10 +192,11 @@ export function buildNotices(snap: VaultSnapshot, now: number, t: Targets, since
         open: () => t.onOpenTask(d.task.id)
       }));
 
-  // History: every reminder since the oldest event / task (up to two years back).
-  // Nothing is dropped; the panel groups it by day.
-  const oldest = Math.max(since, now - HISTORY_DAYS * DAY, Math.min(now, ...[...snap.events, ...snap.tasks].map((x) => made(x.createdAt))));
-  const earlier = [...ev(oldest, now), ...tk(oldest, now)].sort((a, b) => b.at - a.at);
+  // History: what already happened (up to two years back), whether or not it had
+  // a reminder — every past event, tasks that came due or were done, and vault
+  // items that expired. Nothing is dropped; the panel groups it by day.
+  const from = Math.max(since, now - HISTORY_DAYS * DAY);
+  const earlier = pastNotices(snap, now, from, t).sort((a, b) => b.at - a.at);
   const soon = [...ev(now, now + DAY), ...tk(now, now + DAY)].sort((a, b) => a.at - b.at).slice(0, 20);
   const overdue: NoticeItem[] = snap.tasks
     .filter((x) => isTaskOverdue(x, new Date(now)))
@@ -130,7 +221,7 @@ export function buildNotices(snap: VaultSnapshot, now: number, t: Targets, since
   return { earlier, soon, overdue, expiring };
 }
 
-const NO_TARGETS: Targets = { onOpenEvent: () => undefined, onOpenTask: () => undefined, onOpenEntry: () => undefined };
+const NO_TARGETS: Targets = { onOpenBills: () => undefined, onOpenUtang: () => undefined, onOpenEvent: () => undefined, onOpenTask: () => undefined, onOpenEntry: () => undefined };
 
 /** Number on the bell: reminders that rang and were not read yet. */
 export function unreadCount(snap: VaultSnapshot, now: number): number {
@@ -180,7 +271,7 @@ export function NotificationCenter({ snap, onClose, ...targets }: Targets & { sn
           <span className="nc-item-detail">{it.detail}</span>
         </span>
         {it.at > 0 && <span className="nc-time">{withDay ? `${dayName(dayKey(new Date(it.at)))}
-${time(it.at)}` : time(it.at)}</span>}
+${it.allDay ? 'All day' : time(it.at)}` : it.allDay ? 'All day' : time(it.at)}</span>}
       </button>
     </li>
   );

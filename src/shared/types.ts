@@ -2,6 +2,7 @@
 
 import type { CalendarEvent } from './calendar';
 import type { MoneyAccount, MoneyCategory, MoneyCategoryEdit, Transaction } from './money';
+import type { Bill, Debt, Goal } from './plans';
 import type { Task, TaskCategory } from './tasks';
 
 export type FieldType =
@@ -206,6 +207,10 @@ export interface VaultSettings {
   monthlyBudget: number;
   /** Expenses: monthly coffee budget in minor units (0 = none). */
   coffeeBudget: number;
+  /** Expenses: monthly budget per category id (minor units). Coffee uses coffeeBudget. */
+  categoryBudgets: Record<string, number>;
+  /** Android home-screen widget shows amounts and titles (off = totals and names hidden). */
+  widgetDetails: boolean;
   /** Quick-add pop-up shows account balances while locked (stored unencrypted next to the vault). */
   quickAddBalances: boolean;
   /** Calendar: alarms for event reminders (in the app and as phone / desktop notifications). */
@@ -253,6 +258,8 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   currency: 'PHP',
   monthlyBudget: 0,
   coffeeBudget: 0,
+  categoryBudgets: {},
+  widgetDetails: true,
   quickAddBalances: false,
   calendarReminders: true,
   calendarSound: true,
@@ -290,6 +297,12 @@ export interface VaultPayload {
   moneyCategories: MoneyCategory[];
   /** Renamed / hidden built-in categories, by id. */
   moneyCategoryEdits: Record<string, MoneyCategoryEdit>;
+  /** Utang: who owes who. */
+  debts: Debt[];
+  /** Repeating bills. */
+  bills: Bill[];
+  /** Savings goals. */
+  goals: Goal[];
   /** Calendar events with their reminders. */
   events: CalendarEvent[];
   /** To-dos. */
@@ -328,6 +341,9 @@ export interface VaultSnapshot {
   accounts: MoneyAccount[];
   moneyCategories: MoneyCategory[];
   moneyCategoryEdits: Record<string, MoneyCategoryEdit>;
+  debts: Debt[];
+  bills: Bill[];
+  goals: Goal[];
   events: CalendarEvent[];
   tasks: Task[];
   categories: CategoryDef[];

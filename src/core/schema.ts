@@ -21,6 +21,7 @@ import {
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../shared/categories';
 import { MAX_TASK_CATEGORIES, TASK_CATEGORY_IDS, type Task, type TaskCategory, type TaskInput, type TaskReminder } from '../shared/tasks';
 import { CUSTOM_MONEY_ICONS, DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, isHexColor, MONEY_CATEGORY_IDS, defaultCategory, isDayKey, type AccountKind, type MoneyAccount, type MoneyCategory, type MoneyCategoryEdit, type MoneyIcon, type Transaction, type TransactionInput } from '../shared/money';
+import { LIMITS_PLANS, validateBill, validateCategoryBudgets, validateDebt, validateGoal } from './plansSchema';
 import {
   ACCENT_COLORS,
   DEFAULT_SETTINGS,
@@ -223,6 +224,8 @@ export function validateSettings(v: unknown, base: VaultSettings = DEFAULT_SETTI
     reminderDaysBefore: [1, 3, 7, 14, 30].includes(s.reminderDaysBefore as number) ? (s.reminderDaysBefore as ReminderDays) : base.reminderDaysBefore,
     currency: typeof s.currency === 'string' && /^[A-Z]{3}$/.test(s.currency) ? s.currency : base.currency,
     quickAddBalances: typeof s.quickAddBalances === 'boolean' ? s.quickAddBalances : base.quickAddBalances,
+    categoryBudgets: validateCategoryBudgets(s.categoryBudgets ?? base.categoryBudgets),
+    widgetDetails: typeof s.widgetDetails === 'boolean' ? s.widgetDetails : base.widgetDetails,
     coffeeBudget: Number.isInteger(s.coffeeBudget) && (s.coffeeBudget as number) >= 0 && (s.coffeeBudget as number) <= MAX_AMOUNT ? (s.coffeeBudget as number) : base.coffeeBudget,
     monthlyBudget: Number.isInteger(s.monthlyBudget) && (s.monthlyBudget as number) >= 0 && (s.monthlyBudget as number) <= MAX_AMOUNT ? (s.monthlyBudget as number) : base.monthlyBudget,
     calendarReminders: typeof s.calendarReminders === 'boolean' ? s.calendarReminders : base.calendarReminders,
@@ -333,6 +336,18 @@ export function validatePayload(v: unknown): VaultPayload {
 
   // The user's own expense / income categories (older vaults have none).
   const moneyCategoryEdits = validateMoneyCategoryEdits(p.moneyCategoryEdits);
+  // Money plans (older vaults have none); a damaged record is skipped.
+  const plans = <T extends { id: string }>(raw: unknown, max: number, one: (r: unknown, now: string) => T | null): T[] => {
+    const out: T[] = [];
+    for (const r of Array.isArray(raw) ? raw.slice(0, max) : []) {
+      const v = one(r, now);
+      if (v && !out.some((x) => x.id === v.id)) out.push(v);
+    }
+    return out;
+  };
+  const debts = plans(p.debts, LIMITS_PLANS.debts, validateDebt);
+  const bills = plans(p.bills, LIMITS_PLANS.bills, validateBill);
+  const goals = plans(p.goals, LIMITS_PLANS.goals, validateGoal);
   const moneyCategories: MoneyCategory[] = [];
   for (const raw of Array.isArray(p.moneyCategories) ? p.moneyCategories.slice(0, MAX_MONEY_CATEGORIES) : []) {
     try {
@@ -404,6 +419,9 @@ export function validatePayload(v: unknown): VaultPayload {
     accounts,
     moneyCategories,
     moneyCategoryEdits,
+    debts,
+    bills,
+    goals,
     events,
     tasks,
     ...(validInboxKey(p.inboxKey) ? { inboxKey: { priv: { ...p.inboxKey.priv }, pub: p.inboxKey.pub } } : {})

@@ -4,6 +4,8 @@ import { calendarNotifications } from '../../shared/calendar';
 import { setLinkedLooks } from '../../shared/cards';
 import { setCustomMoneyCategories } from '../../shared/money';
 import { taskNotifications } from '../../shared/tasks';
+import { planNotifications } from '../../shared/plans';
+import { widgetData } from '../lib/widget';
 import { buildReminders } from '../../shared/expiry';
 import { searchEntries } from '../../shared/search';
 import { isOld, isReused } from '../../shared/security';
@@ -12,6 +14,7 @@ import { ConfirmDialog } from '../components/Dialog';
 import { EntryActionsProvider, EntryMenu, passwordKeyOf, usernameOf, websiteOf, type EntryActions } from '../components/EntryActions';
 import { GeneratorDialog } from '../components/Generator';
 import { BellButton, NotificationCenter, unreadCount } from '../components/NotificationCenter';
+import { PlanDialogs, type PlanView } from '../components/MoneyPlans';
 import { ReminderAlerts } from '../components/ReminderAlerts';
 import { TabBar } from '../components/TabBar';
 import { syncPhoneCalendar } from '../lib/phoneCalendarSync';
@@ -82,6 +85,7 @@ export function VaultApp({ version }: { version: string }) {
   const [taskFocus, setTaskFocus] = useState<TaskFocus | null>(null);
   // Notification bell: past and upcoming reminders; the count refreshes every minute.
   const [notifOpen, setNotifOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState<PlanView | null>(null);
   const [bellNow, setBellNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setBellNow(Date.now()), 60_000);
@@ -198,9 +202,17 @@ export function VaultApp({ version }: { version: string }) {
         : [];
       const calendar = calendarReminders ? calendarNotifications(snap.events, Date.now(), { preview: calendarPreview, sound: calendarSound }) : [];
       const tasks = calendarReminders ? taskNotifications(snap.tasks, Date.now(), { preview: calendarPreview, sound: calendarSound }) : [];
-      const list = [...expiry, ...calendar, ...tasks].sort((a, b) => a.at - b.at).slice(0, 100);
+      const plans = calendarReminders ? planNotifications(snap.bills, snap.debts, Date.now(), { preview: calendarPreview, sound: calendarSound, currency: snap.settings.currency }) : [];
+      const list = [...expiry, ...calendar, ...tasks, ...plans].sort((a, b) => a.at - b.at).slice(0, 100);
       await api.notifications.schedule(list);
     }, 800);
+    return () => clearTimeout(t);
+  }, [snap]);
+
+  // Android home-screen widget: today's spending and what's next (a plain summary; amounts / titles can be hidden).
+  useEffect(() => {
+    if (!snap) return;
+    const t = setTimeout(() => void api.widget.update(widgetData(snap, Date.now())), 1200);
     return () => clearTimeout(t);
   }, [snap]);
 
@@ -729,8 +741,17 @@ export function VaultApp({ version }: { version: string }) {
             setTaskFocus({ id: Date.now(), taskId });
           }}
           onOpenEntry={(id) => openEntry(id)}
+          onOpenBills={() => {
+            go({ view: 'money' });
+            setPlanOpen('bills');
+          }}
+          onOpenUtang={() => {
+            go({ view: 'money' });
+            setPlanOpen('utang');
+          }}
         />
       )}
+      {planOpen && <PlanDialogs view={planOpen} snap={snap} onClose={() => setPlanOpen(null)} onChanged={refresh} onOpenBudget={() => setPlanOpen('budgets')} />}
       <TaskAlerts
         snap={snap}
         onChanged={refresh}

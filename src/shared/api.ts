@@ -26,6 +26,17 @@ import type { CalendarEvent, CalendarEventInput } from './calendar';
 import type { PhoneCalendarInfo, PhoneCalendarItem } from './phoneCalendar';
 import type { Task, TaskInput } from './tasks';
 import type { AccountKind, MoneyAccount, MoneyCategory, Transaction, TransactionInput, TxKind } from './money';
+import type { Bill, BillInput, Debt, DebtInput, Goal, GoalInput } from './plans';
+
+export interface WidgetData {
+  /** YYYY-MM-DD the numbers are for. */
+  day: string;
+  /** Text, already formatted ("₱320" or "••••" when details are off). */
+  spentToday: string;
+  monthLine: string;
+  /** Next few things today / tomorrow (epoch ms + label). */
+  next: { at: number; title: string; sub: string }[];
+}
 
 export interface VaultApi {
   app: {
@@ -128,6 +139,28 @@ export interface VaultApi {
     list(): Promise<Result<PhoneCalendarInfo[]>>;
     /** Open the phone's calendar app at today. */
     open(): Promise<Result<void>>;
+  };
+  /** Utang, repeating bills and savings goals (inside the encrypted vault). */
+  plans: {
+    saveDebt(input: DebtInput): Promise<Result<Debt>>;
+    deleteDebt(id: string): Promise<Result<void>>;
+    /** Paid back (all or part); with an account or record: true it also goes into Expenses. */
+    payDebt(id: string, input: { amount: number; date: string; accountId?: string; record?: boolean }): Promise<Result<Debt>>;
+    saveBill(input: BillInput): Promise<Result<Bill>>;
+    deleteBill(id: string): Promise<Result<void>>;
+    payBill(id: string, input: { period: string; amount: number; date: string; accountId?: string }): Promise<Result<{ bill: Bill; transaction: Transaction | null }>>;
+    unpayBill(id: string, period: string): Promise<Result<void>>;
+    saveGoal(input: GoalInput): Promise<Result<Goal>>;
+    deleteGoal(id: string): Promise<Result<void>>;
+    moveGoal(id: string, input: { amount: number; date: string; accountId?: string; note: string }): Promise<Result<Goal>>;
+  };
+  /** Save a file the user asked for (monthly report PDF): save dialog on desktop, share sheet on phones. */
+  files: {
+    save(name: string, dataB64: string, mime: string): Promise<Result<string | null>>;
+  };
+  /** Android home-screen widget: what it shows (plain summary; never secrets). */
+  widget: {
+    update(data: WidgetData): Promise<void>;
   };
   /** Phone reminders for expiry / renewal / due dates (Android). */
   notifications: {
