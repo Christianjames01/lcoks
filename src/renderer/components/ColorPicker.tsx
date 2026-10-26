@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 
+import { tr } from '../../shared/i18n';
 /** #rrggbb ⇄ hue (0–360), saturation and value (0–1). */
 export function hexToHsv(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
@@ -70,7 +71,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
         style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h} 100% 50%))` }}
         role="slider"
         tabIndex={0}
-        aria-label="Color brightness and strength"
+        aria-label={tr("Color brightness and strength")}
         aria-valuetext={text}
         onPointerDown={(e) => {
           dragging.current = true;
@@ -91,7 +92,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
         max={359}
         value={Math.round(h)}
         onChange={(e) => emit(Number(e.target.value), s || 0.8, v || 0.8)}
-        aria-label="Hue"
+        aria-label={tr("Hue")}
       />
       <div className="cp-row">
         <span className="cp-chip" style={{ background: value }} aria-hidden />
@@ -101,7 +102,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
           maxLength={7}
           spellCheck={false}
           autoComplete="off"
-          aria-label="Hex color code"
+          aria-label={tr("Hex color code")}
           onChange={(e) => {
             const t = e.target.value.trim().toUpperCase();
             const next = t.startsWith('#') ? t : `#${t}`;

@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { api } from '../lib/api';
 
+import { tr } from '../../shared/i18n';
 interface Box {
   left: number;
   top: number;
@@ -105,7 +106,7 @@ export function TabBar({ current, onPick, children }: { current: string; onPick:
     <nav
       ref={nav}
       className={`bottom-nav has-indicator ${dragging ? 'dragging' : ''}`}
-      aria-label="Main"
+      aria-label={tr("Main")}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={(e) => finish(e, false)}

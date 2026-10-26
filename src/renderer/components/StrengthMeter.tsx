@@ -1,5 +1,6 @@
 import { estimateStrength } from '../../shared/strength';
 
+import { tr } from '../../shared/i18n';
 const LABELS = ['Very weak', 'Weak', 'Fair', 'Strong', 'Very strong'];
 
 /** 5-segment strength bar. Accepts either a password (scored locally) or a stored score. */
@@ -9,7 +10,7 @@ export function StrengthMeter({ password, score, showFeedback }: { password?: st
   const empty = password !== undefined && password.length === 0;
   return (
     <div>
-      <div className="strength" role="img" aria-label={`Password strength: ${empty ? 'none' : LABELS[s]}`}>
+      <div className="strength" role="img" aria-label={tr("Password strength: {0}", [empty ? 'none' : LABELS[s]])}>
         <div className="strength-bars" data-score={s} aria-hidden>
           {[0, 1, 2, 3, 4].map((i) => (
             <span key={i} className={!empty && i <= s ? 'on' : ''} />

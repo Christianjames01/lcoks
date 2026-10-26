@@ -7,8 +7,9 @@ import { heatLevel, heatStats, prevMonth, yearHeat, type HeatFilter } from '../.
 import { dayKey, moneyCategory, monthOf, parseDay, type MoneyAccount, type Transaction } from '../../shared/money';
 import { Dialog } from './Dialog';
 
-const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const WD_LONG = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+import { dayNames, tr } from '../../shared/i18n';
+const WD = dayNames().map((d) => d.slice(0, 3));
+const WD_LONG = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'].map((d) => tr(d));
 const short = (d: string) => parseDay(d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 const monthName = (m: string, style: 'long' | 'short' = 'long') => parseDay(`${m}-01`).toLocaleDateString(undefined, { month: style });
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -16,21 +17,21 @@ const pct = (v: number) => `${Math.round(v * 100)}%`;
 function Legend({ cashIn, overBudget }: { cashIn?: boolean; overBudget?: string }) {
   return (
     <span className="heat-legend">
-      <span className="heat-scale" aria-label="Colour shows how much was spent: darker is more">
-        Less
+      <span className="heat-scale" aria-label={tr("Colour shows how much was spent: darker is more")}>
+        {tr('Less spent')}
         {[0, 1, 2, 3, 4].map((l) => (
           <i key={l} data-level={l} aria-hidden />
         ))}
-        More
+        {tr('More spent')}
       </span>
       {cashIn && (
         <span className="heat-key">
-          <i className="heat-pay" aria-hidden /> Cash in
+          <i className="heat-pay" aria-hidden /> {tr("Cash in")}
         </span>
       )}
       {overBudget && (
         <span className="heat-key">
-          <i className="heat-over" aria-hidden /> Over {overBudget}/day
+          <i className="heat-over" aria-hidden /> {tr("Over")} {overBudget}{tr("/day")}
         </span>
       )}
     </span>
@@ -48,9 +49,9 @@ export function HeatFilterBar({ txs, month, accounts, filter, onChange }: { txs:
   if (filter.category && !cats.includes(filter.category)) cats.unshift(filter.category);
   if (cats.length < 2 && accounts.length < 2) return null;
   return (
-    <div className="heat-filter" role="group" aria-label="Show spending for">
+    <div className="heat-filter" role="group" aria-label={tr("Show spending for")}>
       <button type="button" className="tchip" aria-pressed={!filter.category && !filter.accountId} onClick={() => onChange({})}>
-        All
+        {tr("All")}
       </button>
       {cats.map((c) => (
         <button key={c} type="button" className="tchip" aria-pressed={filter.category === c} onClick={() => onChange({ ...filter, category: filter.category === c ? undefined : c })}>
@@ -74,7 +75,7 @@ export function HeatLegend({ onYear, cashIn, overBudget }: { onYear: () => void;
     <div className="heat-foot">
       <Legend cashIn={cashIn} overBudget={overBudget} />
       <button type="button" className="btn sm" onClick={onYear}>
-        <CalendarRange size={14} aria-hidden /> Year
+        <CalendarRange size={14} aria-hidden /> {tr("Year")}
       </button>
     </div>
   );
@@ -106,26 +107,26 @@ export function HeatInsights({
   const thirdsMax = Math.max(1, s.total);
   const lastDay = s.days > 20 ? s.days : 31;
   return (
-    <section className="card heat-card" aria-label="Spending pattern">
+    <section className="card heat-card" aria-label={tr("Spending pattern")}>
       <div className="heat-card-head">
-        <span className="label">Spending pattern{filter.category ? ` · ${moneyCategory(filter.category).name}` : ''}</span>
+        <span className="label">{tr("Spending pattern")}{filter.category ? ` · ${moneyCategory(filter.category).name}` : ''}</span>
         <span className="heat-headline">
-          You spend most on <b>{WD_LONG[s.topWeekday]}</b> · avg {money(top.avg)}
+          {tr("You spend most on")} <b>{WD_LONG[s.topWeekday]}</b> {tr("· avg")} {money(top.avg)}
         </span>
         <span className="dim small heat-sub">
           {before > 0 && diff !== 0 && (
             <span className={`heat-delta ${diff > 0 ? 'up' : 'down'}`}>
               {diff > 0 ? <ArrowUpRight size={13} aria-hidden /> : <ArrowDownRight size={13} aria-hidden />}
-              {money(Math.abs(diff))} {diff > 0 ? 'more' : 'less'} than {monthName(prevMonth(month))}
+              {tr(diff > 0 ? '{0} more than {1}' : '{0} less than {1}', [money(Math.abs(diff)), monthName(prevMonth(month))])}
             </span>
           )}
-          {before > 0 && diff === 0 && <span>Same as {monthName(prevMonth(month))}</span>}
-          {!filter.category && s.topWeekdayCategory && <span>Mostly {moneyCategory(s.topWeekdayCategory).name}</span>}
+          {before > 0 && diff === 0 && <span>{tr("Same as")} {monthName(prevMonth(month))}</span>}
+          {!filter.category && s.topWeekdayCategory && <span>{tr("Mostly")} {moneyCategory(s.topWeekdayCategory).name}</span>}
         </span>
       </div>
       <div className="heat-bars" role="list">
         {s.weekdays.map((w, i) => (
-          <div key={i} className="heat-bar" role="listitem" aria-label={`${WD_LONG[i]}: average ${money(w.avg)}`} data-top={i === s.topWeekday || undefined} title={`${WD_LONG[i]}: avg ${money(w.avg)}`}>
+          <div key={i} className="heat-bar" role="listitem" aria-label={tr("{0}: average {1}", [WD_LONG[i], money(w.avg)])} data-top={i === s.topWeekday || undefined} title={tr("{0}: avg {1}", [WD_LONG[i], money(w.avg)])}>
             <span className="heat-bar-track">
               <span style={{ height: `${Math.max(w.avg ? 6 : 0, (w.avg / peak) * 100)}%` }} />
             </span>
@@ -136,19 +137,19 @@ export function HeatInsights({
 
       <div className="heat-split">
         <div className={`heat-tile${s.weekend > s.weekday ? ' hot' : ''}`}>
-          <span className="dim small">Weekends</span>
+          <span className="dim small">{tr("Weekends")}</span>
           <b>{money(s.weekend)}</b>
-          <span className="dim small">a day</span>
+          <span className="dim small">{tr("a day")}</span>
         </div>
         <div className={`heat-tile${s.weekday > s.weekend ? ' hot' : ''}`}>
-          <span className="dim small">Weekdays</span>
+          <span className="dim small">{tr("Weekdays")}</span>
           <b>{money(s.weekday)}</b>
-          <span className="dim small">a day</span>
+          <span className="dim small">{tr("a day")}</span>
         </div>
       </div>
 
       <div className="heat-month">
-        <div className="dim small">Time of month</div>
+        <div className="dim small">{tr("Time of month")}</div>
         <div className="heat-thirds" aria-hidden>
           {s.thirds.map((v, i) => (
             <span key={i} style={{ flexGrow: Math.max(0.02, v / thirdsMax) }} data-top={v === Math.max(...s.thirds) && v > 0 ? '' : undefined} />
@@ -165,7 +166,7 @@ export function HeatInsights({
           <p className="small heat-payday">
             <i className="heat-pay" aria-hidden />
             <span>
-              In the 10 days after cash-in on {short(s.afterPayday.day)} you spent <b>{money(s.afterPayday.amount)}</b>, {pct(s.afterPayday.share)} of the month.
+              {tr("In the 10 days after cash-in on")} {short(s.afterPayday.day)} {tr("you spent")} <b>{money(s.afterPayday.amount)}</b>, {pct(s.afterPayday.share)} {tr("of the month.")}
             </span>
           </p>
         )}
@@ -175,7 +176,7 @@ export function HeatInsights({
         <div className="heat-fact">
           <Flame size={16} aria-hidden />
           <div>
-            <div className="dim small">Priciest days</div>
+            <div className="dim small">{tr("Priciest days")}</div>
             <div className="heat-days">
               {s.topDays.map((d) => (
                 <button key={d.day} type="button" className="tchip" onClick={() => onDay(d.day)}>
@@ -188,13 +189,13 @@ export function HeatInsights({
         <div className="heat-fact">
           <Leaf size={16} aria-hidden />
           <div>
-            <div className="dim small">No-spend days</div>
+            <div className="dim small">{tr("No-spend days")}</div>
             <b>
-              {s.noSpend} of {s.days}
+              {s.noSpend} {tr("of")} {s.days}
             </b>
             <div className="dim small">
-              Best streak {s.bestStreak} {s.bestStreak === 1 ? 'day' : 'days'}
-              {monthOf(today) === month && s.streakNow > 0 ? ` · now ${s.streakNow}` : ''}
+              {tr("Best streak")} {s.bestStreak} {tr(s.bestStreak === 1 ? 'day' : 'days')}
+              {monthOf(today) === month && s.streakNow > 0 ? tr(" · now {0}", [s.streakNow]) : ''}
             </div>
           </div>
         </div>
@@ -226,18 +227,18 @@ export function YearHeat({
   const peak = Math.max(1, ...y.months);
   const label = (i: number) => new Date(year, i, 1).toLocaleDateString(undefined, { month: 'long' });
   return (
-    <Dialog title="Year of spending" subtitle={`${year} · ${money(y.total)} spent${filter.category ? ` · ${moneyCategory(filter.category).name}` : ''}`} onClose={onClose} size="wide">
+    <Dialog title={tr("Year of spending")} subtitle={tr("{0} · {1} spent{2}", [year, money(y.total), filter.category ? ` · ${moneyCategory(filter.category).name}` : ''])} onClose={onClose} size="wide">
       <div className="year-nav">
-        <button type="button" className="icon-btn" onClick={() => setYear(year - 1)} aria-label="Previous year">
+        <button type="button" className="icon-btn" onClick={() => setYear(year - 1)} aria-label={tr("Previous year")}>
           <ChevronLeft size={18} />
         </button>
         <b>{year}</b>
-        <button type="button" className="icon-btn" onClick={() => setYear(year + 1)} aria-label="Next year" disabled={year >= Number(dayKey(new Date()).slice(0, 4))}>
+        <button type="button" className="icon-btn" onClick={() => setYear(year + 1)} aria-label={tr("Next year")} disabled={year >= Number(dayKey(new Date()).slice(0, 4))}>
           <ChevronRight size={18} />
         </button>
       </div>
 
-      <div className="year-bars" role="list" aria-label="Spent each month">
+      <div className="year-bars" role="list" aria-label={tr("Spent each month")}>
         {y.months.map((v, i) => (
           <button
             key={i}
@@ -258,10 +259,10 @@ export function YearHeat({
       </div>
       {y.most && (
         <p className="year-summary small">
-          Most: <b>{label(y.most.month)}</b> {money(y.most.total)}
+          {tr("Most:")} <b>{label(y.most.month)}</b> {money(y.most.total)}
           {y.least && (
             <>
-              {' · '}Least: <b>{label(y.least.month)}</b> {money(y.least.total)}
+              {' · '}{tr("Least:")} <b>{label(y.least.month)}</b> {money(y.least.total)}
             </>
           )}
         </p>
@@ -274,7 +275,7 @@ export function YearHeat({
           const days = new Date(year, m + 1, 0).getDate();
           return (
             <div key={month} className="year-month">
-              <button type="button" className="year-month-head" onClick={() => onMonth(month)} aria-label={`${label(m)}: ${money(total)}. Open month`}>
+              <button type="button" className="year-month-head" onClick={() => onMonth(month)} aria-label={tr("{0}: {1}. Open month", [label(m), money(total)])}>
                 <b>{first.toLocaleDateString(undefined, { month: 'short' })}</b>
                 <span className="dim">{total ? money(total) : '—'}</span>
               </button>

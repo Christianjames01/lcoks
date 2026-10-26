@@ -10,6 +10,7 @@ import { relativeTime } from '../lib/format';
 import { MOBILE_QUERY, useMediaQuery } from '../lib/platform';
 import type { Route } from './VaultApp';
 
+import { tr } from '../../shared/i18n';
 const ICONS: Record<IssueId, React.ReactNode> = {
   weak: <ShieldAlert size={18} aria-hidden />,
   reused: <Repeat2 size={18} aria-hidden />,
@@ -36,7 +37,7 @@ export function ScoreRing({ report, size = 52, onClick }: { report: SecurityRepo
   );
   if (!onClick) return ring;
   return (
-    <button type="button" className="score-btn" onClick={onClick} aria-label={`Security score ${score} of 100, ${report.label}. Show what to fix.`} title="Security check-up">
+    <button type="button" className="score-btn" onClick={onClick} aria-label={tr("Security score {0} of 100, {1}. Show what to fix.", [score, report.label])} title={tr("Security check-up")}>
       {ring}
     </button>
   );
@@ -58,7 +59,7 @@ export function SecurityView({ snap, onOpen, onNavigate }: { snap: VaultSnapshot
                 {e.title}
               </span>
               <span className="row-sub" style={{ display: 'block' }}>
-                {subtitleFor(cat, e.fields) || cat?.name} · changed {relativeTime(e.updatedAt)}
+                {subtitleFor(cat, e.fields) || cat?.name} {tr("· changed")} {relativeTime(e.updatedAt)}
               </span>
             </span>
             <ChevronRight size={16} aria-hidden className="dim" />
@@ -71,23 +72,23 @@ export function SecurityView({ snap, onOpen, onNavigate }: { snap: VaultSnapshot
   return (
     <div className="page">
       <div className="page-narrow">
-        <section className="card security-hero" aria-label="Security score">
+        <section className="card security-hero" aria-label={tr("Security score")}>
           <ScoreRing report={report} size={96} />
           <div className="grow">
-            <div className="label">Security score</div>
+            <div className="label">{tr("Security score")}</div>
             <h2 className="h2" style={{ margin: '2px 0 4px' }}>
-              {report.score === null ? 'Nothing to check yet' : report.label}
+              {report.score === null ? tr("Nothing to check yet") : report.label}
             </h2>
             <div className="muted small">
               {report.score === null
-                ? 'Add items and they will be checked here.'
-                : `${report.passwords} password${report.passwords === 1 ? '' : 's'} checked for strength, reuse and age. Checks run on this device only.`}
+                ? tr("Add items and they will be checked here.")
+                : tr("{0} password{1} checked for strength, reuse and age. Checks run on this device only.", [report.passwords, report.passwords === 1 ? '' : 's'])}
             </div>
           </div>
         </section>
 
         {report.score !== null && report.issues.length === 0 && (
-          <EmptyState card art="secure" title="All clear" text="No weak, reused or old passwords, and your backup is up to date." />
+          <EmptyState card art="secure" title={tr("All clear")} text={tr("No weak, reused or old passwords, and your backup is up to date.")} />
         )}
 
         {report.issues.map((issue) => {
@@ -104,7 +105,7 @@ export function SecurityView({ snap, onOpen, onNavigate }: { snap: VaultSnapshot
                   </h3>
                   <div className="muted small">{issue.detail}</div>
                 </div>
-                <span className="issue-pts" title="Points this costs your score">
+                <span className="issue-pts" title={tr("Points this costs your score")}>
                   −{issue.penalty}
                 </span>
               </div>
@@ -112,17 +113,17 @@ export function SecurityView({ snap, onOpen, onNavigate }: { snap: VaultSnapshot
               <div className="issue-foot">
                 {filter && issue.items.length > PREVIEW && (
                   <button type="button" className="btn sm" onClick={() => onNavigate({ view: 'items', filter })}>
-                    Show all {issue.items.length}
+                    {tr("Show all")} {issue.items.length}
                   </button>
                 )}
                 {issue.id === 'backup' && (
                   <button type="button" className="btn sm primary" onClick={() => onNavigate({ view: 'settings', tab: 'vault' })}>
-                    <Archive size={14} aria-hidden /> Back up now
+                    <Archive size={14} aria-hidden /> {tr("Back up now")}
                   </button>
                 )}
                 {(issue.id === 'weak' || issue.id === 'reused') && (
                   <span className="muted small">
-                    <KeyRound size={12} aria-hidden style={{ verticalAlign: -1 }} /> Open an item, then Edit → generate a new password.
+                    <KeyRound size={12} aria-hidden style={{ verticalAlign: -1 }} /> {tr("Open an item, then Edit → generate a new password.")}
                   </span>
                 )}
               </div>

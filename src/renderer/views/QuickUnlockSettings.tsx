@@ -6,6 +6,7 @@ import { PasswordInput } from '../components/PasswordInput';
 import { useToast } from '../components/Toast';
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
 
+import { tr } from '../../shared/i18n';
 /** Settings rows for fingerprint and 4-digit PIN unlock (Android only). */
 export function QuickUnlockSettings() {
   const [status, setStatus] = useState<QuickUnlockStatus | null>(null);
@@ -22,7 +23,7 @@ export function QuickUnlockSettings() {
   const disable = async (kind: 'biometric' | 'pin') => {
     try {
       await unwrap(api.quick.disable(kind));
-      toast(kind === 'biometric' ? 'Face / fingerprint unlock turned off.' : 'PIN unlock turned off.');
+      toast(kind === 'biometric' ? tr("Face / fingerprint unlock turned off.") : tr("PIN unlock turned off."));
       await refresh();
     } catch (e) {
       toast(errorMessage(e), 'error');
@@ -30,23 +31,23 @@ export function QuickUnlockSettings() {
   };
 
   return (
-    <section className="setting-group" aria-label="Quick unlock">
-      <span className="label">Quick unlock</span>
+    <section className="setting-group" aria-label={tr("Quick unlock")}>
+      <span className="label">{tr("Quick unlock")}</span>
       <div className="card">
         <div className="setting">
           <Fingerprint size={20} aria-hidden />
           <div className="grow">
             <label htmlFor="q-bio" className="title" style={{ display: 'block' }}>
-              Face / fingerprint & device passcode
+              {tr("Face / fingerprint & device passcode")}
             </label>
             <div className="desc">
               {status.biometricAvailable
                 ? status.deviceCredentialAvailable
-                  ? 'Your vault key is sealed in the phone’s secure hardware (Android Keystore / iPhone Keychain) and released only by your face, fingerprint or the phone’s screen-lock passcode.'
-                  : 'Your vault key is sealed in the phone’s secure hardware (Android Keystore / iPhone Keychain) and released only by your face or fingerprint.'
-                : 'Set up a screen lock and a fingerprint or face in the phone’s Settings to use this.'}
+                  ? tr("Your vault key is sealed in the phone’s secure hardware (Android Keystore / iPhone Keychain) and released only by your face, fingerprint or the phone’s screen-lock passcode.")
+                  : tr("Your vault key is sealed in the phone’s secure hardware (Android Keystore / iPhone Keychain) and released only by your face or fingerprint.")
+                : tr("Set up a screen lock and a fingerprint or face in the phone’s Settings to use this.")}
               {status.biometric && !status.deviceCredential && status.deviceCredentialAvailable && (
-                <> Turn this off and on again to also allow your device passcode.</>
+                <> {tr("Turn this off and on again to also allow your device passcode.")}</>
               )}
             </div>
           </div>
@@ -63,11 +64,11 @@ export function QuickUnlockSettings() {
           <KeyRound size={20} aria-hidden />
           <div className="grow">
             <label htmlFor="q-pin" className="title" style={{ display: 'block' }}>
-              4-digit PIN unlock
+              {tr("4-digit PIN unlock")}
             </label>
             <div className="desc">
-              Works only on this phone. 5 wrong PINs turn it off and your master password is required.
-              {status.pin && ` (${status.pinAttemptsLeft} attempts left)`}
+              {tr("Works only on this phone. 5 wrong PINs turn it off and your master password is required.")}
+              {status.pin && tr(" ({0} attempts left)", [status.pinAttemptsLeft])}
             </div>
           </div>
           <input
@@ -80,7 +81,7 @@ export function QuickUnlockSettings() {
         </div>
         <div className="setting">
           <div className="grow desc">
-            Changing your master password or restoring a backup turns quick unlock off. Your master password always works.
+            {tr("Changing your master password or restoring a backup turns quick unlock off. Your master password always works.")}
           </div>
         </div>
       </div>
@@ -90,7 +91,7 @@ export function QuickUnlockSettings() {
           onClose={() => setEnrolling(null)}
           onDone={async () => {
             setEnrolling(null);
-            toast(enrolling === 'biometric' ? 'Quick unlock is on.' : 'PIN unlock is on.');
+            toast(enrolling === 'biometric' ? tr("Quick unlock is on.") : tr("PIN unlock is on."));
             await refresh();
           }}
         />
@@ -158,24 +159,24 @@ function EnrollDialog({ kind, onClose, onDone }: { kind: 'biometric' | 'pin'; on
 
   return (
     <Dialog
-      title={kind === 'biometric' ? 'Turn on face / fingerprint unlock' : 'Set a 4-digit PIN'}
+      title={kind === 'biometric' ? tr("Turn on face / fingerprint unlock") : tr("Set a 4-digit PIN")}
       onClose={onClose}
       busy={busy}
       size="narrow"
       footer={
         <>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn primary" onClick={() => void submit()} disabled={busy}>
-            {busy && <span className="spinner" aria-hidden />} {kind === 'biometric' ? 'Continue' : 'Set PIN'}
+            {busy && <span className="spinner" aria-hidden />} {kind === 'biometric' ? tr("Continue") : tr("Set PIN")}
           </button>
         </>
       }
     >
       <form onSubmit={submit}>
         <div className="field">
-          <label htmlFor="q-master">Master password</label>
+          <label htmlFor="q-master">{tr("Master password")}</label>
           <PasswordInput id="q-master" value={master} onChange={setMaster} mono={false} autoComplete="current-password" invalid={!!errors.master} />
           {err('master')}
         </div>
@@ -185,7 +186,7 @@ function EnrollDialog({ kind, onClose, onDone }: { kind: 'biometric' | 'pin'; on
             {pinInput('q-pin2', pin2, setPin2, 'Repeat PIN')}
           </>
         )}
-        {kind === 'biometric' && <p className="help-text">After this, the phone asks for your face, fingerprint or screen-lock passcode to finish setup.</p>}
+        {kind === 'biometric' && <p className="help-text">{tr("After this, the phone asks for your face, fingerprint or screen-lock passcode to finish setup.")}</p>}
         {err('form')}
         <button type="submit" hidden aria-hidden tabIndex={-1} />
       </form>

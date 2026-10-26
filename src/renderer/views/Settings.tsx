@@ -26,7 +26,9 @@ import {
   Trash2,
   TriangleAlert,
   Upload,
-  X
+  X,
+  Languages,
+  Smartphone
 } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { PLAINTEXT_CONFIRM_PHRASE, type ExactAlarmStatus, type NotificationPermission } from '../../shared/api';
@@ -44,7 +46,8 @@ import { isIOS, isPhone } from '../lib/platform';
 import { QuickUnlockSettings } from './QuickUnlockSettings';
 import type { Route } from './VaultApp';
 
-type Tab = 'security' | 'appearance' | 'vault' | 'privacy' | 'reminders' | 'categories' | 'about';
+import { LANGUAGES, currentLang, deviceLang, saveChoice, savedChoice, tr, type LangChoice } from '../../shared/i18n';
+type Tab = 'security' | 'appearance' | 'language' | 'vault' | 'privacy' | 'reminders' | 'categories' | 'about';
 
 interface Props {
   snap: VaultSnapshot;
@@ -74,23 +77,24 @@ export function SettingsView({ snap, version, initialTab, onChanged, onSnapshot,
   };
 
   const tabs: { id: Tab; label: string; icon: ReactNode }[] = [
-    { id: 'security', label: 'Security', icon: <Shield size={16} strokeWidth={1.75} aria-hidden /> },
-    { id: 'appearance', label: 'Appearance', icon: <Paintbrush size={16} strokeWidth={1.75} aria-hidden /> },
-    { id: 'vault', label: 'Vault & Backup', icon: <Database size={16} strokeWidth={1.75} aria-hidden /> },
-    { id: 'privacy', label: 'Privacy', icon: <EyeOff size={16} strokeWidth={1.75} aria-hidden /> },
-    { id: 'reminders', label: 'Reminders', icon: <Bell size={16} strokeWidth={1.75} aria-hidden /> },
-    { id: 'categories', label: 'Categories', icon: <Layers size={16} strokeWidth={1.75} aria-hidden /> },
-    { id: 'about', label: 'About', icon: <Info size={16} strokeWidth={1.75} aria-hidden /> }
+    { id: 'security', label: tr("Security"), icon: <Shield size={16} strokeWidth={1.75} aria-hidden /> },
+    { id: 'appearance', label: tr("Appearance"), icon: <Paintbrush size={16} strokeWidth={1.75} aria-hidden /> },
+    { id: 'language', label: tr("Language"), icon: <Languages size={16} strokeWidth={1.75} aria-hidden /> },
+    { id: 'vault', label: tr("Vault & Backup"), icon: <Database size={16} strokeWidth={1.75} aria-hidden /> },
+    { id: 'privacy', label: tr("Privacy"), icon: <EyeOff size={16} strokeWidth={1.75} aria-hidden /> },
+    { id: 'reminders', label: tr("Reminders"), icon: <Bell size={16} strokeWidth={1.75} aria-hidden /> },
+    { id: 'categories', label: tr("Categories"), icon: <Layers size={16} strokeWidth={1.75} aria-hidden /> },
+    { id: 'about', label: tr("About"), icon: <Info size={16} strokeWidth={1.75} aria-hidden /> }
   ];
 
   return (
     <div className="page">
       <div className="page-narrow">
         <h1 className="h1 desktop-only" style={{ marginBottom: 24 }}>
-          Settings
+          {tr("Settings")}
         </h1>
         <div className="settings-layout">
-          <div className="settings-tabs" role="tablist" aria-label="Settings sections">
+          <div className="settings-tabs" role="tablist" aria-label={tr("Settings sections")}>
             {tabs.map((t) => (
               <button
                 key={t.id}
@@ -111,6 +115,7 @@ export function SettingsView({ snap, version, initialTab, onChanged, onSnapshot,
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
             {tab === 'security' && <SecurityTab settings={snap.settings} update={update} onGenerator={onGenerator} />}
             {tab === 'appearance' && <AppearanceTab settings={snap.settings} update={update} />}
+            {tab === 'language' && <LanguageTab />}
             {tab === 'vault' && <VaultTab snap={snap} update={update} onChanged={onChanged} onNavigate={onNavigate} onImport={onImport} />}
             {tab === 'privacy' && <PrivacyTab settings={snap.settings} update={update} />}
             {tab === 'reminders' && <RemindersTab snap={snap} update={update} />}
@@ -159,8 +164,9 @@ function Segmented<T extends string | number>({ label, value, options, onChange 
   return (
     <div className="segmented" role="group" aria-label={label}>
       {options.map(([v, l]) => (
+        // Option names are English in the code; show them in the app language.
         <button key={String(v)} type="button" aria-pressed={value === v} onClick={() => onChange(v)}>
-          {l}
+          {tr(l)}
         </button>
       ))}
     </div>
@@ -171,7 +177,7 @@ const ACCENT_NAMES: Record<AccentColor, string> = { mono: 'Monochrome', blue: 'B
 
 function AccentPicker({ value, onChange }: { value: AccentColor; onChange: (v: AccentColor) => void }) {
   return (
-    <div className="accent-picker" role="radiogroup" aria-label="Accent color">
+    <div className="accent-picker" role="radiogroup" aria-label={tr("Accent color")}>
       {ACCENT_COLORS.map((c) => (
         <button
           key={c}
@@ -210,20 +216,20 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
   };
   return (
     <>
-      <Group title="Master password" icon={<KeyRound size={15} strokeWidth={1.8} aria-hidden />}>
-        <Setting title="Change master password" desc="Re-encrypts the entire vault with a new key and a new random salt.">
+      <Group title={tr("Master password")} icon={<KeyRound size={15} strokeWidth={1.8} aria-hidden />}>
+        <Setting title={tr("Change master password")} desc={tr("Re-encrypts the entire vault with a new key and a new random salt.")}>
           <button type="button" className="btn sm" onClick={() => setChanging(true)}>
-            <KeyRound size={14} aria-hidden /> Change…
+            <KeyRound size={14} aria-hidden /> {tr("Change…")}
           </button>
         </Setting>
       </Group>
 
       <QuickUnlockSettings />
 
-      <Group title="Locking" icon={<Lock size={15} strokeWidth={1.8} aria-hidden />}>
-        <Setting title="Auto-lock" desc="Lock the vault after a period of inactivity.">
+      <Group title={tr("Locking")} icon={<Lock size={15} strokeWidth={1.8} aria-hidden />}>
+        <Setting title={tr("Auto-lock")} desc={tr("Lock the vault after a period of inactivity.")}>
           <Segmented
-            label="Auto-lock timer"
+            label={tr("Auto-lock timer")}
             value={settings.autoLockMinutes}
             options={[
               [1, '1m'],
@@ -237,15 +243,15 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
           />
         </Setting>
         <Setting
-          title={isPhone() ? 'Lock when you leave the app' : 'Lock when minimized'}
+          title={isPhone() ? tr("Lock when you leave the app") : tr("Lock when minimized")}
           desc={
             isPhone()
-              ? 'Switching apps, going home or turning the screen off. Choose a grace period, or lock immediately.'
-              : 'Also applies when hidden to the system tray.'
+              ? tr("Switching apps, going home or turning the screen off. Choose a grace period, or lock immediately.")
+              : tr("Also applies when hidden to the system tray.")
           }
         >
           <Segmented
-            label="Lock after leaving the app"
+            label={tr("Lock after leaving the app")}
             value={settings.backgroundLockMinutes}
             options={[
               [0, 'Immediately'],
@@ -260,18 +266,18 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
         </Setting>
         {!isPhone() && (
           <>
-            <Setting title="Lock when computer locks or sleeps" htmlFor="s-sys">
+            <Setting title={tr("Lock when computer locks or sleeps")} htmlFor="s-sys">
               <input id="s-sys" type="checkbox" className="switch" checked={settings.lockOnSystemLock} onChange={(e) => update({ lockOnSystemLock: e.target.checked })} />
             </Setting>
-            <Setting title="Keep running in system tray when closed" desc="Only while unlocked. Use Quit from the tray menu to exit." htmlFor="s-tray">
+            <Setting title={tr("Keep running in system tray when closed")} desc={tr("Only while unlocked. Use Quit from the tray menu to exit.")} htmlFor="s-tray">
               <input id="s-tray" type="checkbox" className="switch" checked={settings.closeToTray} onChange={(e) => update({ closeToTray: e.target.checked })} />
             </Setting>
           </>
         )}
       </Group>
 
-      <Group title="Password generator" icon={<Sparkles size={15} strokeWidth={1.8} aria-hidden />}>
-        <Setting title={`Default length: ${gen.length}`} htmlFor="s-gen-len">
+      <Group title={tr("Password generator")} icon={<Sparkles size={15} strokeWidth={1.8} aria-hidden />}>
+        <Setting title={tr("Default length: {0}", [gen.length])} htmlFor="s-gen-len">
           <input
             id="s-gen-len"
             type="range"
@@ -285,20 +291,20 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
         </Setting>
         {(
           [
-            ['upper', 'Uppercase letters (A–Z)'],
-            ['lower', 'Lowercase letters (a–z)'],
-            ['digits', 'Numbers (0–9)'],
-            ['symbols', 'Symbols (!@#…)'],
-            ['avoidAmbiguous', 'Avoid look-alike characters (O/0, l/1)']
+            ['upper', tr("Uppercase letters (A–Z)")],
+            ['lower', tr("Lowercase letters (a–z)")],
+            ['digits', tr("Numbers (0–9)")],
+            ['symbols', tr("Symbols (!@#…)")],
+            ['avoidAmbiguous', tr("Avoid look-alike characters (O/0, l/1)")]
           ] as const
         ).map(([k, label]) => (
           <Setting key={k} title={label} htmlFor={`s-gen-${k}`}>
             <input id={`s-gen-${k}`} type="checkbox" className="switch" checked={gen[k]} onChange={(e) => setGen({ [k]: e.target.checked })} />
           </Setting>
         ))}
-        <Setting title="Open the generator" desc="Generate a password or passphrase and copy it.">
+        <Setting title={tr("Open the generator")} desc={tr("Generate a password or passphrase and copy it.")}>
           <button type="button" className="btn sm" onClick={onGenerator}>
-            <Sparkles size={14} aria-hidden /> Generator…
+            <Sparkles size={14} aria-hidden /> {tr("Generator…")}
           </button>
         </Setting>
       </Group>
@@ -312,8 +318,8 @@ function SecurityTab({ settings, update, onGenerator }: { settings: VaultSetting
 function PrivacyTab({ settings, update }: { settings: VaultSettings; update: (p: Partial<VaultSettings>) => Promise<void> }) {
   return (
     <>
-      <Group title="Clipboard" icon={<ClipboardCheck size={15} strokeWidth={1.8} aria-hidden />}>
-        <Setting title="Clear clipboard after" desc="Copied values are removed from the clipboard automatically." htmlFor="s-clip">
+      <Group title={tr("Clipboard")} icon={<ClipboardCheck size={15} strokeWidth={1.8} aria-hidden />}>
+        <Setting title={tr("Clear clipboard after")} desc={tr("Copied values are removed from the clipboard automatically.")} htmlFor="s-clip">
           <select
             id="s-clip"
             className="select"
@@ -323,14 +329,14 @@ function PrivacyTab({ settings, update }: { settings: VaultSettings; update: (p:
           >
             {[15, 30, 45, 60, 90].map((s) => (
               <option key={s} value={s}>
-                {s} seconds
+                {s} {tr("seconds")}
               </option>
             ))}
           </select>
         </Setting>
       </Group>
-      <Group title="Visibility" icon={<Eye size={15} strokeWidth={1.8} aria-hidden />}>
-        <Setting title="Hide revealed values after" desc="Sensitive fields are always hidden by default." htmlFor="s-reveal">
+      <Group title={tr("Visibility")} icon={<Eye size={15} strokeWidth={1.8} aria-hidden />}>
+        <Setting title={tr("Hide revealed values after")} desc={tr("Sensitive fields are always hidden by default.")} htmlFor="s-reveal">
           <select
             id="s-reveal"
             className="select"
@@ -351,20 +357,20 @@ function PrivacyTab({ settings, update }: { settings: VaultSettings; update: (p:
           </select>
         </Setting>
         <Setting
-          title="Hide sensitive previews"
-          desc="Also hide partial values (last 4 digits, masked numbers) and blur attachment thumbnails until tapped."
+          title={tr("Hide sensitive previews")}
+          desc={tr("Also hide partial values (last 4 digits, masked numbers) and blur attachment thumbnails until tapped.")}
           htmlFor="s-hide"
         >
           <input id="s-hide" type="checkbox" className="switch" checked={settings.hidePreviews} onChange={(e) => update({ hidePreviews: e.target.checked })} />
         </Setting>
         <Setting
-          title="Screenshot protection"
+          title={tr("Screenshot protection")}
           desc={
             isIOS()
-              ? 'Hides the vault in the app switcher. (iPhone does not let apps block screenshots.)'
+              ? tr("Hides the vault in the app switcher. (iPhone does not let apps block screenshots.)")
               : isPhone()
-              ? 'Blocks screenshots, screen recording and the recent-apps preview while the vault is open. The lock screen is always protected.'
-              : 'Hides the window from screenshots and screen sharing (Windows / macOS).'
+              ? tr("Blocks screenshots, screen recording and the recent-apps preview while the vault is open. The lock screen is always protected.")
+              : tr("Hides the window from screenshots and screen sharing (Windows / macOS).")
           }
           htmlFor="s-shot"
         >
@@ -402,7 +408,7 @@ function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     try {
       await unwrap(api.auth.changePassword(current, next, hint.trim() || null));
-      toast('Master password changed. Vault re-encrypted.');
+      toast(tr("Master password changed. Vault re-encrypted."));
       onClose();
     } catch (err) {
       const f = err instanceof ApiError ? err.field : null;
@@ -420,21 +426,21 @@ function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
-      title="Change master password"
+      title={tr("Change master password")}
       onClose={onClose}
       busy={busy}
       footer={
         <>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn primary" onClick={() => void submit()} disabled={busy}>
             {busy ? (
               <>
-                <span className="spinner" aria-hidden /> Re-encrypting…
+                <span className="spinner" aria-hidden /> {tr("Re-encrypting…")}
               </>
             ) : (
-              'Change password'
+              tr("Change password")
             )}
           </button>
         </>
@@ -442,22 +448,22 @@ function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
     >
       <form onSubmit={submit} noValidate>
         <div className="field">
-          <label htmlFor="cp-cur">1. Current master password</label>
+          <label htmlFor="cp-cur">{tr("1. Current master password")}</label>
           <PasswordInput id="cp-cur" value={current} onChange={setCurrent} mono={false} invalid={!!errors.current} autoComplete="current-password" />
           {err('current')}
         </div>
         <div className="field">
-          <label htmlFor="cp-new">2. New master password</label>
+          <label htmlFor="cp-new">{tr("2. New master password")}</label>
           <PasswordInput id="cp-new" value={next} onChange={setNext} showStrength showFeedback allowGenerate invalid={!!errors.next} autoComplete="new-password" />
           {err('next')}
         </div>
         <div className="field">
-          <label htmlFor="cp-confirm">3. Confirm new password</label>
+          <label htmlFor="cp-confirm">{tr("3. Confirm new password")}</label>
           <PasswordInput id="cp-confirm" value={confirm} onChange={setConfirm} invalid={!!errors.confirm} autoComplete="new-password" />
           {err('confirm')}
         </div>
         <div className="field">
-          <label htmlFor="cp-hint">Hint (optional, stored unencrypted)</label>
+          <label htmlFor="cp-hint">{tr("Hint (optional, stored unencrypted)")}</label>
           <input id="cp-hint" className="input" value={hint} maxLength={200} onChange={(e) => setHint(e.target.value)} autoComplete="off" />
           {err('hint')}
         </div>
@@ -472,62 +478,103 @@ function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+// --------------------------------------------------------------- language --
+
+/** App language for this device. Switching reopens the app so every screen uses it. */
+function LanguageTab() {
+  const [pick, setPick] = useState<LangChoice | null>(null);
+  const chosen = savedChoice();
+  const label = (c: LangChoice) => LANGUAGES.find((l) => l.id === c)?.name ?? c;
+  return (
+    <Group title={tr('Language')} icon={<Languages size={15} strokeWidth={1.8} aria-hidden />}>
+      <div className="lang-list" role="radiogroup" aria-label={tr('Language')}>
+        {LANGUAGES.map((l) => (
+          <button key={l.id} type="button" role="radio" aria-checked={chosen === l.id} className="lang-opt" onClick={() => l.id !== chosen && setPick(l.id)}>
+            <span className="lang-tag">{l.tag || <Smartphone size={16} aria-hidden />}</span>
+            <span className="grow">
+              <span className="lang-name">{l.id === 'auto' ? tr(l.name) : l.name}</span>
+              <span className="lang-note">{l.id === 'auto' ? `${tr(l.note)} · ${label(deviceLang())}` : l.note}</span>
+            </span>
+            <span className="lang-radio" aria-hidden />
+          </button>
+        ))}
+      </div>
+      <p className="lang-foot">
+        {tr('Saved on this device only: your phone can be in Bisaya while your computer stays in English. Your own notes, names and passwords are never changed.')}
+        {(currentLang() === 'hil' || currentLang() === 'ilo') && <> {tr('Hiligaynon and Ilocano are new: tell us if a word sounds wrong.')}</>}
+      </p>
+      {pick && (
+        <ConfirmDialog
+          title={tr('Switch to {0}?', [label(pick)])}
+          message={tr('VaultLocks will reopen in the new language and ask for your PIN or password.')}
+          confirmLabel={tr('Switch')}
+          onCancel={() => setPick(null)}
+          onConfirm={() => {
+            saveChoice(pick);
+            window.location.reload();
+          }}
+        />
+      )}
+    </Group>
+  );
+}
+
 // ------------------------------------------------------------- appearance --
 
 function AppearanceTab({ settings, update }: { settings: VaultSettings; update: (p: Partial<VaultSettings>) => Promise<void> }) {
   return (
-    <Group title="Appearance" icon={<Paintbrush size={15} strokeWidth={1.8} aria-hidden />}>
-      <Setting title="Theme" desc="System follows your device's light or dark mode.">
+    <Group title={tr("Appearance")} icon={<Paintbrush size={15} strokeWidth={1.8} aria-hidden />}>
+      <Setting title={tr("Theme")} desc={tr("System follows your device's light or dark mode.")}>
         <Segmented
-          label="Theme"
+          label={tr("Theme")}
           value={settings.theme}
           options={[
-            ['system', 'System'],
-            ['light', 'Light'],
-            ['dark', 'Dark']
+            ['system', tr("System")],
+            ['light', tr("Light")],
+            ['dark', tr("Dark")]
           ]}
           onChange={(v) => update({ theme: v })}
         />
       </Setting>
-      <Setting title="Accent color" desc="Buttons, highlights and selected items.">
+      <Setting title={tr("Accent color")} desc={tr("Buttons, highlights and selected items.")}>
         <AccentPicker value={settings.accent} onChange={(v) => update({ accent: v })} />
       </Setting>
-      <Setting title="Glass effect" desc="Translucent, blurred surfaces. Turn off for solid surfaces (also faster on older phones)." htmlFor="s-glass">
+      <Setting title={tr("Glass effect")} desc={tr("Translucent, blurred surfaces. Turn off for solid surfaces (also faster on older phones).")} htmlFor="s-glass">
         <input id="s-glass" type="checkbox" className="switch" checked={settings.glass} onChange={(e) => update({ glass: e.target.checked })} />
       </Setting>
-      <Setting title="Spacing">
+      <Setting title={tr("Spacing")}>
         <Segmented
-          label="Spacing"
+          label={tr("Spacing")}
           value={settings.density}
           options={[
-            ['comfortable', 'Comfortable'],
-            ['compact', 'Compact']
+            ['comfortable', tr("Comfortable")],
+            ['compact', tr("Compact")]
           ]}
           onChange={(v) => update({ density: v })}
         />
       </Setting>
       {!isPhone() && (
-      <Setting title="Sidebar" desc="Auto collapses the sidebar on smaller windows.">
+      <Setting title={tr("Sidebar")} desc={tr("Auto collapses the sidebar on smaller windows.")}>
         <Segmented
-          label="Sidebar"
+          label={tr("Sidebar")}
           value={settings.sidebar}
           options={[
-            ['auto', 'Auto'],
-            ['expanded', 'Expanded'],
-            ['collapsed', 'Collapsed']
+            ['auto', tr("Auto")],
+            ['expanded', tr("Expanded")],
+            ['collapsed', tr("Collapsed")]
           ]}
           onChange={(v) => update({ sidebar: v })}
         />
       </Setting>
       )}
-      <Setting title="Sort favorites">
+      <Setting title={tr("Sort favorites")}>
         <Segmented
-          label="Sort favorites"
+          label={tr("Sort favorites")}
           value={settings.favoriteSort}
           options={[
-            ['manual', 'Manual'],
-            ['name', 'Name'],
-            ['updated', 'Recent']
+            ['manual', tr("Manual")],
+            ['name', tr("Name")],
+            ['updated', tr("Recent")]
           ]}
           onChange={(v) => update({ favoriteSort: v })}
         />
@@ -552,9 +599,9 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
 
   if (permission === 'unsupported') {
     return (
-      <Group title="Reminders" icon={<Bell size={15} strokeWidth={1.8} aria-hidden />}>
+      <Group title={tr("Reminders")} icon={<Bell size={15} strokeWidth={1.8} aria-hidden />}>
         <div className="card-pad muted">
-          Reminder notifications are available in the phone app. On this computer, upcoming dates are shown on the Dashboard under Security status.
+          {tr("Reminder notifications are available in the phone app. On this computer, upcoming dates are shown on the Dashboard under Security status.")}
         </div>
       </Group>
     );
@@ -562,17 +609,17 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
 
   return (
     <>
-      <Group title="Reminders" icon={<Bell size={15} strokeWidth={1.8} aria-hidden />}>
+      <Group title={tr("Reminders")} icon={<Bell size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting
-          title="Expiry, renewal & payment reminders"
-          desc="Subscriptions, cards, IDs, documents, insurance, licenses — and date fields named “due”, “payment”, “renewal” or “expiry” in your own categories."
+          title={tr("Expiry, renewal & payment reminders")}
+          desc={tr("Subscriptions, cards, IDs, documents, insurance, licenses — and date fields named “due”, “payment”, “renewal” or “expiry” in your own categories.")}
           htmlFor="s-rem"
         >
           <input id="s-rem" type="checkbox" className="switch" checked={settings.reminders} onChange={(e) => update({ reminders: e.target.checked })} />
         </Setting>
-        <Setting title="Remind me" desc="A reminder at 9:00 AM this many days before, and another on the day itself.">
+        <Setting title={tr("Remind me")} desc={tr("A reminder at 9:00 AM this many days before, and another on the day itself.")}>
           <Segmented
-            label="Days before"
+            label={tr("Days before")}
             value={settings.reminderDaysBefore}
             options={[
               [1, '1 day'],
@@ -585,13 +632,13 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
           />
         </Setting>
         <Setting
-          title="Notification permission"
+          title={tr("Notification permission")}
           desc={
             permission === 'granted'
-              ? 'Allowed. On the lock screen, reminder text stays hidden until you unlock the phone.'
+              ? tr("Allowed. On the lock screen, reminder text stays hidden until you unlock the phone.")
               : permission === 'denied'
-                ? 'Blocked. Allow notifications for VaultLocks in the phone’s Settings → VaultLocks → Notifications.'
-                : 'VaultLocks needs your permission to show reminders.'
+                ? tr("Blocked. Allow notifications for VaultLocks in the phone’s Settings → VaultLocks → Notifications.")
+                : tr("VaultLocks needs your permission to show reminders.")
           }
         >
           {permission === 'granted' ? (
@@ -601,27 +648,27 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
               onClick={async () => {
                 try {
                   await unwrap(api.notifications.test());
-                  toast('A sample reminder will appear in a few seconds.');
+                  toast(tr("A sample reminder will appear in a few seconds."));
                 } catch (e) {
                   toast(errorMessage(e), 'error');
                 }
               }}
             >
-              Send test
+              {tr("Send test")}
             </button>
           ) : (
             <button type="button" className="btn sm primary" onClick={async () => setPermission(await api.notifications.request())}>
-              Allow
+              {tr("Allow")}
             </button>
           )}
         </Setting>
         {exact && exact !== 'unsupported' && (
           <Setting
-            title="Exact timing"
+            title={tr("Exact timing")}
             desc={
               exact === 'granted'
-                ? 'On. Reminders ring at the exact minute, even when the phone is saving battery.'
-                : 'Off. Android may ring reminders a few minutes late to save battery. Allow “Alarms & reminders” for VaultLocks to get exact times.'
+                ? tr("On. Reminders ring at the exact minute, even when the phone is saving battery.")
+                : tr("Off. Android may ring reminders a few minutes late to save battery. Allow “Alarms & reminders” for VaultLocks to get exact times.")
             }
           >
             {exact === 'denied' && (
@@ -633,21 +680,21 @@ function RemindersTab({ snap, update }: { snap: VaultSnapshot; update: (p: Parti
                   setExact(s);
                   if (s === 'granted') {
                     await update({ reminders: settings.reminders }); // refresh: reminders are rescheduled as exact alarms
-                    toast('Reminders now ring at the exact time.');
+                    toast(tr("Reminders now ring at the exact time."));
                   }
                 }}
               >
-                Allow
+                {tr("Allow")}
               </button>
             )}
           </Setting>
         )}
       </Group>
-      <Group icon={<CalendarClock size={15} strokeWidth={1.8} aria-hidden />} title={`Next reminders (${tracked} tracked date${tracked === 1 ? '' : 's'})`}>
+      <Group icon={<CalendarClock size={15} strokeWidth={1.8} aria-hidden />} title={tr("Next reminders ({0} tracked date{1})", [tracked, tracked === 1 ? '' : 's'])}>
         {!settings.reminders ? (
-          <div className="card-pad muted">Reminders are off.</div>
+          <div className="card-pad muted">{tr("Reminders are off.")}</div>
         ) : upcoming.length === 0 ? (
-          <div className="card-pad muted">No upcoming dates. Add an expiry or renewal date to an item to get reminders.</div>
+          <div className="card-pad muted">{tr("No upcoming dates. Add an expiry or renewal date to an item to get reminders.")}</div>
         ) : (
           upcoming.map((r) => (
             <div key={r.id} className="setting">
@@ -703,7 +750,7 @@ function VaultTab({
     try {
       const r = await unwrap(api.backup.create());
       if (r) {
-        toast(r.verified ? 'Encrypted backup created and verified.' : 'Backup created.');
+        toast(r.verified ? tr("Encrypted backup created and verified.") : tr("Backup created."));
         await onChanged();
       }
     } catch (e) {
@@ -720,31 +767,31 @@ function VaultTab({
       <div className="notice strong" style={{ marginBottom: 24 }}>
         <TriangleAlert size={16} aria-hidden />
         <span>
-          Your vault is stored locally. Losing both your device and your backup may permanently remove access to your stored information.
+          {tr("Your vault is stored locally. Losing both your device and your backup may permanently remove access to your stored information.")}
         </span>
       </div>
 
-      <Group title="Backup" icon={<Archive size={15} strokeWidth={1.8} aria-hidden />}>
+      <Group title={tr("Backup")} icon={<Archive size={15} strokeWidth={1.8} aria-hidden />}>
         <Setting
-          title="Create encrypted backup"
+          title={tr("Create encrypted backup")}
           desc={
             <>
-              Last backup: {meta.lastBackupAt ? formatDateTime(meta.lastBackupAt) : 'never'}
-              {meta.lastBackupAt && (meta.lastBackupVerified ? ' · verified' : ' · not verified')}
-              {overdue && ' · reminder due'}
+              {tr("Last backup:")} {meta.lastBackupAt ? formatDateTime(meta.lastBackupAt) : 'never'}
+              {meta.lastBackupAt && (meta.lastBackupVerified ? tr(" · verified") : tr(" · not verified"))}
+              {overdue && tr(" · reminder due")}
             </>
           }
         >
           <button type="button" className="btn sm primary" onClick={backup} disabled={busy}>
-            {busy ? <span className="spinner" aria-hidden /> : <Download size={14} aria-hidden />} Back up now
+            {busy ? <span className="spinner" aria-hidden /> : <Download size={14} aria-hidden />} {tr("Back up now")}
           </button>
         </Setting>
         {isPhone() ? (
-          <Setting title="Where backups go" desc="Back up now opens the share sheet: save the encrypted file to Files, a USB drive, or send it to your computer.">
+          <Setting title={tr("Where backups go")} desc={tr("Back up now opens the share sheet: save the encrypted file to Files, a USB drive, or send it to your computer.")}>
             <span />
           </Setting>
         ) : (
-        <Setting title="Backup location" desc={<span className="selectable">{settings.backupDirectory ?? 'Documents folder (default)'}</span>}>
+        <Setting title={tr("Backup location")} desc={<span className="selectable">{settings.backupDirectory ?? tr("Documents folder (default)")}</span>}>
           <button
             type="button"
             className="btn sm"
@@ -757,11 +804,11 @@ function VaultTab({
               }
             }}
           >
-            <FolderOpen size={14} aria-hidden /> Choose…
+            <FolderOpen size={14} aria-hidden /> {tr("Choose…")}
           </button>
         </Setting>
         )}
-        <Setting title="Backup reminder" htmlFor="s-remind">
+        <Setting title={tr("Backup reminder")} htmlFor="s-remind">
           <select
             id="s-remind"
             className="select"
@@ -782,115 +829,115 @@ function VaultTab({
             ))}
           </select>
         </Setting>
-        <Setting title="Verify a backup" desc="Check that a backup file is intact and opens with its password. Nothing is changed.">
+        <Setting title={tr("Verify a backup")} desc={tr("Check that a backup file is intact and opens with its password. Nothing is changed.")}>
           <button type="button" className="btn sm" onClick={() => setRestoring('verify')}>
-            <CircleCheck size={14} aria-hidden /> Verify…
+            <CircleCheck size={14} aria-hidden /> {tr("Verify…")}
           </button>
         </Setting>
       </Group>
 
-      <Group title="Clean up" icon={<Trash2 size={15} strokeWidth={1.8} aria-hidden />}>
-        <Setting title="Duplicate detection" desc="Find items that look like copies, compare them side by side, and merge or keep them. Nothing changes without your OK.">
+      <Group title={tr("Clean up")} icon={<Trash2 size={15} strokeWidth={1.8} aria-hidden />}>
+        <Setting title={tr("Duplicate detection")} desc={tr("Find items that look like copies, compare them side by side, and merge or keep them. Nothing changes without your OK.")}>
           <button type="button" className="btn sm" onClick={() => onNavigate({ view: 'duplicates' })}>
-            <CopyCheck size={14} aria-hidden /> Review…
+            <CopyCheck size={14} aria-hidden /> {tr("Review…")}
           </button>
         </Setting>
-        <Setting title="Recently Deleted" desc={`${snap.trash.length} item(s) · restorable for 30 days`}>
+        <Setting title={tr("Recently Deleted")} desc={tr("{0} item(s) · restorable for 30 days", [snap.trash.length])}>
           <button type="button" className="btn sm" onClick={() => onNavigate({ view: 'trash' })}>
-            <Trash2 size={14} aria-hidden /> Open
+            <Trash2 size={14} aria-hidden /> {tr("Open")}
           </button>
         </Setting>
       </Group>
 
-      <Group title="Import" icon={<Upload size={15} strokeWidth={1.8} aria-hidden />}>
-        <Setting title="Import notes from another app" desc="Paste many notes at once — each becomes its own encrypted item in the right category.">
+      <Group title={tr("Import")} icon={<Upload size={15} strokeWidth={1.8} aria-hidden />}>
+        <Setting title={tr("Import notes from another app")} desc={tr("Paste many notes at once — each becomes its own encrypted item in the right category.")}>
           <button type="button" className="btn sm" onClick={onImport}>
-            <Upload size={14} aria-hidden /> Import notes…
+            <Upload size={14} aria-hidden /> {tr("Import notes…")}
           </button>
         </Setting>
       </Group>
 
-      <Group title="Storage" icon={<HardDrive size={15} strokeWidth={1.8} aria-hidden />}>
+      <Group title={tr("Storage")} icon={<HardDrive size={15} strokeWidth={1.8} aria-hidden />}>
         {storage ? (
           <div className="card-pad">
             <dl className="kv" style={{ padding: 0 }}>
-              <dt>Vault data</dt>
+              <dt>{tr("Vault data")}</dt>
               <dd>{formatBytes(storage.vaultBytes)}</dd>
-              <dt>Attachments</dt>
+              <dt>{tr("Attachments")}</dt>
               <dd>
-                {storage.attachmentCount} file(s) · {formatBytes(storage.attachmentBytes)}
+                {storage.attachmentCount} {tr("file(s) ·")} {formatBytes(storage.attachmentBytes)}
               </dd>
-              <dt>Free on this device</dt>
-              <dd>{storage.freeBytes === null ? 'Unknown' : formatBytes(storage.freeBytes)}</dd>
+              <dt>{tr("Free on this device")}</dt>
+              <dd>{storage.freeBytes === null ? tr("Unknown") : formatBytes(storage.freeBytes)}</dd>
             </dl>
             {storage.freeBytes !== null && (
               <div
                 className="storage-bar"
                 role="img"
-                aria-label={`VaultLocks uses ${formatBytes(storage.vaultBytes + storage.attachmentBytes)} of ${formatBytes(storage.freeBytes + storage.vaultBytes + storage.attachmentBytes)} available`}
+                aria-label={tr("VaultLocks uses {0} of {1} available", [formatBytes(storage.vaultBytes + storage.attachmentBytes), formatBytes(storage.freeBytes + storage.vaultBytes + storage.attachmentBytes)])}
               >
                 <span style={{ width: `${Math.max(1, Math.min(100, ((storage.vaultBytes + storage.attachmentBytes) / Math.max(1, storage.freeBytes + storage.vaultBytes + storage.attachmentBytes)) * 100))}%` }} />
               </div>
             )}
             {storage.freeBytes !== null && storage.freeBytes < 200 * 1024 * 1024 && (
               <div className="notice strong" style={{ marginTop: 12 }}>
-                <TriangleAlert size={16} aria-hidden /> Your device is low on storage. Free up space before adding large attachments.
+                <TriangleAlert size={16} aria-hidden /> {tr("Your device is low on storage. Free up space before adding large attachments.")}
               </div>
             )}
             <p className="help-text" style={{ margin: '10px 0 0' }}>
-              Each attachment can be up to 25 MB; an item can have up to 50.
+              {tr("Each attachment can be up to 25 MB; an item can have up to 50.")}
             </p>
           </div>
         ) : (
-          <div className="card-pad muted">Loading…</div>
+          <div className="card-pad muted">{tr("Loading…")}</div>
         )}
       </Group>
 
-      <Group title="Restore & import" icon={<FolderOpen size={15} strokeWidth={1.8} aria-hidden />}>
-        <Setting title="Restore or import encrypted backup" desc="Replace this vault with a backup, or merge items from a backup into it.">
+      <Group title={tr("Restore & import")} icon={<FolderOpen size={15} strokeWidth={1.8} aria-hidden />}>
+        <Setting title={tr("Restore or import encrypted backup")} desc={tr("Replace this vault with a backup, or merge items from a backup into it.")}>
           <button type="button" className="btn sm" onClick={() => setRestoring('restore')}>
-            <Upload size={14} aria-hidden /> Restore…
+            <Upload size={14} aria-hidden /> {tr("Restore…")}
           </button>
         </Setting>
-        <Setting title="Export plaintext (unsafe)" desc="Writes every password unencrypted to a file. Requires your master password.">
+        <Setting title={tr("Export plaintext (unsafe)")} desc={tr("Writes every password unencrypted to a file. Requires your master password.")}>
           <button type="button" className="btn sm danger" onClick={() => setPlaintext(true)}>
-            <TriangleAlert size={14} aria-hidden /> Export…
+            <TriangleAlert size={14} aria-hidden /> {tr("Export…")}
           </button>
         </Setting>
       </Group>
 
-      <Group title="Database information" icon={<Database size={15} strokeWidth={1.8} aria-hidden />}>
+      <Group title={tr("Database information")} icon={<Database size={15} strokeWidth={1.8} aria-hidden />}>
         {info ? (
           <dl className="kv">
-            <dt>Location</dt>
+            <dt>{tr("Location")}</dt>
             <dd>{info.path}</dd>
-            <dt>Size</dt>
+            <dt>{tr("Size")}</dt>
             <dd>{formatBytes(info.sizeBytes)}</dd>
-            <dt>Items</dt>
+            <dt>{tr("Items")}</dt>
             <dd>{info.itemCount}</dd>
-            <dt>Attachments</dt>
+            <dt>{tr("Attachments")}</dt>
             <dd>
-              {info.attachmentCount} · {formatBytes(info.attachmentBytes)} (encrypted, separate files)
+              {info.attachmentCount} · {formatBytes(info.attachmentBytes)} {tr("(encrypted, separate files)")}
             </dd>
-            <dt>Encryption</dt>
+            <dt>{tr("Encryption")}</dt>
             <dd>{info.cipher}</dd>
-            <dt>Key derivation</dt>
+            <dt>{tr("Key derivation")}</dt>
             <dd>{info.kdf}</dd>
-            <dt>Format version</dt>
+            <dt>{tr("Format version")}</dt>
             <dd>{info.formatVersion}</dd>
-            <dt>Created</dt>
+            <dt>{tr("Created")}</dt>
             <dd>{formatDateTime(info.createdAt)}</dd>
-            <dt>Last modified</dt>
+            <dt>{tr("Last modified")}</dt>
             <dd>{formatDateTime(info.modifiedAt)}</dd>
           </dl>
         ) : (
-          <div className="card-pad muted">Loading…</div>
+          <div className="card-pad muted">{tr("Loading…")}</div>
         )}
         <div className="setting" style={{ borderTop: '1px solid var(--border)' }}>
-          <div className="grow desc">The vault file contains only encrypted data and the parameters needed to decrypt it.</div>
+          <div className="grow desc">{tr("The vault file contains only encrypted data and the parameters needed to decrypt it.")}</div>
           {!isPhone() && (
             <button type="button" className="btn sm" onClick={() => void api.vault.showVaultFolder()}>
-              <FolderOpen size={14} aria-hidden /> Show in folder
+              <FolderOpen size={14} aria-hidden /> {tr("Show in folder")}
             </button>
           )}
         </div>
@@ -959,7 +1006,7 @@ function RestoreDialog({ verifyOnly, onClose, onRestored }: { verifyOnly: boolea
     if (!summary) return;
     try {
       await unwrap(api.backup.apply(summary.token, mode));
-      toast(mode === 'replace' ? 'Vault restored from backup.' : 'Backup items imported.');
+      toast(mode === 'replace' ? tr("Vault restored from backup.") : tr("Backup items imported."));
       await onRestored();
     } catch (e) {
       setConfirming(false);
@@ -970,22 +1017,22 @@ function RestoreDialog({ verifyOnly, onClose, onRestored }: { verifyOnly: boolea
   return (
     <>
       <Dialog
-        title={verifyOnly ? 'Verify backup' : 'Restore or import backup'}
+        title={verifyOnly ? tr("Verify backup") : tr("Restore or import backup")}
         onClose={close}
         busy={busy}
         footer={
           <>
             <button type="button" className="btn" onClick={close} disabled={busy}>
-              {summary && verifyOnly ? 'Done' : 'Cancel'}
+              {summary && verifyOnly ? tr("Done") : tr("Cancel")}
             </button>
             {!summary && (
               <button type="button" className="btn primary" disabled={!file || !pw || busy} onClick={() => void open()}>
-                {busy && <span className="spinner" aria-hidden />} Verify backup
+                {busy && <span className="spinner" aria-hidden />} {tr("Verify backup")}
               </button>
             )}
             {summary && !verifyOnly && (
               <button type="button" className={`btn ${mode === 'replace' ? 'danger' : 'primary'}`} onClick={() => setConfirming(true)}>
-                {mode === 'replace' ? 'Replace vault…' : 'Import items…'}
+                {mode === 'replace' ? tr("Replace vault…") : tr("Import items…")}
               </button>
             )}
           </>
@@ -994,20 +1041,20 @@ function RestoreDialog({ verifyOnly, onClose, onRestored }: { verifyOnly: boolea
         {!summary ? (
           <form onSubmit={open}>
             <div className="field">
-              <span className="label">Backup file</span>
+              <span className="label">{tr("Backup file")}</span>
               <div className="row-flex">
                 <button type="button" className="btn" onClick={pick} disabled={busy}>
-                  <FolderOpen size={15} aria-hidden /> Choose file…
+                  <FolderOpen size={15} aria-hidden /> {tr("Choose file…")}
                 </button>
                 <span className="muted small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {file ? file.fileName : 'No file selected'}
+                  {file ? file.fileName : tr("No file selected")}
                 </span>
               </div>
             </div>
             <div className="field">
-              <label htmlFor="rb-pw">Backup password</label>
+              <label htmlFor="rb-pw">{tr("Backup password")}</label>
               <PasswordInput id="rb-pw" value={pw} onChange={setPw} mono={false} />
-              <span className="help-text">The master password that was in use when the backup was created.</span>
+              <span className="help-text">{tr("The master password that was in use when the backup was created.")}</span>
             </div>
           </form>
         ) : (
@@ -1015,27 +1062,27 @@ function RestoreDialog({ verifyOnly, onClose, onRestored }: { verifyOnly: boolea
             <div className="notice" style={{ marginBottom: 16 }}>
               <CircleCheck size={16} aria-hidden />
               <span>
-                <strong style={{ color: 'var(--fg)' }}>Backup verified.</strong> Encryption and integrity checks passed.
+                <strong style={{ color: 'var(--fg)' }}>{tr("Backup verified.")}</strong> {tr("Encryption and integrity checks passed.")}
               </span>
             </div>
             <dl className="kv card" style={{ marginBottom: 16 }}>
-              <dt>File</dt>
+              <dt>{tr("File")}</dt>
               <dd>{summary.fileName}</dd>
-              <dt>Items</dt>
+              <dt>{tr("Items")}</dt>
               <dd>{summary.itemCount}</dd>
-              <dt>Custom categories</dt>
+              <dt>{tr("Custom categories")}</dt>
               <dd>{summary.categoryCount}</dd>
-              <dt>Vault created</dt>
+              <dt>{tr("Vault created")}</dt>
               <dd>{formatDateTime(summary.createdAt)}</dd>
             </dl>
             {!verifyOnly && (
               <div className="field">
-                <span className="label">How should it be restored?</span>
-                <div className="stack" role="radiogroup" aria-label="Restore mode" style={{ gap: 8 }}>
+                <span className="label">{tr("How should it be restored?")}</span>
+                <div className="stack" role="radiogroup" aria-label={tr("Restore mode")} style={{ gap: 8 }}>
                   {(
                     [
-                      ['merge', 'Import (merge)', 'Add items from the backup that are not already in this vault.'],
-                      ['replace', 'Replace', "Use the backup's items instead. Current items move to Recently Deleted for 30 days."]
+                      ['merge', tr("Import (merge)"), 'Add items from the backup that are not already in this vault.'],
+                      ['replace', tr("Replace"), "Use the backup's items instead. Current items move to Recently Deleted for 30 days."]
                     ] as const
                   ).map(([m, t, d]) => (
                     <button
@@ -1055,7 +1102,7 @@ function RestoreDialog({ verifyOnly, onClose, onRestored }: { verifyOnly: boolea
                     </button>
                   ))}
                 </div>
-                <span className="help-text">Your current master password and settings are kept.</span>
+                <span className="help-text">{tr("Your current master password and settings are kept.")}</span>
               </div>
             )}
           </>
@@ -1068,17 +1115,16 @@ function RestoreDialog({ verifyOnly, onClose, onRestored }: { verifyOnly: boolea
       </Dialog>
       {confirming && summary && (
         <ConfirmDialog
-          title={mode === 'replace' ? 'Replace vault?' : 'Import items?'}
+          title={mode === 'replace' ? tr("Replace vault?") : tr("Import items?")}
           danger={mode === 'replace'}
-          confirmLabel={mode === 'replace' ? 'Replace vault' : 'Import'}
+          confirmLabel={mode === 'replace' ? tr("Replace vault") : tr("Import")}
           message={
             mode === 'replace' ? (
               <>
-                Your vault will contain the {summary.itemCount} item(s) from the backup. Items currently in your vault are moved to Recently Deleted, where you can
-                restore them for 30 days.
+                {tr("Your vault will contain the")} {summary.itemCount} {tr("item(s) from the backup. Items currently in your vault are moved to Recently Deleted, where you can restore them for 30 days.")}
               </>
             ) : (
-              <>Items from the backup that are not already in your vault will be added.</>
+              <>{tr("Items from the backup that are not already in your vault will be added.")}</>
             )
           }
           onCancel={() => setConfirming(false)}
@@ -1102,7 +1148,7 @@ function PlaintextExportDialog({ onClose }: { onClose: () => void }) {
     try {
       const path = await unwrap(api.backup.exportPlaintext(pw, phrase));
       if (path) {
-        toast('Plaintext export written. Delete it securely when done.');
+        toast(tr("Plaintext export written. Delete it securely when done."));
         onClose();
       }
     } catch (e) {
@@ -1116,17 +1162,17 @@ function PlaintextExportDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
-      title="Export plaintext — security warning"
+      title={tr("Export plaintext — security warning")}
       onClose={onClose}
       busy={busy}
       role="alertdialog"
       footer={
         <>
           <button type="button" className="btn" onClick={onClose} disabled={busy} data-autofocus>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn danger" disabled={!pw || phrase !== PLAINTEXT_CONFIRM_PHRASE || busy} onClick={submit}>
-            {busy && <span className="spinner" aria-hidden />} Export unencrypted file
+            {busy && <span className="spinner" aria-hidden />} {tr("Export unencrypted file")}
           </button>
         </>
       }
@@ -1134,12 +1180,11 @@ function PlaintextExportDialog({ onClose }: { onClose: () => void }) {
       <div className="notice strong" style={{ marginBottom: 16 }}>
         <TriangleAlert size={16} aria-hidden />
         <span>
-          This creates a file containing <strong>all of your passwords, PINs and notes in readable plain text</strong>. Anyone or any program that can
-          read the file can read your secrets. Prefer the encrypted backup unless you are migrating to another password manager.
+          {tr("This creates a file containing")} <strong>{tr("all of your passwords, PINs and notes in readable plain text")}</strong>{tr(". Anyone or any program that can read the file can read your secrets. Prefer the encrypted backup unless you are migrating to another password manager.")}
         </span>
       </div>
       <div className="field">
-        <label htmlFor="pt-pw">Re-enter master password</label>
+        <label htmlFor="pt-pw">{tr("Re-enter master password")}</label>
         <PasswordInput id="pt-pw" value={pw} onChange={setPw} mono={false} invalid={!!errors.password} autoComplete="current-password" />
         {errors.password && (
           <span className="error-text" role="alert">
@@ -1149,7 +1194,7 @@ function PlaintextExportDialog({ onClose }: { onClose: () => void }) {
       </div>
       <div className="field">
         <label htmlFor="pt-phrase">
-          Type <span className="mono" style={{ color: 'var(--fg)' }}>{PLAINTEXT_CONFIRM_PHRASE}</span> to confirm
+          {tr("Type")} <span className="mono" style={{ color: 'var(--fg)' }}>{PLAINTEXT_CONFIRM_PHRASE}</span> {tr("to confirm")}
         </label>
         <input id="pt-phrase" className="input mono" value={phrase} onChange={(e) => setPhrase(e.target.value)} autoComplete="off" spellCheck={false} />
       </div>
@@ -1176,13 +1221,13 @@ function CategoriesTab({ snap, onChanged }: { snap: VaultSnapshot; onChanged: ()
     <>
       <section className="setting-group">
         <div className="row-flex" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
-          <span className="label">Custom categories</span>
+          <span className="label">{tr("Custom categories")}</span>
           <button type="button" className="btn sm" onClick={() => setEditing('new')}>
-            <Plus size={14} aria-hidden /> New category
+            <Plus size={14} aria-hidden /> {tr("New category")}
           </button>
         </div>
         <div className="card">
-          {custom.length === 0 && <div className="card-pad muted">No custom categories yet. Create one with your own fields.</div>}
+          {custom.length === 0 && <div className="card-pad muted">{tr("No custom categories yet. Create one with your own fields.")}</div>}
           {custom.map((c) => (
             <div key={c.id} className="setting">
               <span className="row-icon">
@@ -1191,20 +1236,20 @@ function CategoriesTab({ snap, onChanged }: { snap: VaultSnapshot; onChanged: ()
               <div className="grow">
                 <div className="title">{c.name}</div>
                 <div className="desc">
-                  {c.fields.length} field(s) · {count(c.id)} item(s)
+                  {c.fields.length} {tr("field(s) ·")} {count(c.id)} {tr("item(s)")}
                 </div>
               </div>
-              <button type="button" className="icon-btn" onClick={() => setEditing(c)} aria-label={`Edit ${c.name}`} title="Edit">
+              <button type="button" className="icon-btn" onClick={() => setEditing(c)} aria-label={tr("Edit {0}", [c.name])} title={tr("Edit")}>
                 <Pencil size={15} />
               </button>
-              <button type="button" className="icon-btn" onClick={() => setDeleting(c)} aria-label={`Delete ${c.name}`} title="Delete">
+              <button type="button" className="icon-btn" onClick={() => setDeleting(c)} aria-label={tr("Delete {0}", [c.name])} title={tr("Delete")}>
                 <Trash size={15} />
               </button>
             </div>
           ))}
         </div>
       </section>
-      <Group title="Built-in categories" icon={<Layers size={15} strokeWidth={1.8} aria-hidden />}>
+      <Group title={tr("Built-in categories")} icon={<Layers size={15} strokeWidth={1.8} aria-hidden />}>
         {builtin.map((c) => (
           <div key={c.id} className="setting">
             <span className="row-icon">
@@ -1225,18 +1270,18 @@ function CategoriesTab({ snap, onChanged }: { snap: VaultSnapshot; onChanged: ()
           onSaved={async () => {
             setEditing(null);
             await onChanged();
-            toast('Category saved.');
+            toast(tr("Category saved."));
           }}
         />
       )}
       {deleting && (
         <ConfirmDialog
-          title="Delete category?"
+          title={tr("Delete category?")}
           danger
-          confirmLabel="Delete category"
+          confirmLabel={tr("Delete category")}
           message={
             <>
-              Delete the category <strong style={{ color: 'var(--fg)' }}>{deleting.name}</strong>? Categories that still contain items cannot be deleted.
+              {tr("Delete the category")} <strong style={{ color: 'var(--fg)' }}>{deleting.name}</strong>{tr("? Categories that still contain items cannot be deleted.")}
             </>
           }
           onCancel={() => setDeleting(null)}
@@ -1245,7 +1290,7 @@ function CategoriesTab({ snap, onChanged }: { snap: VaultSnapshot; onChanged: ()
               await unwrap(api.vault.deleteCategory(deleting.id));
               setDeleting(null);
               await onChanged();
-              toast('Category deleted.');
+              toast(tr("Category deleted."));
             } catch (e) {
               setDeleting(null);
               toast(errorMessage(e), 'error');
@@ -1258,17 +1303,17 @@ function CategoriesTab({ snap, onChanged }: { snap: VaultSnapshot; onChanged: ()
 }
 
 const FIELD_TYPE_LABELS: [FieldType, string][] = [
-  ['text', 'Text'],
-  ['username', 'Username'],
-  ['email', 'Email'],
-  ['password', 'Password (secret)'],
-  ['pin', 'PIN (secret)'],
-  ['secret', 'Hidden text (secret)'],
-  ['url', 'Website'],
-  ['phone', 'Phone'],
-  ['date', 'Date'],
-  ['textarea', 'Notes'],
-  ['secretTextarea', 'Secure note (secret)']
+  ['text', tr("Text")],
+  ['username', tr("Username")],
+  ['email', tr("Email")],
+  ['password', tr("Password (secret)")],
+  ['pin', tr("PIN (secret)")],
+  ['secret', tr("Hidden text (secret)")],
+  ['url', tr("Website")],
+  ['phone', tr("Phone")],
+  ['date', tr("Date")],
+  ['textarea', tr("Notes")],
+  ['secretTextarea', tr("Secure note (secret)")]
 ];
 
 function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef | null; onClose: () => void; onSaved: () => Promise<void> }) {
@@ -1276,9 +1321,9 @@ function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef 
   const [icon, setIcon] = useState<IconName>(category?.icon ?? 'folder');
   const [fields, setFields] = useState<FieldDef[]>(
     category?.fields ?? [
-      { key: '', label: 'Username', type: 'username' },
-      { key: '', label: 'Password', type: 'password' },
-      { key: '', label: 'Notes', type: 'textarea' }
+      { key: '', label: tr("Username"), type: 'username' },
+      { key: '', label: tr("Password"), type: 'password' },
+      { key: '', label: tr("Notes"), type: 'textarea' }
     ]
   );
   const [busy, setBusy] = useState(false);
@@ -1286,8 +1331,8 @@ function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef 
 
   const save = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (!name.trim()) return setError('Give the category a name.');
-    if (fields.length === 0 || fields.some((f) => !f.label.trim())) return setError('Every field needs a label.');
+    if (!name.trim()) return setError(tr("Give the category a name."));
+    if (fields.length === 0 || fields.some((f) => !f.label.trim())) return setError(tr("Every field needs a label."));
     setBusy(true);
     setError(null);
     try {
@@ -1301,29 +1346,29 @@ function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef 
 
   return (
     <Dialog
-      title={category ? 'Edit category' : 'New category'}
+      title={category ? tr("Edit category") : tr("New category")}
       onClose={onClose}
       busy={busy}
       size="wide"
       footer={
         <>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn primary" onClick={() => void save()} disabled={busy}>
-            {busy && <span className="spinner" aria-hidden />} Save category
+            {busy && <span className="spinner" aria-hidden />} {tr("Save category")}
           </button>
         </>
       }
     >
       <form onSubmit={save}>
         <div className="field">
-          <label htmlFor="cat-name">Name</label>
+          <label htmlFor="cat-name">{tr("Name")}</label>
           <input id="cat-name" className="input" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} autoComplete="off" />
         </div>
         <div className="field">
-          <span className="label">Icon</span>
-          <div className="row-flex" role="radiogroup" aria-label="Icon" style={{ flexWrap: 'wrap', gap: 6 }}>
+          <span className="label">{tr("Icon")}</span>
+          <div className="row-flex" role="radiogroup" aria-label={tr("Icon")} style={{ flexWrap: 'wrap', gap: 6 }}>
             {(Object.keys(CATEGORY_ICONS) as IconName[]).map((k) => (
               <button
                 key={k}
@@ -1342,25 +1387,25 @@ function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef 
           </div>
         </div>
         <div className="field">
-          <span className="label">Fields</span>
+          <span className="label">{tr("Fields")}</span>
           {fields.map((f, i) => (
             <div key={i} className="field-editor-row">
               <input
                 className="input"
-                aria-label={`Field ${i + 1} label`}
+                aria-label={tr("Field {0} label", [i + 1])}
                 value={f.label}
                 maxLength={60}
                 onChange={(e) => setFields((fs) => fs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
-                placeholder="Field label"
+                placeholder={tr("Field label")}
               />
               <select
                 className="select"
-                aria-label={`Field ${i + 1} type`}
+                aria-label={tr("Field {0} type", [i + 1])}
                 value={f.type}
                 onChange={(e) => setFields((fs) => fs.map((x, j) => (j === i ? { ...x, type: e.target.value as FieldType } : x)))}
               >
                 {/* Old photo fields keep their type; new photos are added as attachments. */}
-                {(f.type === 'secretImage' ? [...FIELD_TYPE_LABELS, ['secretImage', 'Photo (old — use attachments)'] as [FieldType, string]] : FIELD_TYPE_LABELS).map(([v, l]) => (
+                {(f.type === 'secretImage' ? [...FIELD_TYPE_LABELS, ['secretImage', tr("Photo (old — use attachments)")] as [FieldType, string]] : FIELD_TYPE_LABELS).map(([v, l]) => (
                   <option key={v} value={v}>
                     {l}
                   </option>
@@ -1369,8 +1414,8 @@ function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef 
               <button
                 type="button"
                 className="icon-btn"
-                aria-label={`Remove field ${f.label || i + 1}`}
-                title="Remove field"
+                aria-label={tr("Remove field {0}", [f.label || i + 1])}
+                title={tr("Remove field")}
                 onClick={() => setFields((fs) => fs.filter((_, j) => j !== i))}
               >
                 <X size={15} />
@@ -1384,10 +1429,10 @@ function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef 
               disabled={fields.length >= 30}
               onClick={() => setFields((fs) => [...fs, { key: '', label: '', type: 'text' }])}
             >
-              <Plus size={14} aria-hidden /> Add field
+              <Plus size={14} aria-hidden /> {tr("Add field")}
             </button>
           </div>
-          {category && <span className="help-text">Removing a field permanently deletes its values from items in this category.</span>}
+          {category && <span className="help-text">{tr("Removing a field permanently deletes its values from items in this category.")}</span>}
         </div>
         {error && (
           <div className="error-text" role="alert">
@@ -1404,62 +1449,60 @@ function CategoryEditor({ category, onClose, onSaved }: { category: CategoryDef 
 function AboutTab({ version }: { version: string }) {
   return (
     <>
-      <Group title="Application" icon={<Info size={15} strokeWidth={1.8} aria-hidden />}>
+      <Group title={tr("Application")} icon={<Info size={15} strokeWidth={1.8} aria-hidden />}>
         <dl className="kv">
-          <dt>Application</dt>
-          <dd>VaultLocks</dd>
-          <dt>Version</dt>
+          <dt>{tr("Application")}</dt>
+          <dd>{tr("VaultLocks")}</dd>
+          <dt>{tr("Version")}</dt>
           <dd>{version}</dd>
-          <dt>Network access</dt>
-          <dd>None — all network requests are blocked. No accounts, sync, analytics or telemetry.</dd>
+          <dt>{tr("Network access")}</dt>
+          <dd>{tr("None — all network requests are blocked. No accounts, sync, analytics or telemetry.")}</dd>
         </dl>
       </Group>
-      <Group title="Security" icon={<Shield size={15} strokeWidth={1.8} aria-hidden />}>
+      <Group title={tr("Security")} icon={<Shield size={15} strokeWidth={1.8} aria-hidden />}>
         <dl className="kv">
-          <dt>Encryption</dt>
-          <dd>AES-256-GCM authenticated encryption with a fresh random 96-bit nonce on every save. Every attachment is encrypted separately with your vault key.</dd>
-          <dt>Key derivation</dt>
-          <dd>Argon2id (RFC 9106) — 64 MiB memory, 3 passes, 4 lanes, 256-bit random salt.</dd>
-          <dt>Integrity</dt>
-          <dd>All file metadata is authenticated; any modification is detected and rejected.</dd>
-          <dt>Master password</dt>
-          <dd>Never stored, logged or displayed. There is no recovery or bypass.</dd>
+          <dt>{tr("Encryption")}</dt>
+          <dd>{tr("AES-256-GCM authenticated encryption with a fresh random 96-bit nonce on every save. Every attachment is encrypted separately with your vault key.")}</dd>
+          <dt>{tr("Key derivation")}</dt>
+          <dd>{tr("Argon2id (RFC 9106) — 64 MiB memory, 3 passes, 4 lanes, 256-bit random salt.")}</dd>
+          <dt>{tr("Integrity")}</dt>
+          <dd>{tr("All file metadata is authenticated; any modification is detected and rejected.")}</dd>
+          <dt>{tr("Master password")}</dt>
+          <dd>{tr("Never stored, logged or displayed. There is no recovery or bypass.")}</dd>
           {!isPhone() && (
             <>
-              <dt>Keyboard shortcuts</dt>
+              <dt>{tr("Keyboard shortcuts")}</dt>
               <dd>
-                Ctrl+F or Ctrl+K search · Ctrl+N new item · Ctrl+C copy password · Ctrl+B copy username · Ctrl+L lock · Ctrl+G generator · Ctrl+, settings ·
-                Esc close · right-click an item for more
+                {tr("Ctrl+F or Ctrl+K search · Ctrl+N new item · Ctrl+C copy password · Ctrl+B copy username · Ctrl+L lock · Ctrl+G generator · Ctrl+, settings · Esc close · right-click an item for more")}
               </dd>
             </>
           )}
           {isPhone() && (
             <>
-              <dt>Phone protections</dt>
+              <dt>{tr("Phone protections")}</dt>
               <dd>
-                Vault and attachments live in app-private storage, excluded from cloud backup. Quick unlock keys are kept in the hardware-backed Android Keystore or iPhone
-                Keychain. Screenshots are blocked on Android (configurable); on iPhone the app is hidden in the app switcher. Copied secrets are marked sensitive and cleared automatically.
+                {tr("Vault and attachments live in app-private storage, excluded from cloud backup. Quick unlock keys are kept in the hardware-backed Android Keystore or iPhone Keychain. Screenshots are blocked on Android (configurable); on iPhone the app is hidden in the app switcher. Copied secrets are marked sensitive and cleared automatically.")}
               </dd>
-              <dt>Gestures</dt>
-              <dd>Swipe an item right to copy its password, left for Favorite and Delete. Long-press an item for all actions.</dd>
+              <dt>{tr("Gestures")}</dt>
+              <dd>{tr("Swipe an item right to copy its password, left for Favorite and Delete. Long-press an item for all actions.")}</dd>
             </>
           )}
         </dl>
       </Group>
-      <Group title="Open-source licenses" icon={<Scale size={15} strokeWidth={1.8} aria-hidden />}>
+      <Group title={tr("Open-source licenses")} icon={<Scale size={15} strokeWidth={1.8} aria-hidden />}>
         <dl className="kv">
-          <dt>Electron / Chromium</dt>
-          <dd>MIT / BSD-style (see LICENSES.chromium.html in the install folder)</dd>
-          <dt>React</dt>
-          <dd>MIT</dd>
-          <dt>hash-wasm (Argon2id)</dt>
-          <dd>MIT</dd>
-          <dt>Capacitor (Android / iPhone)</dt>
-          <dd>MIT</dd>
-          <dt>Lucide icons</dt>
-          <dd>ISC</dd>
-          <dt>EFF Large Wordlist</dt>
-          <dd>CC BY 3.0 US — Electronic Frontier Foundation</dd>
+          <dt>{tr("Electron / Chromium")}</dt>
+          <dd>{tr("MIT / BSD-style (see LICENSES.chromium.html in the install folder)")}</dd>
+          <dt>{tr("React")}</dt>
+          <dd>{tr("MIT")}</dd>
+          <dt>{tr("hash-wasm (Argon2id)")}</dt>
+          <dd>{tr("MIT")}</dd>
+          <dt>{tr("Capacitor (Android / iPhone)")}</dt>
+          <dd>{tr("MIT")}</dd>
+          <dt>{tr("Lucide icons")}</dt>
+          <dd>{tr("ISC")}</dd>
+          <dt>{tr("EFF Large Wordlist")}</dt>
+          <dd>{tr("CC BY 3.0 US — Electronic Frontier Foundation")}</dd>
         </dl>
       </Group>
     </>

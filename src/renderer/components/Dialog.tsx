@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+import { tr } from '../../shared/i18n';
 interface Props {
   title: ReactNode;
   subtitle?: ReactNode;
@@ -96,7 +97,7 @@ export function Dialog({ title, subtitle, onClose, children, footer, size = 'nor
               </div>
             )}
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} disabled={busy} aria-label="Close dialog" title="Close (Esc)">
+          <button type="button" className="icon-btn" onClick={onClose} disabled={busy} aria-label={tr("Close dialog")} title={tr("Close (Esc)")}>
             <X size={16} />
           </button>
         </div>
@@ -139,7 +140,7 @@ export function ConfirmDialog({ title, message, confirmLabel, danger, onConfirm,
       footer={
         <>
           <button type="button" className="btn" onClick={onCancel} disabled={busy} data-autofocus>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button
             type="button"

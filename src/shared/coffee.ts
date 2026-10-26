@@ -5,6 +5,7 @@
 import { newEventInput, type CalendarEvent, type CalendarEventInput } from './calendar';
 import { dayKey, monthOf, type Transaction } from './money';
 
+import { dayNames, tr } from './i18n';
 export const COFFEE = 'coffee';
 /** Used for the one-tap chip until the user has logged a coffee. */
 export const DEFAULT_USUAL_COFFEE = 12000;
@@ -52,13 +53,13 @@ export function usualCoffee(list: readonly Transaction[], today: Date = new Date
   const coffee = list.filter(isCoffee).sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
   const month = coffee.filter((t) => t.date >= since(30));
   const recent = month.length >= 3 ? month : coffee.filter((t) => t.date >= since(90));
-  if (!recent.length) return { amount: DEFAULT_USUAL_COFFEE, note: 'Coffee', learned: false };
+  if (!recent.length) return { amount: DEFAULT_USUAL_COFFEE, note: tr("Coffee"), learned: false };
   const counts = new Map<number, number>();
   for (const t of recent) counts.set(t.amount, (counts.get(t.amount) ?? 0) + 1);
   let amount = recent[0]!.amount;
   for (const t of recent) if (counts.get(t.amount)! > counts.get(amount)!) amount = t.amount;
   const last = recent.find((t) => t.amount === amount)!;
-  return { amount, note: last.note || 'Coffee', learned: true, ...(last.accountId ? { accountId: last.accountId } : {}) };
+  return { amount, note: last.note || tr("Coffee"), learned: true, ...(last.accountId ? { accountId: last.accountId } : {}) };
 }
 
 /** Coffee budget nudge after adding `added` to the month: crossing 80 % or 100 %. */
@@ -95,7 +96,7 @@ export function coffeeBreakEvent(today: Date = new Date(), time = '15:00', days:
   };
 }
 
-const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_SHORT = dayNames().map((d) => d.slice(0, 3));
 /** "weekdays", "every day", "weekends" or "Mon, Wed, Fri". */
 export function describeDays(days: readonly number[] | undefined): string {
   const d = [...new Set(days ?? WEEKDAYS)].sort();

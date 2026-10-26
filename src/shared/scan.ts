@@ -287,8 +287,8 @@ export interface ReceiptResult {
 }
 
 const MONEY = /(?:₱|php|p)?\s?(\d{1,3}(?:[,\s]\d{3})+|\d+)[.,](\d{2})(?!\d)/i;
-const TOTAL_LINE = /\b(?:grand\s*total|total\s*(?:amount|due|sales?)?|amount\s*due|amt\s*due|total\s*php|net\s*amount|balance\s*due)\b/i;
-const NOT_TOTAL = /\b(?:sub\s*-?\s*total|vat(?:able)?|vat-?exempt|discount|change|tendered|cash\s*tendered|items?|qty|zero[- ]rated|service\s*charge)\b/i;
+const TOTAL_LINE = /\b(?:grand\s*total|total\s*(?:amount|due|sales?)?|amount\s*due|amt\s*due|total\s*php|net\s*amount|balance\s*due|kabuuan|kabuuang\s*halaga|tanan|kinatibuk-?an|kabug-?osan)\b/i;
+const NOT_TOTAL = /\b(?:sub\s*-?\s*total|vat(?:able)?|vat-?exempt|discount|diskwento|change|sukli|bayad|gibayad|tendered|cash\s*tendered|items?|qty|zero[- ]rated|service\s*charge)\b/i;
 const NOT_STORE = /\b(?:official\s*receipt|sales\s*invoice|invoice|receipt|tin|vat|reg|non-?vat|min|sn|s\/n|pos|cashier|tel|phone|address|st\.|street|brgy|city|branch|date|time|thank|welcome|store\s*#|or\s*#|si\s*#|table|order)\b/i;
 
 const amountOf = (line: string): number | null => {

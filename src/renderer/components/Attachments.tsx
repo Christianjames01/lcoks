@@ -9,25 +9,26 @@ import { isPhone } from '../lib/platform';
 import { ConfirmDialog, Dialog } from './Dialog';
 import { useToast } from './Toast';
 
+import { tr } from '../../shared/i18n';
 // ------------------------------------------------------------ add sheet --
 
 /** "Add Attachment" choices: Take Photo / Choose from Gallery / Choose File. */
 export function AddAttachmentSheet({ onPick, onClose }: { onPick: (source: PickSource) => void; onClose: () => void }) {
   return (
-    <Dialog placement="center" title="Add attachment" onClose={onClose} size="narrow">
+    <Dialog placement="center" title={tr("Add attachment")} onClose={onClose} size="narrow">
       <div className="action-list">
         <button type="button" className="btn" onClick={() => onPick('camera')} data-autofocus>
-          <Camera size={20} aria-hidden /> Take photo
+          <Camera size={20} aria-hidden /> {tr("Take photo")}
         </button>
         <button type="button" className="btn" onClick={() => onPick('gallery')}>
-          <Images size={20} aria-hidden /> Choose from gallery
+          <Images size={20} aria-hidden /> {tr("Choose from gallery")}
         </button>
         <button type="button" className="btn" onClick={() => onPick('file')}>
-          <FolderOpen size={20} aria-hidden /> Choose file
+          <FolderOpen size={20} aria-hidden /> {tr("Choose file")}
         </button>
       </div>
       <p className="help-text" style={{ marginTop: 14, marginBottom: 0 }}>
-        Photos, PDFs, text files and documents up to 25 MB. Files are encrypted with your vault key and never leave this device unless you export them.
+        {tr("Photos, PDFs, text files and documents up to 25 MB. Files are encrypted with your vault key and never leave this device unless you export them.")}
       </p>
     </Dialog>
   );
@@ -99,7 +100,7 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
         toast(errorMessage(e), 'error');
       }
     }
-    if (added) toast(added === 1 ? 'Attachment added and encrypted.' : `${added} attachments added and encrypted.`);
+    if (added) toast(added === 1 ? tr("Attachment added and encrypted.") : tr("{0} attachments added and encrypted.", [added]));
     if (dups.length) setDupQueue((q) => [...q, ...dups]);
     await afterChange();
   };
@@ -113,7 +114,7 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
       const inputs = await readPicked(
         files,
         (m) => toast(m, 'error'),
-        () => toast('Large file — encrypting may take a moment.')
+        () => toast(tr("Large file — encrypting may take a moment."))
       );
       await addInputs(inputs);
     } finally {
@@ -126,20 +127,20 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
   const files = (items ?? []).filter((a) => !isImage(a.mime));
 
   return (
-    <section className="att-section" aria-label="Attachments">
+    <section className="att-section" aria-label={tr("Attachments")}>
       <div className="att-head">
         <span className="label">
-          <Paperclip size={12} aria-hidden style={{ verticalAlign: -1 }} /> Attachments {items && items.length > 0 ? `(${items.length})` : ''}
+          <Paperclip size={12} aria-hidden style={{ verticalAlign: -1 }} /> {tr("Attachments")} {items && items.length > 0 ? `(${items.length})` : ''}
         </span>
         <button type="button" className="btn sm" onClick={() => setAdding(true)} disabled={busy}>
-          {busy ? <span className="spinner" aria-hidden /> : <Plus size={14} aria-hidden />} Add attachment
+          {busy ? <span className="spinner" aria-hidden /> : <Plus size={14} aria-hidden />} {tr("Add attachment")}
         </button>
       </div>
       {items === null ? (
         expected === 0 ? (
-          <div className="att-empty">No attachments. Add photos of documents, PDFs or other files.</div>
+          <div className="att-empty">{tr("No attachments. Add photos of documents, PDFs or other files.")}</div>
         ) : (
-          <div className="att-grid" aria-busy="true" aria-label="Loading attachments">
+          <div className="att-grid" aria-busy="true" aria-label={tr("Loading attachments")}>
             {Array.from({ length: Math.min(6, expected ?? 1) }, (_, i) => (
               <div key={i} className="att-tile skeleton-tile" aria-hidden>
                 <span className="att-thumb skeleton" />
@@ -154,13 +155,13 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
       ) : items.length === 0 ? (
         <button type="button" className="att-empty" onClick={() => setAdding(true)} disabled={busy}>
           <Paperclip size={18} aria-hidden />
-          <span>No attachments yet</span>
-          <span className="att-empty-sub">Add photos of documents, PDFs or other files. They are encrypted with your vault key.</span>
+          <span>{tr("No attachments yet")}</span>
+          <span className="att-empty-sub">{tr("Add photos of documents, PDFs or other files. They are encrypted with your vault key.")}</span>
         </button>
       ) : (
         <>
           {images.length > 0 && (
-            <div className="photo-grid" role="list" aria-label={`Photos (${images.length})`}>
+            <div className="photo-grid" role="list" aria-label={tr("Photos ({0})", [images.length])}>
               {images.map((a) => (
                 <div role="listitem" key={a.id}>
                   <PhotoCard meta={a} hidden={hidePreviews} onOpen={() => setViewing(a.id)} />
@@ -169,7 +170,7 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
             </div>
           )}
           {files.length > 0 && (
-            <div className="doc-list" role="list" aria-label={`Documents and files (${files.length})`}>
+            <div className="doc-list" role="list" aria-label={tr("Documents and files ({0})", [files.length])}>
               {files.map((a) => (
                 <div role="listitem" key={a.id}>
                   <DocumentCard meta={a} hidden={hidePreviews} onOpen={() => setDoc(a)} />
@@ -184,14 +185,14 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
 
       {dup && (
         <Dialog placement="center"
-          title="Possible duplicate"
+          title={tr("Possible duplicate")}
           onClose={() => setDupQueue((q) => q.slice(1))}
           size="narrow"
           role="alertdialog"
           footer={
             <>
               <button type="button" className="btn" onClick={() => setDupQueue((q) => q.slice(1))} data-autofocus>
-                Cancel
+                {tr("Cancel")}
               </button>
               <button
                 type="button"
@@ -201,13 +202,13 @@ export function AttachmentsSection({ entryId, cardRoles, hidePreviews, onChanged
                   await addInputs([{ ...dup.input, allowDuplicate: true }]);
                 }}
               >
-                Keep both
+                {tr("Keep both")}
               </button>
             </>
           }
         >
           <p style={{ margin: 0 }}>
-            This file appears to already be attached as <strong>{dup.existing.name}</strong> ({formatBytes(dup.existing.size)}, added {formatDateTime(dup.existing.createdAt)}).
+            {tr("This file appears to already be attached as")} <strong>{dup.existing.name}</strong> ({formatBytes(dup.existing.size)}{tr(", added")} {formatDateTime(dup.existing.createdAt)}).
           </p>
         </Dialog>
       )}
@@ -236,15 +237,15 @@ function PhotoCard({ meta, hidden, onOpen }: { meta: AttachmentMeta; hidden: boo
       type="button"
       className="photo-card"
       onClick={() => (blurred && meta.thumb ? setPeek(true) : onOpen())}
-      aria-label={`${meta.name}, image, ${formatBytes(meta.size)}${blurred && meta.thumb ? '. Preview hidden, tap to show' : ''}`}
+      aria-label={tr("{0}, image, {1}{2}", [meta.name, formatBytes(meta.size), blurred && meta.thumb ? '. Preview hidden, tap to show' : ''])}
     >
       <span className={`photo-thumb ${blurred ? 'hidden' : ''}`} aria-hidden>
         {meta.thumb ? <img src={meta.thumb} alt="" loading="lazy" decoding="async" /> : <ImageIcon size={26} strokeWidth={1.5} />}
       </span>
-      {meta.role && <span className="att-role">{meta.role === 'front' ? 'Card front' : 'Card back'}</span>}
+      {meta.role && <span className="att-role">{meta.role === 'front' ? tr("Card front") : tr("Card back")}</span>}
       {blurred && meta.thumb && (
         <span className="photo-hidden" aria-hidden>
-          <EyeOff size={16} /> Tap to show
+          <EyeOff size={16} /> {tr("Tap to show")}
         </span>
       )}
       <span className="photo-caption" aria-hidden>
@@ -277,7 +278,7 @@ function DocumentCard({ meta, hidden, onOpen }: { meta: AttachmentMeta; hidden: 
   const Icon = KIND_ICON[kind];
   const badge = fileBadge(meta.name, meta.mime);
   return (
-    <button type="button" className={`doc-card kind-${kind}`} onClick={onOpen} aria-label={`${meta.name}, ${kindLabel(meta.mime)}, ${formatBytes(meta.size)}, added ${formatDate(meta.createdAt)}`}>
+    <button type="button" className={`doc-card kind-${kind}`} onClick={onOpen} aria-label={tr("{0}, {1}, {2}, added {3}", [meta.name, kindLabel(meta.mime), formatBytes(meta.size), formatDate(meta.createdAt)])}>
       <span className={paper ? 'doc-paper' : 'doc-tile'} aria-hidden>
         {meta.thumb && !hidden ? (
           <img src={meta.thumb} alt="" loading="lazy" decoding="async" />
@@ -315,7 +316,7 @@ function useAttachmentActions(entryId: string, onChanged: () => Promise<void> | 
     exportFile: async (meta: AttachmentMeta) => {
       try {
         const r = await unwrap(api.attachments.exportFile(entryId, meta.id));
-        if (r) toast(isPhone() ? 'Exported. A decrypted copy now exists wherever you saved it.' : 'Exported. The saved copy is not encrypted.');
+        if (r) toast(isPhone() ? tr("Exported. A decrypted copy now exists wherever you saved it.") : tr("Exported. The saved copy is not encrypted."));
       } catch (e) {
         toast(errorMessage(e), 'error');
       }
@@ -330,7 +331,7 @@ function useAttachmentActions(entryId: string, onChanged: () => Promise<void> | 
     remove: async (meta: AttachmentMeta) => {
       try {
         await unwrap(api.attachments.remove(entryId, meta.id));
-        toast('Attachment deleted.');
+        toast(tr("Attachment deleted."));
         await onChanged();
         return true;
       } catch (e) {
@@ -351,7 +352,7 @@ function useAttachmentActions(entryId: string, onChanged: () => Promise<void> | 
     setRole: async (meta: AttachmentMeta, role: 'front' | 'back' | null) => {
       try {
         await unwrap(api.attachments.update(entryId, meta.id, { role }));
-        toast(role ? `Set as the card ${role}.` : 'Removed from the card.');
+        toast(role ? tr("Set as the card {0}.", [role]) : tr("Removed from the card."));
         await onChanged();
       } catch (e) {
         toast(errorMessage(e), 'error');
@@ -371,17 +372,17 @@ function RenameDialog({ meta, onClose, onSave }: { meta: AttachmentMeta; onClose
   };
   return (
     <Dialog placement="center"
-      title="Rename attachment"
+      title={tr("Rename attachment")}
       onClose={onClose}
       size="narrow"
       busy={busy}
       footer={
         <>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn primary" onClick={() => void save()} disabled={busy || !name.trim()}>
-            Save
+            {tr("Save")}
           </button>
         </>
       }
@@ -393,7 +394,7 @@ function RenameDialog({ meta, onClose, onSave }: { meta: AttachmentMeta; onClose
         }}
       >
         <div className="field">
-          <label htmlFor="att-name">File name</label>
+          <label htmlFor="att-name">{tr("File name")}</label>
           <input id="att-name" className="input" value={name} maxLength={200} onChange={(e) => setName(e.target.value)} autoComplete="off" data-autofocus />
         </div>
       </form>
@@ -450,47 +451,47 @@ export function DocumentViewer({ entryId, meta, onClose, onChanged }: { entryId:
         footer={
           <>
             <button type="button" className="btn danger left" onClick={() => setConfirmDelete(true)}>
-              <Trash size={15} aria-hidden /> Delete
+              <Trash size={15} aria-hidden /> {tr("Delete")}
             </button>
             {isPhone() && (
               <button type="button" className="btn" onClick={() => void actions.openWith(meta)}>
-                <ExternalLink size={15} aria-hidden /> Open with…
+                <ExternalLink size={15} aria-hidden /> {tr("Open with…")}
               </button>
             )}
             <button type="button" className="btn" onClick={() => void actions.exportFile(meta)}>
-              <Download size={15} aria-hidden /> Export
+              <Download size={15} aria-hidden /> {tr("Export")}
             </button>
           </>
         }
       >
         <dl className="kv card">
-          <dt>Name</dt>
+          <dt>{tr("Name")}</dt>
           <dd className="row-flex" style={{ gap: 6 }}>
             <span style={{ wordBreak: 'break-word' }}>{meta.name}</span>
-            <button type="button" className="icon-btn" onClick={() => setRenaming(true)} aria-label="Rename attachment" title="Rename">
+            <button type="button" className="icon-btn" onClick={() => setRenaming(true)} aria-label={tr("Rename attachment")} title={tr("Rename")}>
               <Pencil size={14} />
             </button>
           </dd>
-          <dt>Type</dt>
+          <dt>{tr("Type")}</dt>
           <dd>
             {kindLabel(meta.mime)} <span className="dim">({meta.mime})</span>
           </dd>
-          <dt>Size</dt>
+          <dt>{tr("Size")}</dt>
           <dd>{formatBytes(meta.size)}</dd>
-          <dt>Added</dt>
+          <dt>{tr("Added")}</dt>
           <dd>{formatDateTime(meta.createdAt)}</dd>
-          <dt>Storage</dt>
-          <dd>Encrypted (AES-256-GCM) inside your vault</dd>
+          <dt>{tr("Storage")}</dt>
+          <dd>{tr("Encrypted (AES-256-GCM) inside your vault")}</dd>
         </dl>
         {canPreview && !text && !pages && (
           <button type="button" className="btn" style={{ marginTop: 14 }} onClick={() => void preview()} disabled={loading}>
-            {loading ? <span className="spinner" aria-hidden /> : <FileText size={15} aria-hidden />} Show preview
+            {loading ? <span className="spinner" aria-hidden /> : <FileText size={15} aria-hidden />} {tr("Show preview")}
           </button>
         )}
         {!canPreview && (
           <p className="help-text" style={{ marginTop: 14 }}>
-            {isPdf(meta.mime) ? 'PDF preview is available in the phone app. ' : 'This file type cannot be previewed inside VaultLocks. '}
-            {isPhone() ? 'Use “Open with…” to view it in another app; the temporary copy is deleted automatically.' : 'Use Export to save a copy you can open.'}
+            {isPdf(meta.mime) ? tr("PDF preview is available in the phone app. ") : tr("This file type cannot be previewed inside VaultLocks. ")}
+            {isPhone() ? tr("Use “Open with…” to view it in another app; the temporary copy is deleted automatically.") : tr("Use Export to save a copy you can open.")}
           </p>
         )}
         {previewError && (
@@ -504,22 +505,22 @@ export function DocumentViewer({ entryId, meta, onClose, onChanged }: { entryId:
           </div>
         )}
         {pages && (
-          <div className="doc-preview" aria-label="PDF preview">
+          <div className="doc-preview" aria-label={tr("PDF preview")}>
             {pages.map((src, i) => (
-              <img key={i} src={src} alt={`Page ${i + 1}`} />
+              <img key={i} src={src} alt={tr("Page {0}", [i + 1])} />
             ))}
-            {pages.length === 0 && <div className="card-pad muted">This PDF has no pages.</div>}
+            {pages.length === 0 && <div className="card-pad muted">{tr("This PDF has no pages.")}</div>}
           </div>
         )}
       </Dialog>
       {confirmDelete && (
         <ConfirmDialog placement="center"
-          title="Delete attachment?"
+          title={tr("Delete attachment?")}
           danger
-          confirmLabel="Delete attachment"
+          confirmLabel={tr("Delete attachment")}
           message={
             <>
-              <strong style={{ color: 'var(--fg)' }}>{meta.name}</strong> will be permanently removed from this item. This cannot be undone.
+              <strong style={{ color: 'var(--fg)' }}>{meta.name}</strong> {tr("will be permanently removed from this item. This cannot be undone.")}
             </>
           }
           onCancel={() => setConfirmDelete(false)}
@@ -698,9 +699,9 @@ export function ImageViewer({
   };
 
   return createPortal(
-    <div ref={ref} className="viewer" role="dialog" aria-modal="true" aria-label={`Image viewer: ${meta.name}`} tabIndex={-1} onKeyDown={onKey}>
+    <div ref={ref} className="viewer" role="dialog" aria-modal="true" aria-label={tr("Image viewer: {0}", [meta.name])} tabIndex={-1} onKeyDown={onKey}>
       <div className="viewer-top">
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close viewer">
+        <button type="button" className="icon-btn" onClick={onClose} aria-label={tr("Close viewer")}>
           <X size={20} />
         </button>
         <span className="viewer-title">{meta.name}</span>
@@ -709,7 +710,7 @@ export function ImageViewer({
             {index + 1} / {images.length}
           </span>
         )}
-        <button type="button" className="icon-btn" onClick={() => setConfirmDelete(true)} aria-label="Delete image">
+        <button type="button" className="icon-btn" onClick={() => setConfirmDelete(true)} aria-label={tr("Delete image")}>
           <Trash size={18} />
         </button>
       </div>
@@ -729,26 +730,26 @@ export function ImageViewer({
             {error}
           </div>
         ) : (
-          <span className="skeleton viewer-skeleton" role="status" aria-label="Decrypting image" />
+          <span className="skeleton viewer-skeleton" role="status" aria-label={tr("Decrypting image")} />
         )}
       </div>
 
       {images.length > 1 && (
         <>
-          <button type="button" className="icon-btn viewer-nav prev" onClick={() => go(-1)} aria-label="Previous image">
+          <button type="button" className="icon-btn viewer-nav prev" onClick={() => go(-1)} aria-label={tr("Previous image")}>
             <ChevronLeft size={24} />
           </button>
-          <button type="button" className="icon-btn viewer-nav next" onClick={() => go(1)} aria-label="Next image">
+          <button type="button" className="icon-btn viewer-nav next" onClick={() => go(1)} aria-label={tr("Next image")}>
             <ChevronRight size={24} />
           </button>
         </>
       )}
 
       <div className="viewer-bottom">
-        <button type="button" className="icon-btn" onClick={() => zoomBy(1 / 1.4)} disabled={scale <= 1} aria-label="Zoom out">
+        <button type="button" className="icon-btn" onClick={() => zoomBy(1 / 1.4)} disabled={scale <= 1} aria-label={tr("Zoom out")}>
           <ZoomOut size={18} />
         </button>
-        <button type="button" className="icon-btn" onClick={() => zoomBy(1.4)} disabled={scale >= MAX_SCALE} aria-label="Zoom in">
+        <button type="button" className="icon-btn" onClick={() => zoomBy(1.4)} disabled={scale >= MAX_SCALE} aria-label={tr("Zoom in")}>
           <ZoomIn size={18} />
         </button>
         {cardRoles && (
@@ -760,7 +761,7 @@ export function ImageViewer({
               onClick={() => void actions.setRole(meta, meta.role === 'front' ? null : 'front')}
               aria-pressed={meta.role === 'front'}
             >
-              <ImagePlus size={14} aria-hidden /> {meta.role === 'front' ? 'Card front ✓' : 'Use as card front'}
+              <ImagePlus size={14} aria-hidden /> {meta.role === 'front' ? tr("Card front ✓") : tr("Use as card front")}
             </button>
             <button
               type="button"
@@ -769,23 +770,23 @@ export function ImageViewer({
               onClick={() => void actions.setRole(meta, meta.role === 'back' ? null : 'back')}
               aria-pressed={meta.role === 'back'}
             >
-              {meta.role === 'back' ? 'Card back ✓' : 'Use as back'}
+              {meta.role === 'back' ? tr("Card back ✓") : tr("Use as back")}
             </button>
           </>
         )}
-        <button type="button" className="icon-btn" onClick={() => void actions.exportFile(meta)} aria-label="Export image">
+        <button type="button" className="icon-btn" onClick={() => void actions.exportFile(meta)} aria-label={tr("Export image")}>
           <Download size={18} />
         </button>
       </div>
 
       {confirmDelete && (
         <ConfirmDialog placement="center"
-          title="Delete image?"
+          title={tr("Delete image?")}
           danger
-          confirmLabel="Delete image"
+          confirmLabel={tr("Delete image")}
           message={
             <>
-              <strong style={{ color: 'var(--fg)' }}>{meta.name}</strong> will be permanently removed from this item. This cannot be undone.
+              <strong style={{ color: 'var(--fg)' }}>{meta.name}</strong> {tr("will be permanently removed from this item. This cannot be undone.")}
             </>
           }
           onCancel={() => setConfirmDelete(false)}

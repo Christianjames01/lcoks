@@ -14,6 +14,7 @@ import { TagInput } from '../components/TagInput';
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
 import type { EditorState } from './VaultApp';
 
+import { tr } from '../../shared/i18n';
 interface Props {
   state: NonNullable<EditorState>;
   snap: VaultSnapshot;
@@ -142,7 +143,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
       const inputs = await readPicked(
         files,
         (m) => toast(m, 'error'),
-        () => toast('Large file — this may take a moment.')
+        () => toast(tr("Large file — this may take a moment."))
       );
       setPending((p) => {
         const next = [...p];
@@ -244,7 +245,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
               spellCheck={false}
             />
             <span className="help-text row-flex" style={{ gap: 6 }}>
-              <ShieldCheck size={13} aria-hidden /> Encrypted at rest and hidden by default when viewing.
+              <ShieldCheck size={13} aria-hidden /> {tr("Encrypted at rest and hidden by default when viewing.")}
             </span>
           </>
         );
@@ -293,7 +294,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
           {def.label}
           {scanned?.keys.includes(def.key) && (
             <span className="scan-tag">
-              <Check size={11} aria-hidden /> {scanned.viaQr ? 'From QR code' : scanned.checked.includes(def.key) ? 'Checked' : 'From photo'}
+              <Check size={11} aria-hidden /> {scanned.viaQr ? tr("From QR code") : scanned.checked.includes(def.key) ? tr("Checked") : tr("From photo")}
             </span>
           )}
         </label>
@@ -305,26 +306,26 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
 
   return (
     <Dialog placement="center"
-      title={isEdit ? 'Edit item' : 'Add new item'}
+      title={isEdit ? tr("Edit item") : tr("Add new item")}
       onClose={onClose}
       size="wide"
       busy={busy}
       footer={
         <>
-          <span className="left help-text desktop-only">Enter to save · Esc to cancel</span>
+          <span className="left help-text desktop-only">{tr("Enter to save · Esc to cancel")}</span>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="submit" form="entry-form" className="btn primary" disabled={busy || loading}>
             {busy && <span className="spinner" aria-hidden />}
-            {isEdit ? 'Save changes' : 'Save securely'}
+            {isEdit ? tr("Save changes") : tr("Save securely")}
           </button>
         </>
       }
     >
       {loading ? (
         <div className="empty">
-          <span className="spinner" aria-label="Loading" />
+          <span className="spinner" aria-label={tr("Loading")} />
         </div>
       ) : (
         <form
@@ -341,7 +342,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
         >
           <div className="grid-2">
             <div className="field">
-              <label htmlFor="f-category">Category</label>
+              <label htmlFor="f-category">{tr("Category")}</label>
               <select id="f-category" className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
                 {snap.categories.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -351,14 +352,14 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
               </select>
             </div>
             <div className="field">
-              <label htmlFor="f-title">Title</label>
+              <label htmlFor="f-title">{tr("Title")}</label>
               <input
                 id="f-title"
                 className="input"
                 value={title}
                 maxLength={200}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder={categoryId === 'banking' ? 'e.g. BPI Savings Account' : 'e.g. GitHub'}
+                placeholder={categoryId === 'banking' ? tr("e.g. BPI Savings Account") : tr("e.g. GitHub")}
                 aria-invalid={!!errors.title || undefined}
                 aria-describedby={errors.title ? 'f-title-err' : duplicate ? 'f-title-dup' : undefined}
                 data-autofocus
@@ -370,7 +371,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
               {fieldError('title')}
               {duplicate && !errors.title && (
                 <span id="f-title-dup" className="help-text row-flex" style={{ gap: 6 }}>
-                  <Info size={13} aria-hidden /> An item with this title already exists in {category?.name}.
+                  <Info size={13} aria-hidden /> {tr("An item with this title already exists in")} {category?.name}.
                 </span>
               )}
             </div>
@@ -380,25 +381,25 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
                 <ScanLine size={16} aria-hidden />
                 <span>
                   {scanned.viaQr
-                    ? `Filled ${scanned.keys.length} field${scanned.keys.length === 1 ? '' : 's'} from the QR code.`
-                    : `Filled ${scanned.keys.length} field${scanned.keys.length === 1 ? '' : 's'} from the photo. Check each one before saving.`}
-                  {(categoryId === 'cards' || categoryId === 'giftcards') && ' CVV and PIN are never read — type them yourself.'}
+                    ? tr("Filled {0} field{1} from the QR code.", [scanned.keys.length, scanned.keys.length === 1 ? '' : 's'])
+                    : tr("Filled {0} field{1} from the photo. Check each one before saving.", [scanned.keys.length, scanned.keys.length === 1 ? '' : 's'])}
+                  {(categoryId === 'cards' || categoryId === 'giftcards') && tr(" CVV and PIN are never read — type them yourself.")}
                 </span>
               </div>
             )}
             {(category?.fields ?? []).map(renderField)}
             <div className="field span-2">
-              <label htmlFor="f-tags">Tags</label>
+              <label htmlFor="f-tags">{tr("Tags")}</label>
               <TagInput id="f-tags" tags={tags} onChange={setTags} />
             </div>
             <label className="checkbox span-2" style={{ marginBottom: 8 }}>
               <input type="checkbox" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} />
-              <span>Add to favorites</span>
+              <span>{tr("Add to favorites")}</span>
             </label>
             {state.mode === 'new' ? (
               <div className="field span-2">
                 <span className="label">
-                  <Paperclip size={12} aria-hidden style={{ verticalAlign: -1 }} /> Attachments
+                  <Paperclip size={12} aria-hidden style={{ verticalAlign: -1 }} /> {tr("Attachments")}
                 </span>
                 {pending.length > 0 && (
                   <ul className="list card" style={{ padding: 4, flex: 'none' }}>
@@ -419,7 +420,7 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
                             {formatBytes(Math.floor((a.data.length * 3) / 4))}
                           </span>
                         </span>
-                        <button type="button" className="icon-btn" aria-label={`Remove ${a.name}`} onClick={() => setPending((p) => p.filter((_, j) => j !== i))}>
+                        <button type="button" className="icon-btn" aria-label={tr("Remove {0}", [a.name])} onClick={() => setPending((p) => p.filter((_, j) => j !== i))}>
                           <X size={15} />
                         </button>
                       </li>
@@ -428,13 +429,13 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
                 )}
                 <div>
                   <button type="button" className="btn sm" onClick={() => setAddingFile(true)} disabled={readingFiles}>
-                    {readingFiles ? <span className="spinner" aria-hidden /> : <Plus size={14} aria-hidden />} Add attachment
+                    {readingFiles ? <span className="spinner" aria-hidden /> : <Plus size={14} aria-hidden />} {tr("Add attachment")}
                   </button>
                 </div>
-                <span className="help-text">Photos, PDFs and documents are encrypted and saved with the item.</span>
+                <span className="help-text">{tr("Photos, PDFs and documents are encrypted and saved with the item.")}</span>
               </div>
             ) : (
-              <span className="help-text span-2">Add or remove attachments on the item's screen.</span>
+              <span className="help-text span-2">{tr("Add or remove attachments on the item's screen.")}</span>
             )}
           </div>
           {errors.form && (
@@ -449,11 +450,11 @@ export function EntryForm({ state, snap, onClose, onSaved }: Props) {
       {addingFile && <AddAttachmentSheet onPick={(s) => void pickPending(s)} onClose={() => setAddingFile(false)} />}
       {confirmDuplicate && (
         <ConfirmDialog placement="center"
-          title="Possible duplicate"
-          confirmLabel="Save anyway"
+          title={tr("Possible duplicate")}
+          confirmLabel={tr("Save anyway")}
           message={
             <>
-              An item named <strong style={{ color: 'var(--fg)' }}>{title.trim()}</strong> already exists in {category?.name}. Save this one as well?
+              {tr("An item named")} <strong style={{ color: 'var(--fg)' }}>{title.trim()}</strong> {tr("already exists in")} {category?.name}{tr(". Save this one as well?")}
             </>
           }
           onCancel={() => setConfirmDuplicate(false)}

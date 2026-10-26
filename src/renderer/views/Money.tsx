@@ -89,6 +89,7 @@ import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { isAndroid, isIOS, isPhone } from '../lib/platform';
 
+import { dayNames, tr } from '../../shared/i18n';
 const ICONS: Record<MoneyIcon, LucideIcon> = {
   coffee: Coffee,
   food: UtensilsCrossed,
@@ -127,7 +128,7 @@ export function MoneyIconOf({ icon, size = 16 }: { icon: MoneyIcon; size?: numbe
   return <C size={size} strokeWidth={1.8} aria-hidden />;
 }
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAYS = dayNames().map((d) => d.slice(0, 3));
 
 const monthLabel = (month: string) => parseDay(`${month}-01`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 const dayLabel = (day: string) => parseDay(day).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -234,7 +235,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
       const total = before + input.amount;
       const name = input.category === COFFEE ? '☕ Coffee' : moneyCategory(input.category).name;
       setTimeout(
-        () => toast(nudge === 'over' ? `${name} budget passed: ${money(total)} of ${money(budget)} this month.` : `Heads up: ${money(total)} of your ${money(budget)} ${name} budget used.`),
+        () => toast(nudge === 'over' ? tr("{0} budget passed: {1} of {2} this month.", [name, money(total), money(budget)]) : tr("Heads up: {0} of your {1} {2} budget used.", [money(total), money(budget), name])),
         900
       );
     }
@@ -251,7 +252,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
       const t = await save({ kind: 'expense', amount: usual.amount, category: COFFEE, note: usual.note, date: selected, ...(accountId ? { accountId } : {}) });
       setSelected(t.date);
       setMonth(monthOf(t.date));
-      toast(`☕ Coffee added: ${money(t.amount)}.`);
+      toast(tr("☕ Coffee added: {0}.", [money(t.amount)]));
     } catch (err) {
       toast(errorMessage(err), 'error');
     } finally {
@@ -262,7 +263,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   const addQuick = async (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
-    if (!parsed) return toast('Add an amount, e.g. "lunch 150".', 'error');
+    if (!parsed) return toast(tr("Add an amount, e.g. \"lunch 150\"."), 'error');
     setBusy(true);
     try {
       // Typed "yesterday"/"today" wins; otherwise the record goes on the day selected in the calendar.
@@ -271,7 +272,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
       setQuick('');
       setSelected(t.date);
       setMonth(monthOf(t.date));
-      toast(`${t.kind === 'income' ? 'Income' : 'Expense'} of ${money(t.amount)} added.`);
+      toast(tr("{0} of {1} added.", [t.kind === 'income' ? 'Income' : 'Expense', money(t.amount)]));
     } catch (err) {
       toast(errorMessage(err), 'error');
     } finally {
@@ -293,23 +294,23 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   return (
     <div className="page money">
       <div className="page-narrow">
-        {!mobile && <h1 className="h1 money-title">Expenses</h1>}
-        <section className="money-summary" aria-label={`Summary for ${monthLabel(month)}`}>
+        {!mobile && <h1 className="h1 money-title">{tr("Expenses")}</h1>}
+        <section className="money-summary" aria-label={tr("Summary for {0}", [monthLabel(month)])}>
           <div className="ms-card spent">
             <span className="ms-label">
-              <TrendingDown size={14} aria-hidden /> Spent
+              <TrendingDown size={14} aria-hidden /> {tr("Spent")}
             </span>
             <span className="ms-value" title={money(sums.expense)}>{money(sums.expense, { compact: mobile })}</span>
           </div>
           <div className="ms-card income">
             <span className="ms-label">
-              <TrendingUp size={14} aria-hidden /> Income
+              <TrendingUp size={14} aria-hidden /> {tr("Income")}
             </span>
             <span className="ms-value" title={money(sums.income)}>{money(sums.income, { compact: mobile })}</span>
           </div>
           <div className="ms-card">
             <span className="ms-label">
-              <Wallet size={14} aria-hidden /> Balance
+              <Wallet size={14} aria-hidden /> {tr("Balance")}
             </span>
             <span className="ms-value" title={money(sums.net, { sign: true })}>{money(sums.net, { sign: true, compact: mobile })}</span>
           </div>
@@ -317,20 +318,20 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
             <button type="button" className={`ms-budget ${budgetLeft < 0 ? 'over' : ''}`} onClick={() => setSetup(true)}>
               <span className="ms-budget-row">
                 <span className="ms-label">
-                  <PiggyBank size={14} aria-hidden /> Budget {money(monthlyBudget)}
+                  <PiggyBank size={14} aria-hidden /> {tr("Budget")} {money(monthlyBudget)}
                 </span>
                 <span className="ms-budget-left">
-                  {budgetLeft >= 0 ? `${money(budgetLeft)} left` : `${money(-budgetLeft)} over`}
-                  {isCurrent && budgetLeft > 0 && daysLeft > 0 ? ` · ${money(Math.floor(budgetLeft / daysLeft))}/day` : ''}
+                  {budgetLeft >= 0 ? tr("{0} left", [money(budgetLeft)]) : tr("{0} over", [money(-budgetLeft)])}
+                  {isCurrent && budgetLeft > 0 && daysLeft > 0 ? tr(" · {0}/day", [money(Math.floor(budgetLeft / daysLeft))]) : ''}
                 </span>
               </span>
-              <span className="ms-bar" role="img" aria-label={`${Math.round(budgetPct)}% of budget used`}>
+              <span className="ms-bar" role="img" aria-label={tr("{0}% of budget used", [Math.round(budgetPct)])}>
                 <span style={{ width: `${budgetPct}%` }} />
               </span>
             </button>
           ) : (
             <button type="button" className="ms-budget empty" onClick={() => setSetup(true)}>
-              <PiggyBank size={15} aria-hidden /> Set a monthly budget
+              <PiggyBank size={15} aria-hidden /> {tr("Set a monthly budget")}
             </button>
           )}
         </section>
@@ -342,15 +343,15 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
             className="input"
             value={quick}
             onChange={(e) => setQuick(e.target.value)}
-            placeholder={mobile ? 'e.g. "lunch 150" or "salary 30k"' : 'Type "lunch 150", "grab 85 yesterday" or "salary 30k"'}
-            aria-label="Quick add expense or income"
+            placeholder={mobile ? tr("e.g. \"lunch 150\" or \"salary 30k\"") : tr("Type \"lunch 150\", \"grab 85 yesterday\" or \"salary 30k\"")}
+            aria-label={tr("Quick add expense or income")}
             autoComplete="off"
             enterKeyHint="done"
             maxLength={200}
           />
           <button type="submit" className="btn primary" disabled={busy || !parsed}>
             {busy ? <span className="spinner" aria-hidden /> : <Plus size={16} aria-hidden />}
-            <span className="btn-text">Add</span>
+            <span className="btn-text">{tr("Add")}</span>
           </button>
           {quick.trim() && (
             <div className="quick-preview" aria-live="polite">
@@ -360,7 +361,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
                     <MoneyIconFor category={parsed.category} size={14} />
                   </span>
                   <span>
-                    {parsed.kind === 'income' ? 'Money in' : 'Expense'} · {moneyCategory(parsed.category).name}
+                    {parsed.kind === 'income' ? tr("Money in") : tr("Expense")} · {moneyCategory(parsed.category).name}
                     {parsed.accountId ? ` · ${snap.accounts.find((a) => a.id === parsed.accountId)?.name ?? ''}` : ''} · <strong>{money(parsed.amount)}</strong>
                     {' · '}
                     {/\b(yesterday|kahapon|today|ngayon)\b/i.test(quick) ? dayLabel(parsed.date) : dayLabel(selected)}
@@ -376,20 +377,20 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
                       })
                     }
                   >
-                    Edit details
+                    {tr("Edit details")}
                   </button>
                 </>
               ) : (
-                <span className="dim">Add an amount, e.g. “lunch 150”.</span>
+                <span className="dim">{tr("Add an amount, e.g. “lunch 150”.")}</span>
               )}
             </div>
           )}
         </form>
         {showUsual && (
           <div className="coffee-quick">
-            <button type="button" className="coffee-chip" onClick={addUsual} disabled={busy} title="Add your usual coffee to the selected day">
+            <button type="button" className="coffee-chip" onClick={addUsual} disabled={busy} title={tr("Add your usual coffee to the selected day")}>
               <Coffee size={15} strokeWidth={1.9} aria-hidden />
-              <span>Usual coffee</span>
+              <span>{tr("Usual coffee")}</span>
               <strong>{money(usual.amount)}</strong>
               {usual.accountId && snap.accounts.find((a) => a.id === usual.accountId) && <span className="dim">· {snap.accounts.find((a) => a.id === usual.accountId)!.name}</span>}
             </button>
@@ -397,14 +398,14 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
         )}
 
         <header className="money-head">
-          <div className="month-switch" role="group" aria-label="Month">
-            <button type="button" className="icon-btn" onClick={() => goMonth(-1)} aria-label="Previous month">
+          <div className="month-switch" role="group" aria-label={tr("Month")}>
+            <button type="button" className="icon-btn" onClick={() => goMonth(-1)} aria-label={tr("Previous month")}>
               <ChevronLeft size={18} />
             </button>
             <span className="month-label" aria-live="polite">
               {monthLabel(month)}
             </span>
-            <button type="button" className="icon-btn" onClick={() => goMonth(1)} aria-label="Next month">
+            <button type="button" className="icon-btn" onClick={() => goMonth(1)} aria-label={tr("Next month")}>
               <ChevronRight size={18} />
             </button>
           </div>
@@ -417,20 +418,20 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
                 setSelected(today);
               }}
             >
-              Today
+              {tr("Today")}
             </button>
           )}
-          <button type="button" className="icon-btn" onClick={() => setSearchOpen(true)} aria-label="Search expenses" title="Search expenses">
+          <button type="button" className="icon-btn" onClick={() => setSearchOpen(true)} aria-label={tr("Search expenses")} title={tr("Search expenses")}>
             <Search size={18} />
           </button>
-          <button type="button" className="icon-btn" onClick={() => setSetup(true)} aria-label="Budget and currency" title="Budget and currency">
+          <button type="button" className="icon-btn" onClick={() => setSetup(true)} aria-label={tr("Budget and currency")} title={tr("Budget and currency")}>
             <Settings2 size={18} />
           </button>
         </header>
 
 
         <div className="money-grid">
-          <section className="card cal" aria-label={`Calendar, ${monthLabel(month)}`}>
+          <section className="card cal" aria-label={tr("Calendar, {0}", [monthLabel(month)])}>
             <HeatFilterBar txs={snap.transactions} month={month} accounts={snap.accounts} filter={heatFilter} onChange={setHeatFilter} />
             <Calendar month={month} today={today} selected={selected} byDay={byDay} maxDay={maxDay} dailyBudget={dailyBudget} money={money} onSelect={setSelected} />
             <HeatLegend onYear={() => setYearOpen(true)} cashIn={[...byDay.values()].some((d) => d.income > 0)} overBudget={dailyBudget ? money(dailyBudget) : undefined} />
@@ -444,13 +445,13 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
                   <div className="dim small">
                     {(() => {
                       const d = totals(dayList);
-                      return `Spent ${money(d.expense)}${d.income ? ` · Income ${money(d.income)}` : ''}`;
+                      return d.income ? tr('Spent {0} · Income {1}', [money(d.expense), money(d.income)]) : tr('Spent {0}', [money(d.expense)]);
                     })()}
                   </div>
                 )}
               </div>
               <button type="button" className="btn sm" onClick={() => setEditing({ date: selected, kind: 'expense' })}>
-                <Plus size={14} aria-hidden /> Add
+                <Plus size={14} aria-hidden /> {tr("Add")}
               </button>
             </div>
             {dayTransfers.length > 0 && (
@@ -465,7 +466,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
             {dayList.length === 0 && dayTransfers.length === 0 ? (
               <div className="day-empty">
                 <CalendarDays size={20} aria-hidden />
-                <span>Nothing recorded on this day.</span>
+                <span>{tr("Nothing recorded on this day.")}</span>
               </div>
             ) : (
               <>
@@ -476,7 +477,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
                   </li>
                 ))}
               </ul>
-              <p className="hold-hint">Swipe right, or press and hold, to edit or delete.</p>
+              <p className="hold-hint">{tr("Swipe right, or press and hold, to edit or delete.")}</p>
               </>
             )}
           </section>
@@ -509,17 +510,17 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
         <CoffeeCorner snap={snap} month={month} money={(v) => money(v)} onBudget={() => setSetup(true)} onChanged={onChanged} />
 
         <div className="section-title">
-          <span className="label">Spending by category</span>
+          <span className="label">{tr("Spending by category")}</span>
           <span className="dim small">{monthLabel(month)}</span>
         </div>
         {breakdown.length === 0 ? (
-          <EmptyState card art="category" title="No expenses this month" text="Type an expense above, or tap a day in the calendar and press Add." />
+          <EmptyState card art="category" title={tr("No expenses this month")} text={tr("Type an expense above, or tap a day in the calendar and press Add.")} />
         ) : (
           <ul className="card breakdown">
             {breakdown.map(([cat, amount]) => (
               <li key={cat}>
                 <HoldArea className="bd-hold" title={moneyCategory(cat).name} items={breakdownActions.itemsFor(moneyCategory(cat))}>
-                <button type="button" className="bd-row bd-btn" onClick={() => setCategoryView(cat)} aria-label={`${moneyCategory(cat).name}: ${money(amount)}. Show details`}>
+                <button type="button" className="bd-row bd-btn" onClick={() => setCategoryView(cat)} aria-label={tr("{0}: {1}. Show details", [moneyCategory(cat).name, money(amount)])}>
                 <span className="bd-icon">
                   <MoneyIconFor category={cat} />
                 </span>
@@ -610,14 +611,14 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
             setSelected(t.date);
             setMonth(monthOf(t.date));
             setEditing(null);
-            toast(input.id ? 'Changes saved.' : t.kind === 'income' ? `Cash added: ${money(t.amount)}.` : `Expense added: ${money(t.amount)}.`);
+            toast(input.id ? tr("Changes saved.") : t.kind === 'income' ? tr("Cash added: {0}.", [money(t.amount)]) : tr("Expense added: {0}.", [money(t.amount)]));
           }}
           onDelete={async (id) => {
             await unwrap(api.vault.deleteTransaction(id));
             api.app.haptic('warning');
             await onChanged();
             setEditing(null);
-            toast('Record deleted.');
+            toast(tr("Record deleted."));
           }}
         />
       )}
@@ -768,8 +769,8 @@ function TxRow({
   );
   if (!onDelete) return row;
   const actions = [
-    { key: 'edit', label: 'Edit', icon: <Pencil size={16} aria-hidden />, run: onOpen },
-    { key: 'delete', label: 'Delete', icon: <Trash size={16} aria-hidden />, danger: true, run: () => onDelete(tx) }
+    { key: 'edit', label: tr("Edit"), icon: <Pencil size={16} aria-hidden />, run: onOpen },
+    { key: 'delete', label: tr("Delete"), icon: <Trash size={16} aria-hidden />, danger: true, run: () => onDelete(tx) }
   ];
   return (
     <HoldArea className="tx-line" title={tx.note || cat.name} items={actions} swipe={actions} onDelete={() => onDelete(tx)}>
@@ -785,10 +786,10 @@ function useDeleteTx(onChanged: () => Promise<void>) {
   const dialog = target && (
     <ConfirmDialog
       placement="center"
-      title={target.kind === 'income' ? 'Delete this cash in?' : 'Delete this expense?'}
+      title={target.kind === 'income' ? tr("Delete this cash in?") : tr("Delete this expense?")}
       danger
-      confirmLabel="Delete"
-      message={`${target.note || moneyCategory(target.category).name} will be deleted and the account balance updated.`}
+      confirmLabel={tr("Delete")}
+      message={tr("{0} will be deleted and the account balance updated.", [target.note || moneyCategory(target.category).name])}
       onCancel={() => setTarget(null)}
       onConfirm={async () => {
         try {
@@ -796,7 +797,7 @@ function useDeleteTx(onChanged: () => Promise<void>) {
           api.app.haptic('warning');
           await onChanged();
           setTarget(null);
-          toast('Deleted.');
+          toast(tr("Deleted."));
         } catch (err) {
           toast(errorMessage(err), 'error');
         }
@@ -865,8 +866,8 @@ function TxEditor({
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
     const minor = toMinor(amount);
-    if (minor === null) return setError('Enter an amount greater than zero.');
-    if (!date) return setError('Choose a date.');
+    if (minor === null) return setError(tr("Enter an amount greater than zero."));
+    if (!date) return setError(tr("Choose a date."));
     setBusy(true);
     setError(null);
     try {
@@ -881,36 +882,36 @@ function TxEditor({
     <>
       <Dialog
         placement="center"
-        title={existing ? (kind === 'income' ? 'Edit cash in' : 'Edit expense') : kind === 'income' ? 'Add cash' : 'Add expense'}
+        title={existing ? (kind === 'income' ? tr("Edit cash in") : tr("Edit expense")) : kind === 'income' ? tr("Add cash") : tr("Add expense")}
         onClose={onClose}
         busy={busy}
         footer={
           <>
             {existing && (
               <button type="button" className="btn danger left" onClick={() => setConfirm(true)} disabled={busy}>
-                <Trash size={15} aria-hidden /> Delete
+                <Trash size={15} aria-hidden /> {tr("Delete")}
               </button>
             )}
             <button type="button" className="btn" onClick={onClose} disabled={busy}>
-              Cancel
+              {tr("Cancel")}
             </button>
             <button type="button" className={`btn primary tx-save is-${kind}`} onClick={() => void submit()} disabled={busy}>
-              {busy && <span className="spinner" aria-hidden />} {kind === 'income' ? 'Add cash' : 'Save expense'}
+              {busy && <span className="spinner" aria-hidden />} {kind === 'income' ? tr("Add cash") : tr("Save expense")}
             </button>
           </>
         }
       >
         <form onSubmit={submit} noValidate>
-          <div className={`segmented tx-kind is-${kind}`} role="group" aria-label="Type">
+          <div className={`segmented tx-kind is-${kind}`} role="group" aria-label={tr("Type")}>
             <button type="button" aria-pressed={kind === 'expense'} onClick={() => switchKind('expense')}>
-              − Expense
+              {tr("− Expense")}
             </button>
             <button type="button" aria-pressed={kind === 'income'} onClick={() => switchKind('income')}>
-              + Add cash
+              {tr("+ Add cash")}
             </button>
             {!existing && accounts.length > 1 && (
               <button type="button" aria-pressed={false} onClick={onTransfer}>
-                ⇄ Transfer
+                {tr("⇄ Transfer")}
               </button>
             )}
           </div>
@@ -932,7 +933,7 @@ function TxEditor({
               }}
             />
           )}
-          {scanned && <div className="notice scan-notice">Filled from the receipt. Check the amount, store and date before saving.</div>}
+          {scanned && <div className="notice scan-notice">{tr("Filled from the receipt. Check the amount, store and date before saving.")}</div>}
           {details && <ReceiptCard r={details} currency={currency} onRemove={() => setDetails(undefined)} />}
           {!existing && kind === 'expense' && (
             <button
@@ -940,11 +941,11 @@ function TxEditor({
               className="btn sm split-link"
               onClick={() => onSplit({ total: toMinor(amount) ?? undefined, note, category, accountId, date })}
             >
-              <Users size={14} aria-hidden /> Split with friends
+              <Users size={14} aria-hidden /> {tr("Split with friends")}
             </button>
           )}
           <div className="field amount-field">
-            <label htmlFor="tx-amount">Amount ({currency})</label>
+            <label htmlFor="tx-amount">{tr("Amount (")}{currency})</label>
             <input
               id="tx-amount"
               className="input amount-input"
@@ -967,8 +968,8 @@ function TxEditor({
             )}
           </div>
           <div className="field">
-            <span className="label">Category</span>
-            <div className="cat-picker" role="radiogroup" aria-label="Category">
+            <span className="label">{tr("Category")}</span>
+            <div className="cat-picker" role="radiogroup" aria-label={tr("Category")}>
               {cats.map((c) => (
                 // Press and hold a category to edit or delete it.
                 <HoldArea key={c.id} className="cat-hold" title={c.name} items={catActions.itemsFor(c)}>
@@ -978,16 +979,16 @@ function TxEditor({
                   </button>
                 </HoldArea>
               ))}
-              <button type="button" className="cat-chip add" onClick={() => setNewCategory(true)} aria-label={`New ${kind} category`}>
+              <button type="button" className="cat-chip add" onClick={() => setNewCategory(true)} aria-label={tr("New {0} category", [kind])}>
                 <Plus size={15} aria-hidden />
-                New
+                {tr("New")}
               </button>
             </div>
           </div>
           {accounts.length > 0 && (
             <div className="field">
-              <span className="label">{kind === 'income' ? 'Add to' : 'Paid with'}</span>
-              <div className="pick-cards" role="radiogroup" aria-label="Account">
+              <span className="label">{kind === 'income' ? tr("Add to") : tr("Paid with")}</span>
+              <div className="pick-cards" role="radiogroup" aria-label={tr("Account")}>
                 {accounts.map((a) => (
                   <button
                     key={a.id}
@@ -1009,7 +1010,7 @@ function TxEditor({
               {(() => {
                 const acc = accounts.find((a) => a.id === accountId);
                 const minor = toMinor(amount);
-                if (!acc) return <div className="help-text">Tap an account to take the money from it (tap again to clear).</div>;
+                if (!acc) return <div className="help-text">{tr("Tap an account to take the money from it (tap again to clear).")}</div>;
                 // Editing: take this record's old effect out first.
                 const sign = (k: TxKind) => (k === 'income' ? 1 : -1);
                 const before = (bal.get(acc.id) ?? 0) - (existing && existing.accountId === acc.id ? sign(existing.kind) * existing.amount : 0);
@@ -1022,7 +1023,7 @@ function TxEditor({
                       <>
                         <span aria-hidden>→</span>
                         <strong>{money(after)}</strong>
-                        <span className="dim">{kind === 'income' ? 'after cash in' : 'left'}</span>
+                        <span className="dim">{kind === 'income' ? tr("after cash in") : 'left'}</span>
                       </>
                     ) : null}
                   </div>
@@ -1032,11 +1033,11 @@ function TxEditor({
           )}
           <div className="grid-2">
             <div className="field">
-              <label htmlFor="tx-note">Note</label>
-              <input id="tx-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="e.g. Lunch with team" autoComplete="off" />
+              <label htmlFor="tx-note">{tr("Note")}</label>
+              <input id="tx-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder={tr("e.g. Lunch with team")} autoComplete="off" />
             </div>
             <div className="field">
-              <label htmlFor="tx-date">Date</label>
+              <label htmlFor="tx-date">{tr("Date")}</label>
               <input id="tx-date" className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
@@ -1046,10 +1047,10 @@ function TxEditor({
       {confirm && existing && (
         <ConfirmDialog
           placement="center"
-          title="Delete record?"
+          title={tr("Delete record?")}
           danger
-          confirmLabel="Delete"
-          message={`${existing.note || moneyCategory(existing.category).name} will be permanently deleted.`}
+          confirmLabel={tr("Delete")}
+          message={tr("{0} will be permanently deleted.", [existing.note || moneyCategory(existing.category).name])}
           onCancel={() => setConfirm(false)}
           onConfirm={async () => {
             setConfirm(false);
@@ -1111,14 +1112,14 @@ function MoneySetup({
 
   const save = async () => {
     const minor = amount.trim() ? toMinor(amount) : 0;
-    if (minor === null) return setError('Enter a budget amount, or leave it empty for no budget.');
+    if (minor === null) return setError(tr("Enter a budget amount, or leave it empty for no budget."));
     const coffeeMinor = coffee.trim() ? toMinor(coffee) : 0;
     if (coffeeMinor === null) return setCoffeeError('Enter a coffee budget, or leave it empty for none.');
     setBusy(true);
     try {
       await unwrap(api.vault.updateSettings({ currency: cur, monthlyBudget: minor, coffeeBudget: coffeeMinor }));
       await onSaved();
-      toast('Budget saved.');
+      toast(tr("Budget saved."));
       onClose();
     } catch (err) {
       setError(errorMessage(err));
@@ -1128,23 +1129,23 @@ function MoneySetup({
 
   return (
     <Dialog
-      title="Budget & categories"
+      title={tr("Budget & categories")}
       size="narrow"
       onClose={onClose}
       busy={busy}
       footer={
         <>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn primary" onClick={() => void save()} disabled={busy}>
-            Save
+            {tr("Save")}
           </button>
         </>
       }
     >
       <div className="field">
-        <label htmlFor="m-cur">Currency</label>
+        <label htmlFor="m-cur">{tr("Currency")}</label>
         <select id="m-cur" className="select" value={cur} onChange={(e) => setCur(e.target.value)}>
           {(CURRENCIES as readonly string[]).includes(cur) ? null : <option value={cur}>{cur}</option>}
           {CURRENCIES.map((c) => (
@@ -1155,7 +1156,7 @@ function MoneySetup({
         </select>
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
-        <label htmlFor="m-budget">Monthly budget</label>
+        <label htmlFor="m-budget">{tr("Monthly budget")}</label>
         <input
           id="m-budget"
           className="input"
@@ -1165,16 +1166,16 @@ function MoneySetup({
             setAmount(e.target.value);
             setError(null);
           }}
-          placeholder="No budget"
+          placeholder={tr("No budget")}
           autoComplete="off"
           aria-invalid={!!error}
         />
-        {error ? <div className="error-text">{error}</div> : <div className="help-text">Shows how much you have left to spend each month.</div>}
+        {error ? <div className="error-text">{error}</div> : <div className="help-text">{tr("Shows how much you have left to spend each month.")}</div>}
       </div>
       <div className="field" style={{ marginTop: 14, marginBottom: 0 }}>
         <label htmlFor="m-coffee">
           <Coffee size={13} aria-hidden style={{ verticalAlign: -2, marginRight: 4 }} />
-          Coffee budget
+          {tr("Coffee budget")}
         </label>
         <input
           id="m-coffee"
@@ -1185,14 +1186,14 @@ function MoneySetup({
             setCoffee(e.target.value);
             setCoffeeError(null);
           }}
-          placeholder="No coffee budget"
+          placeholder={tr("No coffee budget")}
           autoComplete="off"
           aria-invalid={!!coffeeError}
         />
         {coffeeError ? (
           <div className="error-text">{coffeeError}</div>
         ) : (
-          <div className="help-text">A gentle heads-up at 80% and when you pass it. Coffee you type (“latte 180”, “starbucks 210”) counts.</div>
+          <div className="help-text">{tr("A gentle heads-up at 80% and when you pass it. Coffee you type (“latte 180”, “starbucks 210”) counts.")}</div>
         )}
       </div>
       <div className="setup-sep" />
@@ -1212,8 +1213,8 @@ function WidgetSetting({ on, onSaved }: { on: boolean; onSaved: () => Promise<vo
       <div className="setup-sep" />
       <label className="mp-toggle">
         <span className="grow">
-          <span style={{ display: 'block', fontWeight: 600 }}>Home-screen widget shows amounts and titles</span>
-          <span className="dim small">Long-press your home screen → Widgets → VaultLocks to add it. Off: it shows “••••” and “Event”.</span>
+          <span style={{ display: 'block', fontWeight: 600 }}>{tr("Home-screen widget shows amounts and titles")}</span>
+          <span className="dim small">{tr("Long-press your home screen → Widgets → VaultLocks to add it. Off: it shows “••••” and “Event”.")}</span>
         </span>
         <input
           type="checkbox"
@@ -1223,7 +1224,7 @@ function WidgetSetting({ on, onSaved }: { on: boolean; onSaved: () => Promise<vo
             try {
               await unwrap(api.vault.updateSettings({ widgetDetails: e.target.checked }));
               await onSaved();
-              toast(e.target.checked ? 'The widget shows amounts and titles.' : 'The widget hides amounts and titles.');
+              toast(e.target.checked ? tr("The widget shows amounts and titles.") : tr("The widget hides amounts and titles."));
             } catch (err) {
               toast(errorMessage(err), 'error');
             }
@@ -1265,7 +1266,7 @@ function QuickAddSettings({ balancesOn, onSaved }: { balancesOn: boolean; onSave
       if (on) await needNotifications();
       await unwrap(api.inbox.setNotification(on));
       setNotif(on ? 'on' : 'off');
-      toast(on ? 'Quick add notification is on.' : 'Quick add notification is off.');
+      toast(on ? tr("Quick add notification is on.") : tr("Quick add notification is off."));
     } catch (err) {
       toast(errorMessage(err), 'error');
     } finally {
@@ -1279,7 +1280,7 @@ function QuickAddSettings({ balancesOn, onSaved }: { balancesOn: boolean; onSave
       if (on) await needNotifications();
       await unwrap(api.inbox.setKnock(on, sensitivity));
       await load();
-      if (on !== knock?.on) toast(on ? 'Double tap the back of your phone to add an expense.' : 'Double tap is off.');
+      if (on !== knock?.on) toast(on ? tr("Double tap the back of your phone to add an expense.") : tr("Double tap is off."));
     } catch (err) {
       toast(errorMessage(err), 'error');
     } finally {
@@ -1297,69 +1298,68 @@ function QuickAddSettings({ balancesOn, onSaved }: { balancesOn: boolean; onSave
   return (
     <div className="quick-add-settings">
       <div className="label" style={{ marginBottom: 8 }}>
-        Add while locked
+        {tr("Add while locked")}
       </div>
 
       {android && (
         <>
           <div className="qas-block">
-            <div className="title">Double tap the back of the phone</div>
+            <div className="title">{tr("Double tap the back of the phone")}</div>
             <ol className="qas-steps">
               <li>
                 {knock.xiaomi ? (
                   <>
-                    Best: your phone&apos;s own <strong>Back tap</strong>. Go to Settings → Additional settings → Gesture shortcuts → <strong>Back tap</strong> → Double
-                    tap, and choose the app <strong>“Add expense”</strong> if it is offered.
+                    {tr("Best: your phone's own")} <strong>{tr("Back tap")}</strong>{tr(". Go to Settings → Additional settings → Gesture shortcuts →")} <strong>{tr("Back tap")}</strong> {tr("→ Double tap, and choose the app")} <strong>{tr("“Add expense”")}</strong> {tr("if it is offered.")}
                   </>
                 ) : (
                   <>
-                    If your phone has a <strong>Back tap</strong> gesture that can open apps, choose the app <strong>“Add expense”</strong>.
+                    {tr("If your phone has a")} <strong>{tr("Back tap")}</strong> {tr("gesture that can open apps, choose the app")} <strong>{tr("“Add expense”")}</strong>.
                   </>
                 )}
               </li>
-              <li>Otherwise let VaultLocks detect it (works while the screen is on, also on the lock screen):</li>
+              <li>{tr("Otherwise let VaultLocks detect it (works while the screen is on, also on the lock screen):")}</li>
             </ol>
             <label className="setting qas-row" htmlFor="qa-knock">
               <span className="grow">
                 <span className="title" style={{ display: 'block' }}>
-                  VaultLocks double-tap detection
+                  {tr("VaultLocks double-tap detection")}
                 </span>
                 <span className="desc" style={{ display: 'block' }}>
-                  Uses the motion sensor; shows a small permanent notification and uses a little battery.
+                  {tr("Uses the motion sensor; shows a small permanent notification and uses a little battery.")}
                 </span>
               </span>
               <input id="qa-knock" type="checkbox" className="switch" checked={knock.on} disabled={busy} onChange={(e) => void toggleKnock(e.target.checked)} />
             </label>
             {knock.on && (
               <div className="qas-sub">
-                <Segmented label="Tap strength" value={knock.sensitivity} options={[[0, 'Firm'], [1, 'Normal'], [2, 'Light']]} onChange={(v) => void toggleKnock(true, v)} />
+                <Segmented label={tr("Tap strength")} value={knock.sensitivity} options={[[0, 'Firm'], [1, 'Normal'], [2, 'Light']]} onChange={(v) => void toggleKnock(true, v)} />
                 {(!knock.canPopUp || knock.xiaomi) && (
                   <div className="notice" style={{ marginTop: 10 }}>
                     <span>
-                      For the pop-up to appear over the lock screen, allow{' '}
+                      {tr("For the pop-up to appear over the lock screen, allow")}{' '}
                       {knock.xiaomi ? (
                         <>
-                          <strong>Show on Lock screen</strong>, <strong>Display pop-up windows while running in the background</strong> and{' '}
-                          <strong>Autostart</strong>
+                          <strong>{tr("Show on Lock screen")}</strong>, <strong>{tr("Display pop-up windows while running in the background")}</strong> {tr("and")}{' '}
+                          <strong>{tr("Autostart")}</strong>
                         </>
                       ) : (
-                        <strong>Display over other apps</strong>
+                        <strong>{tr("Display over other apps")}</strong>
                       )}
                       .
                       <span className="qas-perm-btns">
                         {knock.xiaomi && (
                           <button type="button" className="btn sm" onClick={() => void api.inbox.openPermissions('app')}>
-                            Phone permissions
+                            {tr("Phone permissions")}
                           </button>
                         )}
                         {!knock.canPopUp && (
                           <button type="button" className="btn sm" onClick={() => void api.inbox.openPermissions('overlay')}>
-                            Display over other apps
+                            {tr("Display over other apps")}
                           </button>
                         )}
                         {!knock.fullScreen && (
                           <button type="button" className="btn sm" onClick={() => void api.inbox.openPermissions('fullscreen')}>
-                            Full-screen notifications
+                            {tr("Full-screen notifications")}
                           </button>
                         )}
                       </span>
@@ -1369,17 +1369,17 @@ function QuickAddSettings({ balancesOn, onSaved }: { balancesOn: boolean; onSave
               </div>
             )}
             <button type="button" className="btn sm" style={{ marginTop: 10 }} onClick={() => void tryIt()}>
-              Try the pop-up
+              {tr("Try the pop-up")}
             </button>
           </div>
 
           <label className="setting qas-row" htmlFor="qa-bal">
             <span className="grow">
               <span className="title" style={{ display: 'block' }}>
-                Show balances in the pop-up
+                {tr("Show balances in the pop-up")}
               </span>
               <span className="desc" style={{ display: 'block' }}>
-                See how much is left in GCash, BDO… while locked. Anyone holding your phone could see the balances (never your records or passwords).
+                {tr("See how much is left in GCash, BDO… while locked. Anyone holding your phone could see the balances (never your records or passwords).")}
               </span>
             </span>
             <input
@@ -1407,10 +1407,10 @@ function QuickAddSettings({ balancesOn, onSaved }: { balancesOn: boolean; onSave
             <label className="setting qas-row" htmlFor="qa-notif">
               <span className="grow">
                 <span className="title" style={{ display: 'block' }}>
-                  Quick add notification
+                  {tr("Quick add notification")}
                 </span>
                 <span className="desc" style={{ display: 'block' }}>
-                  Tap it to open the pop-up, or type “lunch 150 gcash” right in it.
+                  {tr("Tap it to open the pop-up, or type “lunch 150 gcash” right in it.")}
                 </span>
               </span>
               <input id="qa-notif" type="checkbox" className="switch" checked={notif === 'on'} disabled={busy} onChange={(e) => void toggleNotif(e.target.checked)} />
@@ -1420,24 +1420,23 @@ function QuickAddSettings({ balancesOn, onSaved }: { balancesOn: boolean; onSave
       )}
       {isIOS() && (
         <div className="qas-block">
-          <div className="title">Double tap the back of the iPhone (iOS 17 or newer)</div>
+          <div className="title">{tr("Double tap the back of the iPhone (iOS 17 or newer)")}</div>
           <ol className="qas-steps">
             <li>
-              Open <strong>Settings → Accessibility → Touch → Back Tap → Double Tap</strong>.
+              {tr("Open")} <strong>{tr("Settings → Accessibility → Touch → Back Tap → Double Tap")}</strong>.
             </li>
             <li>
-              Under Shortcuts, choose <strong>“Add expense”</strong> (VaultLocks). For money coming in, set <strong>Triple Tap</strong> to <strong>“Add cash”</strong>.
+              {tr("Under Shortcuts, choose")} <strong>{tr("“Add expense”")}</strong> {tr("(VaultLocks). For money coming in, set")} <strong>{tr("Triple Tap")}</strong> {tr("to")} <strong>{tr("“Add cash”")}</strong>.
             </li>
-            <li>Double tap the back, even on the lock screen: the iPhone asks how much, the category and the account, and saves it encrypted.</li>
+            <li>{tr("Double tap the back, even on the lock screen: the iPhone asks how much, the category and the account, and saves it encrypted.")}</li>
           </ol>
           <p className="help-text" style={{ margin: '6px 0 0' }}>
-            The same actions are in the Shortcuts app and Siri (“Add expense in VaultLocks”). After restarting the iPhone, unlock it once before using them.
+            {tr("The same actions are in the Shortcuts app and Siri (“Add expense in VaultLocks”). After restarting the iPhone, unlock it once before using them.")}
           </p>
         </div>
       )}
       <p className="help-text" style={{ margin: '8px 0 0' }}>
-        {isIOS() ? '' : 'The lock screen also has an “Add expense” button. '}Entries added while locked are encrypted and appear here after you unlock. Only your account names
-        (not balances or records) are readable while locked, so {isIOS() ? 'the iPhone can list them' : 'the pop-up can list them'}.
+        {isIOS() ? '' : tr("The lock screen also has an “Add expense” button. ")}{tr("Entries added while locked are encrypted and appear here after you unlock. Only your account names (not balances or records) are readable while locked, so")} {isIOS() ? tr("the iPhone can list them") : tr("the pop-up can list them")}.
       </p>
     </div>
   );
@@ -1459,11 +1458,11 @@ function Segmented<T extends string | number>({ label, value, options, onChange 
 
 const ACCOUNT_ICONS: Record<AccountKind, LucideIcon> = { cash: Banknote, ewallet: Smartphone, bank: Landmark, credit: CreditCard, other: Wallet };
 const ACCOUNT_KIND_NAMES: [AccountKind, string][] = [
-  ['cash', 'Cash'],
-  ['ewallet', 'E-wallet'],
-  ['bank', 'Bank'],
-  ['credit', 'Credit card'],
-  ['other', 'Other']
+  ['cash', tr("Cash")],
+  ['ewallet', tr("E-wallet")],
+  ['bank', tr("Bank")],
+  ['credit', tr("Credit card")],
+  ['other', tr("Other")]
 ];
 
 export function AccountIcon({ kind, size = 16 }: { kind: AccountKind; size?: number }) {
@@ -1497,23 +1496,23 @@ function AccountsDialog({
     <>
       <Dialog
         placement="center"
-        title="Accounts"
-        subtitle="Cash, e-wallets and banks"
+        title={tr("Accounts")}
+        subtitle={tr("Cash, e-wallets and banks")}
         size="narrow"
         onClose={onClose}
         footer={
           <>
             <button type="button" className="btn" onClick={onClose}>
-              Done
+              {tr("Done")}
             </button>
             <button type="button" className="btn primary" onClick={() => setEditing('new')}>
-              <Plus size={15} aria-hidden /> Add account
+              <Plus size={15} aria-hidden /> {tr("Add account")}
             </button>
           </>
         }
       >
         {accounts.length === 0 ? (
-          <div className="day-empty">No accounts. Add Cash, GCash or a bank to track balances.</div>
+          <div className="day-empty">{tr("No accounts. Add Cash, GCash or a bank to track balances.")}</div>
         ) : (
           <ul className="tx-list">
             {accounts.map((a) => (
@@ -1546,17 +1545,17 @@ function AccountsDialog({
           onSaved={async () => {
             await onChanged();
             setEditing(null);
-            toast('Account saved.');
+            toast(tr("Account saved."));
           }}
         />
       )}
       {removing && (
         <ConfirmDialog
           placement="center"
-          title={`Delete ${removing.name}?`}
+          title={tr("Delete {0}?", [removing.name])}
           danger
-          confirmLabel="Delete account"
-          message="The account and its balance are removed. Its expenses and cash-ins stay in your history, just without an account."
+          confirmLabel={tr("Delete account")}
+          message={tr("The account and its balance are removed. Its expenses and cash-ins stay in your history, just without an account.")}
           onCancel={() => setRemoving(null)}
           onConfirm={async () => {
             try {
@@ -1564,7 +1563,7 @@ function AccountsDialog({
               await onChanged();
               setRemoving(null);
               setEditing(null);
-              toast('Account removed.');
+              toast(tr("Account removed."));
             } catch (err) {
               toast(errorMessage(err), 'error');
             }
@@ -1602,10 +1601,10 @@ function AccountEditor({
   const auto = accountColor({ name: name.trim() || 'Account', kind });
 
   const save = async () => {
-    if (!name.trim()) return setError('Enter a name, e.g. GCash.');
-    if (last4 && !/^\d{4}$/.test(last4)) return setError('Card number ending: enter the last 4 digits, or leave it empty.');
+    if (!name.trim()) return setError(tr("Enter a name, e.g. GCash."));
+    if (last4 && !/^\d{4}$/.test(last4)) return setError(tr("Card number ending: enter the last 4 digits, or leave it empty."));
     const minor = opening.trim() ? toMinor(opening) : 0;
-    if (minor === null) return setError('Enter a valid starting balance.');
+    if (minor === null) return setError(tr("Enter a valid starting balance."));
     setBusy(true);
     try {
       // A credit card's balance is what you owe: stored as a negative balance.
@@ -1630,7 +1629,7 @@ function AccountEditor({
   return (
     <Dialog
       placement="center"
-      title={account ? 'Edit account' : 'Add account'}
+      title={account ? tr("Edit account") : tr("Add account")}
       size="narrow"
       onClose={onClose}
       busy={busy}
@@ -1638,14 +1637,14 @@ function AccountEditor({
         <>
           {onRemove && (
             <button type="button" className="btn danger left" onClick={onRemove} disabled={busy}>
-              <Trash size={15} aria-hidden /> Remove
+              <Trash size={15} aria-hidden /> {tr("Remove")}
             </button>
           )}
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn primary" onClick={() => void save()} disabled={busy}>
-            Save
+            {tr("Save")}
           </button>
         </>
       }
@@ -1663,20 +1662,20 @@ function AccountEditor({
               <span className="wc-name">{preview.name}</span>
             </span>
             <span className="wc-kind">
-              {kind === 'credit' ? 'Credit card · owed' : kind === 'cash' ? 'On hand' : ACCOUNT_KIND_NAMES.find(([x]) => x === kind)?.[1]}
+              {kind === 'credit' ? tr("Credit card · owed") : kind === 'cash' ? tr("On hand") : ACCOUNT_KIND_NAMES.find(([x]) => x === kind)?.[1]}
               {last4 && <span className="wc-num"> · •••• {last4}</span>}
             </span>
-            <span className="wc-label">{kind === 'credit' ? 'Balance owed' : 'Balance'}</span>
+            <span className="wc-label">{kind === 'credit' ? tr("Balance owed") : tr("Balance")}</span>
             <span className="wc-amount">{opening.trim() ? opening : '0'}</span>
           </div>
         </div>
         <div className="field">
-          <label htmlFor="acc-name">Name</label>
-          <input id="acc-name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="e.g. GCash" autoComplete="off" data-autofocus />
+          <label htmlFor="acc-name">{tr("Name")}</label>
+          <input id="acc-name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder={tr("e.g. GCash")} autoComplete="off" data-autofocus />
         </div>
         <div className="field">
-          <span className="label">Type</span>
-          <div className="segmented" role="group" aria-label="Account type">
+          <span className="label">{tr("Type")}</span>
+          <div className="segmented" role="group" aria-label={tr("Account type")}>
             {ACCOUNT_KIND_NAMES.map(([k, label]) => (
               <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}>
                 {label}
@@ -1685,20 +1684,20 @@ function AccountEditor({
           </div>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="acc-open">{kind === 'credit' ? `Amount owed now (${currency})` : `Starting balance (${currency})`}</label>
+          <label htmlFor="acc-open">{kind === 'credit' ? tr("Amount owed now ({0})", [currency]) : tr("Starting balance ({0})", [currency])}</label>
           <input id="acc-open" className="input" inputMode="decimal" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0" autoComplete="off" />
           {kind !== 'credit' && (
             <label className="checkbox" style={{ marginTop: 8 }}>
-              <input type="checkbox" checked={negative} onChange={(e) => setNegative(e.target.checked)} /> It's a debt (money owed)
+              <input type="checkbox" checked={negative} onChange={(e) => setNegative(e.target.checked)} /> {tr("It's a debt (money owed)")}
             </label>
           )}
-          <div className="help-text">How much was in it before you started tracking.</div>
+          <div className="help-text">{tr("How much was in it before you started tracking.")}</div>
         </div>
         <div className="field card-look" style={{ marginTop: 16 }}>
-          <span className="label">Card color</span>
-          <div className="swatches" role="radiogroup" aria-label="Card color">
-            <button type="button" role="radio" aria-checked={!color} className="swatch auto" style={{ background: auto.bg }} onClick={() => setColor('')} title="Automatic">
-              Auto
+          <span className="label">{tr("Card color")}</span>
+          <div className="swatches" role="radiogroup" aria-label={tr("Card color")}>
+            <button type="button" role="radio" aria-checked={!color} className="swatch auto" style={{ background: auto.bg }} onClick={() => setColor('')} title={tr("Automatic")}>
+              {tr("Auto")}
             </button>
             {CARD_COLORS.map((c) => (
               <button key={c} type="button" role="radio" aria-checked={color === c} aria-label={c} className="swatch" style={{ background: c }} onClick={() => setColor(c)} />
@@ -1706,8 +1705,8 @@ function AccountEditor({
             <button
               type="button"
               className={`swatch custom ${color && !CARD_COLORS.includes(color) ? 'on' : ''}`}
-              title="Custom color"
-              aria-label="Pick a custom color"
+              title={tr("Custom color")}
+              aria-label={tr("Pick a custom color")}
               aria-expanded={picker}
               style={color && !CARD_COLORS.includes(color) ? { background: color } : undefined}
               onClick={() => setPicker((p) => !p)}
@@ -1718,8 +1717,8 @@ function AccountEditor({
           {picker && <ColorPicker value={color || auto.bg} onChange={setColor} />}
         </div>
         <div className="field">
-          <span className="label">Card style</span>
-          <div className="segmented" role="group" aria-label="Card style">
+          <span className="label">{tr("Card style")}</span>
+          <div className="segmented" role="group" aria-label={tr("Card style")}>
             {CARD_STYLES.map(([k, label]) => (
               <button key={k} type="button" aria-pressed={style === k} onClick={() => setStyle(k)}>
                 {label}
@@ -1728,7 +1727,7 @@ function AccountEditor({
           </div>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="acc-last4">Card number ending (optional)</label>
+          <label htmlFor="acc-last4">{tr("Card number ending (optional)")}</label>
           <input
             id="acc-last4"
             className="input"
@@ -1739,7 +1738,7 @@ function AccountEditor({
             placeholder="e.g. 1234"
             autoComplete="off"
           />
-          {error ? <div className="error-text">{error}</div> : <div className="help-text">Only the last 4 digits, shown as •••• 1234. Never your full number.</div>}
+          {error ? <div className="error-text">{error}</div> : <div className="help-text">{tr("Only the last 4 digits, shown as •••• 1234. Never your full number.")}</div>}
         </div>
         <button type="submit" hidden />
       </form>
@@ -1789,35 +1788,35 @@ function AccountPage({
             <span className="mc-name">{account.name}</span>
             <span className="mc-kind">{account.last4 ? `•••• ${account.last4}` : ACCOUNT_KIND_NAMES.find(([k]) => k === account.kind)?.[1]}</span>
           </div>
-          <div className="mc-label">Available balance</div>
+          <div className="mc-label">{tr("Available balance")}</div>
           <div className={`mc-balance ${balance < 0 ? 'neg' : ''}`}>{money(balance)}</div>
           <div className="mc-foot">
-            <span className="mc-in">+{money(sums.income)} in</span>
-            <span className="mc-out">−{money(sums.expense)} out</span>
+            <span className="mc-in">+{money(sums.income)} {tr("in")}</span>
+            <span className="mc-out">−{money(sums.expense)} {tr("out")}</span>
           </div>
         </div>
 
         <div className="acct-actions">
           <button type="button" className="btn tx-save is-expense" onClick={() => onAdd('expense')}>
-            − Expense
+            {tr("− Expense")}
           </button>
           <button type="button" className="btn tx-save is-income" onClick={() => onAdd('income')}>
-            + Add cash
+            {tr("+ Add cash")}
           </button>
-          <button type="button" className="btn" onClick={() => setEditingAccount(true)} aria-label={`Edit ${account.name}`}>
-            <Settings2 size={15} aria-hidden /> Edit
+          <button type="button" className="btn" onClick={() => setEditingAccount(true)} aria-label={tr("Edit {0}", [account.name])}>
+            <Settings2 size={15} aria-hidden /> {tr("Edit")}
           </button>
-          <button type="button" className="btn danger" onClick={() => setRemoving(true)} aria-label={`Delete ${account.name}`}>
-            <Trash size={15} aria-hidden /> Delete
+          <button type="button" className="btn danger" onClick={() => setRemoving(true)} aria-label={tr("Delete {0}", [account.name])}>
+            <Trash size={15} aria-hidden /> {tr("Delete")}
           </button>
         </div>
 
         <div className="section-title" style={{ marginTop: 18 }}>
-          <span className="label">History</span>
-          <span className="dim small">{list.length} record{list.length === 1 ? '' : 's'} · tap to edit or delete</span>
+          <span className="label">{tr("History")}</span>
+          <span className="dim small">{list.length} {tr("record")}{list.length === 1 ? '' : 's'} {tr("· tap to edit or delete")}</span>
         </div>
         {list.length === 0 ? (
-          <div className="day-empty">No records for {account.name} yet.</div>
+          <div className="day-empty">{tr("No records for")} {account.name} {tr("yet.")}</div>
         ) : (
           <ul className="tx-list">
             {list.map((t, i) => (
@@ -1839,23 +1838,23 @@ function AccountPage({
           onSaved={async () => {
             await onChanged();
             setEditingAccount(false);
-            toast('Account saved.');
+            toast(tr("Account saved."));
           }}
         />
       )}
       {removing && (
         <ConfirmDialog
           placement="center"
-          title={`Delete ${account.name}?`}
+          title={tr("Delete {0}?", [account.name])}
           danger
-          confirmLabel="Delete account"
-          message={`${account.name} and its balance are removed. Its ${transactions.length} record${transactions.length === 1 ? '' : 's'} stay in your history, just without an account.`}
+          confirmLabel={tr("Delete account")}
+          message={tr("{0} and its balance are removed. Its {1} record{2} stay in your history, just without an account.", [account.name, transactions.length, transactions.length === 1 ? '' : 's'])}
           onCancel={() => setRemoving(false)}
           onConfirm={async () => {
             try {
               await unwrap(api.vault.deleteAccount(account.id));
               await onChanged();
-              toast(`${account.name} deleted.`);
+              toast(tr("{0} deleted.", [account.name]));
               onClose();
             } catch (err) {
               toast(errorMessage(err), 'error');
@@ -1938,22 +1937,22 @@ function WalletsSection({
   const shown = accounts.filter((a) => (filter === 'all' || a.kind === filter) && (!query || a.name.toLowerCase().includes(query) || KIND_GROUP[a.kind].toLowerCase().includes(query)));
 
   return (
-    <section className="wallets" aria-label="Wallets and balances">
+    <section className="wallets" aria-label={tr("Wallets and balances")}>
       <div className="section-title">
-        <span className="label">Wallets & balances</span>
+        <span className="label">{tr("Wallets & balances")}</span>
         <button type="button" className="linkish" onClick={onAdd}>
-          Manage
+          {tr("Manage")}
         </button>
       </div>
 
       <div className="networth">
-        <div className="nw-label">Net worth</div>
+        <div className="nw-label">{tr("Net worth")}</div>
         <div className={`nw-value ${assets + debts < 0 ? 'neg' : ''}`}>{money(assets + debts)}</div>
         <div className="nw-sub">
-          <span className="mc-in">Assets {money(assets)}</span>
-          {debts < 0 && <span className="mc-out">Owed {money(-debts)}</span>}
+          <span className="mc-in">{tr("Assets")} {money(assets)}</span>
+          {debts < 0 && <span className="mc-out">{tr("Owed")} {money(-debts)}</span>}
           <span className="dim">
-            {accounts.length} account{accounts.length === 1 ? '' : 's'}
+            {accounts.length} {tr("account")}{accounts.length === 1 ? '' : 's'}
           </span>
         </div>
       </div>
@@ -1961,16 +1960,16 @@ function WalletsSection({
       <div className="wallet-tools">
         <div className="wallet-search">
           <Search size={15} aria-hidden />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search GCash, BDO, Maya…" aria-label="Search accounts" autoComplete="off" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search GCash, BDO, Maya…")} aria-label={tr("Search accounts")} autoComplete="off" />
           {q && (
-            <button type="button" className="icon-btn" onClick={() => setQ('')} aria-label="Clear search">
+            <button type="button" className="icon-btn" onClick={() => setQ('')} aria-label={tr("Clear search")}>
               <X size={14} />
             </button>
           )}
         </div>
-        <div className="tag-chips" role="group" aria-label="Show">
+        <div className="tag-chips" role="group" aria-label={tr("Show")}>
           <button type="button" className="tchip" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
-            All
+            {tr("All")}
           </button>
           {kinds.map((k) => (
             <button key={k} type="button" className="tchip" aria-pressed={filter === k} onClick={() => setFilter(k)}>
@@ -1978,11 +1977,11 @@ function WalletsSection({
             </button>
           ))}
         </div>
-        {accounts.length > 0 && <p className="hold-hint">Press and hold a card to remove it.</p>}
+        {accounts.length > 0 && <p className="hold-hint">{tr("Press and hold a card to remove it.")}</p>}
       </div>
 
       {shown.length === 0 ? (
-        <div className="day-empty">{accounts.length ? `No account matches “${q}”.` : 'No accounts yet.'}</div>
+        <div className="day-empty">{accounts.length ? tr("No account matches “{0}”.", [q]) : tr("No accounts yet.")}</div>
       ) : (
         ACCOUNT_KIND_ORDER.filter((k) => shown.some((a) => a.kind === k)).map((k, gi, groups) => {
           const group = shown.filter((a) => a.kind === k);
@@ -2003,20 +2002,20 @@ function WalletsSection({
                       title={a.name}
                       onDelete={() => onDelete(a)}
                       items={[
-                        { key: 'open', label: `Open ${a.name}`, icon: <Wallet size={16} aria-hidden />, run: () => onOpen(a.id) },
-                        { key: 'remove', label: 'Remove card', icon: <Trash size={16} aria-hidden />, danger: true, run: () => onDelete(a) }
+                        { key: 'open', label: tr("Open {0}", [a.name]), icon: <Wallet size={16} aria-hidden />, run: () => onOpen(a.id) },
+                        { key: 'remove', label: tr("Remove card"), icon: <Trash size={16} aria-hidden />, danger: true, run: () => onDelete(a) }
                       ]}
                     >
-                    <button type="button" className="wallet-card" style={cardStyle(a)} onClick={() => onOpen(a.id)} aria-label={`${a.name}, balance ${money(b)}. Press and hold for more.`}>
+                    <button type="button" className="wallet-card" style={cardStyle(a)} onClick={() => onOpen(a.id)} aria-label={tr("{0}, balance {1}. Press and hold for more.", [a.name, money(b)])}>
                       <span className="wc-top">
                         <span className="wc-badge">{initials(a.name)}</span>
                         <span className="wc-name">{a.name}</span>
                       </span>
                       <span className="wc-kind">
-                        {a.kind === 'credit' ? 'Credit card · owed' : a.kind === 'cash' ? 'On hand' : ACCOUNT_KIND_NAMES.find(([x]) => x === a.kind)?.[1]}
+                        {a.kind === 'credit' ? tr("Credit card · owed") : a.kind === 'cash' ? tr("On hand") : ACCOUNT_KIND_NAMES.find(([x]) => x === a.kind)?.[1]}
                         {a.last4 && <span className="wc-num"> · •••• {a.last4}</span>}
                       </span>
-                      <span className="wc-label">{a.kind === 'credit' ? 'Balance owed' : 'Balance'}</span>
+                      <span className="wc-label">{a.kind === 'credit' ? tr("Balance owed") : tr("Balance")}</span>
                       <span className="wc-amount">{a.kind === 'credit' ? money(Math.abs(b)) : money(b)}</span>
                     </button>
                     </HoldArea>
@@ -2025,7 +2024,7 @@ function WalletsSection({
                 {gi === groups.length - 1 && (
                   <button type="button" className="wallet-card add" onClick={onAdd}>
                     <Plus size={18} aria-hidden />
-                    <span>Add account</span>
+                    <span>{tr("Add account")}</span>
                   </button>
                 )}
               </div>
@@ -2045,17 +2044,17 @@ function useDeleteAccount(onChanged: () => Promise<void>, transactions: Transact
   const dialog = target && (
     <ConfirmDialog
       placement="center"
-      title={`Delete ${target.name}?`}
+      title={tr("Delete {0}?", [target.name])}
       danger
-      confirmLabel="Delete account"
-      message={`${target.name} and its balance are removed.${count ? ` Its ${count} record${count === 1 ? '' : 's'} stay in your history, just without an account.` : ''}`}
+      confirmLabel={tr("Delete account")}
+      message={tr("{0} and its balance are removed.{1}", [target.name, count ? ` Its ${count} record${count === 1 ? '' : 's'} stay in your history, just without an account.` : ''])}
       onCancel={() => setTarget(null)}
       onConfirm={async () => {
         try {
           await unwrap(api.vault.deleteAccount(target.id));
           api.app.haptic('warning');
           await onChanged();
-          toast(`${target.name} deleted.`);
+          toast(tr("{0} deleted.", [target.name]));
           setTarget(null);
         } catch (err) {
           toast(errorMessage(err), 'error');

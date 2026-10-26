@@ -9865,3 +9865,42 @@ button.mp-card {
 .year-cells button { cursor: pointer; }
 .year-cells .pad { background: none; }
 @media (max-width: 720px) { .heat-facts { grid-template-columns: minmax(0, 1fr); } }
+
+/* Settings → Language */
+.lang-list { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.lang-opt { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--border); background: transparent; color: var(--fg); text-align: left; cursor: pointer; font: inherit; }
+.lang-opt:hover { background: var(--hover); }
+.lang-opt[aria-checked='true'] { border-color: var(--fg); background: color-mix(in srgb, var(--fg) 7%, transparent); }
+.lang-tag { width: 40px; height: 40px; flex: none; border-radius: 11px; display: grid; place-items: center; font-size: 12px; font-weight: 800; background: color-mix(in srgb, var(--fg) 10%, transparent); }
+.lang-opt[aria-checked='true'] .lang-tag { background: var(--fg); color: var(--bg); }
+.lang-name { display: block; font-weight: 650; }
+.lang-note { display: block; font-size: 12.5px; color: var(--muted); }
+.lang-radio { width: 20px; height: 20px; flex: none; border-radius: 50%; border: 2px solid var(--border-strong); }
+.lang-opt[aria-checked='true'] .lang-radio { border: 6px solid var(--fg); }
+.lang-foot { margin: 0; padding: 0 16px 14px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+/* PH holidays on the calendar (amber: not money, not events). */
+:root { --holiday: #ff9f0a; }
+.evc-day.holiday .evc-num { color: var(--holiday); font-weight: 750; }
+.evc-day.holiday { background: color-mix(in srgb, var(--holiday) 10%, transparent); }
+.evc-day.holiday[aria-selected='true'] .evc-num { color: inherit; }
+.evc-hol-chip { background: color-mix(in srgb, var(--holiday) 18%, transparent) !important; color: var(--fg) !important; border-left: 2px solid var(--holiday); }
+.hol-toggle.on { border-color: color-mix(in srgb, var(--holiday) 60%, transparent); color: var(--holiday); }
+.hol-panel { margin-top: 12px; }
+.hol-title { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.hol-title svg { color: var(--holiday); }
+.hol-list { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; }
+.hol-row { display: flex; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--border); }
+.hol-row:last-child { border-bottom: 0; }
+.hol-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.hol-dot { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--holiday); }
+.hol-dot.special { background: transparent; box-shadow: inset 0 0 0 2px var(--holiday); }
+.hol-dot.festival { border-radius: 3px; }
+.hol-dot.reminder { background: var(--money-in, #30d158); }
+.hol-name { display: block; font-weight: 600; }
+.hol-kind { display: block; font-size: 12px; color: var(--muted); }
+.hol-date { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.hol-note { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+@media (prefers-color-scheme: light) { :root:not([data-theme='dark']) { --holiday: #b25e00; } }
+:root[data-theme='light'] { --holiday: #b25e00; }
+.lang-opt .grow, .hol-btn .grow, .hol-row > .grow { flex: 1; min-width: 0; }

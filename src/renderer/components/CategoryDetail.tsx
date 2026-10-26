@@ -5,6 +5,7 @@ import { MoneyIconFor } from '../views/Money';
 import { Dialog } from './Dialog';
 import type { ActionItem } from './HoldActions';
 
+import { tr } from '../../shared/i18n';
 const monthShort = (m: string) => parseDay(`${m}-01`).toLocaleDateString(undefined, { month: 'short' });
 const monthLong = (m: string) => parseDay(`${m}-01`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 const dayLabel = (d: string) => parseDay(d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -171,16 +172,16 @@ export function CategoryDetail({
             <MoneyIconFor category={category} size={22} />
           </span>
           <div className="grow">
-            <div className="label">{income ? 'Received' : 'Spent'} in {monthShort(month)}</div>
+            <div className="label">{income ? tr("Received") : tr("Spent")} {tr("in")} {monthShort(month)}</div>
             <div className="cd-hero-value">{money(total)}</div>
             {(prev > 0 || total > 0) && (
               <div className="cd-delta">
                 {diff === 0 ? (
-                  `Same as ${monthShort(addMonths(month, -1))}`
+                  tr("Same as {0}", [monthShort(addMonths(month, -1))])
                 ) : (
                   <>
                     {diff > 0 ? <ArrowUpRight size={14} aria-hidden /> : <ArrowDownRight size={14} aria-hidden />}
-                    {money(Math.abs(diff))} {diff > 0 ? 'more' : 'less'} than {monthShort(addMonths(month, -1))}
+                    {money(Math.abs(diff))} {diff > 0 ? 'more' : 'less'} {tr("than")} {monthShort(addMonths(month, -1))}
                   </>
                 )}
               </div>
@@ -195,27 +196,27 @@ export function CategoryDetail({
           </div>
           <div>
             <span className="cd-stat-n">{inMonth.length ? money(Math.round(total / inMonth.length / 100) * 100) : '—'}</span>
-            <span className="cd-stat-l">average</span>
+            <span className="cd-stat-l">{tr("average")}</span>
           </div>
           <div>
             <span className="cd-stat-n">{biggest ? money(biggest) : '—'}</span>
-            <span className="cd-stat-l">biggest</span>
+            <span className="cd-stat-l">{tr("biggest")}</span>
           </div>
         </div>
 
-        <section className="cd-card" aria-label="Last 6 months">
-          <h3 className="cd-h">Last 6 months</h3>
+        <section className="cd-card" aria-label={tr("Last 6 months")}>
+          <h3 className="cd-h">{tr("Last 6 months")}</h3>
           <Columns bars={months} money={money} ariaLabel={`${cat.name}, last 6 months`} />
         </section>
 
-        <section className="cd-card" aria-label={`Each day in ${monthLong(month)}`}>
-          <h3 className="cd-h">Each day in {monthShort(month)}</h3>
+        <section className="cd-card" aria-label={tr("Each day in {0}", [monthLong(month)])}>
+          <h3 className="cd-h">{tr("Each day in")} {monthShort(month)}</h3>
           <Columns bars={days} money={money} height={130} labelEvery={5} ariaLabel={`${cat.name} by day, ${monthLong(month)}`} />
         </section>
 
         {byAccount.length > 0 && (
-          <section className="cd-card" aria-label={income ? 'Added to' : 'Paid with'}>
-            <h3 className="cd-h">{income ? 'Added to' : 'Paid with'}</h3>
+          <section className="cd-card" aria-label={income ? tr("Added to") : tr("Paid with")}>
+            <h3 className="cd-h">{income ? tr("Added to") : tr("Paid with")}</h3>
             <ul className="cd-accounts">
               {byAccount.map((a) => (
                 <li key={a.name}>
@@ -245,10 +246,10 @@ export function CategoryDetail({
           </div>
         )}
 
-        <section aria-label="All records">
-          <h3 className="cd-h">All {cat.name} records</h3>
+        <section aria-label={tr("All records")}>
+          <h3 className="cd-h">{tr("All")} {cat.name} {tr("records")}</h3>
           {list.length === 0 ? (
-            <p className="dim small">Nothing recorded in {cat.name} yet.</p>
+            <p className="dim small">{tr("Nothing recorded in")} {cat.name} {tr("yet.")}</p>
           ) : (
             <>
               {groups.map(([m, items]) => (
@@ -280,7 +281,7 @@ export function CategoryDetail({
               ))}
               {list.length > shown && (
                 <button type="button" className="btn block" onClick={() => setShown((v) => v + PAGE)}>
-                  Show older ({list.length - shown} more)
+                  {tr("Show older (")}{list.length - shown} {tr("more)")}
                 </button>
               )}
             </>

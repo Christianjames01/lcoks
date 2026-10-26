@@ -4,6 +4,7 @@
 import { addDays, atLocal, formatDay, formatTime, hashId, occurrenceStarts } from './calendar';
 import { dayKey } from './money';
 
+import { tr } from './i18n';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type TaskRepeat = 'daily' | 'weekly' | 'monthly' | 'yearly';
 export type TaskReminder = { type: 'before'; minutes: number } | { type: 'at'; at: string };
@@ -31,12 +32,12 @@ export const PRIORITIES: { id: TaskPriority; name: string; rank: number }[] = [
 ];
 
 export const TASK_REMINDER_PRESETS: { minutes: number; label: string }[] = [
-  { minutes: 0, label: 'At the due time' },
-  { minutes: 5, label: '5 minutes before' },
-  { minutes: 15, label: '15 minutes before' },
-  { minutes: 30, label: '30 minutes before' },
-  { minutes: 60, label: '1 hour before' },
-  { minutes: 1440, label: '1 day before' }
+  { minutes: 0, label: tr("At the due time") },
+  { minutes: 5, label: tr("5 minutes before") },
+  { minutes: 15, label: tr("15 minutes before") },
+  { minutes: 30, label: tr("30 minutes before") },
+  { minutes: 60, label: tr("1 hour before") },
+  { minutes: 1440, label: tr("1 day before") }
 ];
 
 export interface TaskCompletion {
@@ -249,8 +250,8 @@ export function taskNotifications(
       return {
         id: hashId(`task|${d.key}`),
         at: d.at,
-        title: opts.preview ? d.task.title : 'VaultLocks task reminder',
-        body: opts.preview ? `Due ${due.charAt(0).toLowerCase() + due.slice(1)}` : 'You have a task due. Open VaultLocks to see it.',
+        title: opts.preview ? d.task.title : tr("VaultLocks task reminder"),
+        body: opts.preview ? tr("Due {0}", [due.charAt(0).toLowerCase() + due.slice(1)]) : tr("You have a task due. Open VaultLocks to see it."),
         kind: 'calendar' as const,
         silent: !opts.sound
       };

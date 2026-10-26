@@ -6,6 +6,7 @@ import { api, errorMessage, unwrap } from '../lib/api';
 import { Dialog } from './Dialog';
 import { useToast } from './Toast';
 
+import { tr } from '../../shared/i18n';
 const CHECK_MS = 15_000;
 
 /** Short two-note chime (no audio files, nothing loaded from the network). */
@@ -121,12 +122,12 @@ export function ReminderAlerts({ snap, onChanged, onView }: { snap: VaultSnapsho
           <AlarmClock size={18} aria-hidden /> {headline}
         </span>
       }
-      subtitle={queue.length > 1 ? `Reminder 1 of ${queue.length}` : current.snoozed ? 'Snoozed reminder' : 'Reminder'}
+      subtitle={queue.length > 1 ? tr("Reminder 1 of {0}", [queue.length]) : current.snoozed ? tr("Snoozed reminder") : tr("Reminder")}
       onClose={() => void save(acknowledge(ev, current.key))}
       footer={
         <div className="rem-actions">
           <button type="button" className="btn" disabled={busy} onClick={() => setSnoozeOpen((v) => !v)} aria-expanded={snoozeOpen}>
-            <Clock size={15} aria-hidden /> Remind me later
+            <Clock size={15} aria-hidden /> {tr("Remind me later")}
           </button>
           <button
             type="button"
@@ -137,13 +138,13 @@ export function ReminderAlerts({ snap, onChanged, onView }: { snap: VaultSnapsho
               onView(ev.id, current.day);
             }}
           >
-            <CalendarDays size={15} aria-hidden /> View event
+            <CalendarDays size={15} aria-hidden /> {tr("View event")}
           </button>
           <button type="button" className="btn" disabled={busy} onClick={() => void save(setDone({ ...ev, acks: [...ev.acks, current.key] }, current.day, true), 'Marked as done.')}>
-            <CircleCheck size={15} aria-hidden /> Mark as done
+            <CircleCheck size={15} aria-hidden /> {tr("Mark as done")}
           </button>
           <button type="button" className="btn primary" disabled={busy} onClick={() => void save(acknowledge(ev, current.key))} data-autofocus>
-            Dismiss
+            {tr("Dismiss")}
           </button>
         </div>
       }
@@ -158,12 +159,12 @@ export function ReminderAlerts({ snap, onChanged, onView }: { snap: VaultSnapsho
           {!ev.allDay && <span>{formatTime(ev.startTime)}</span>}
         </div>
         <p className="rem-message">
-          {started && !ev.allDay ? `Your event started ${timeUntil(start.getTime(), now)}.` : `Your scheduled event is ${whenText.charAt(0).toLowerCase() + whenText.slice(1)}.`}
-          {ev.location ? ` Location: ${ev.location}.` : ''}
+          {started && !ev.allDay ? tr("Your event started {0}.", [timeUntil(start.getTime(), now)]) : tr("Your scheduled event is {0}.", [whenText.charAt(0).toLowerCase() + whenText.slice(1)])}
+          {ev.location ? tr(" Location: {0}.", [ev.location]) : ''}
         </p>
-        <div className={`rem-status ${started ? 'late' : ''}`}>{started ? (ev.allDay ? 'Today' : `Started ${timeUntil(start.getTime(), now)}`) : `Starts ${timeUntil(start.getTime(), now)}`}</div>
+        <div className={`rem-status ${started ? 'late' : ''}`}>{started ? (ev.allDay ? tr("Today") : tr("Started {0}", [timeUntil(start.getTime(), now)])) : tr("Starts {0}", [timeUntil(start.getTime(), now)])}</div>
         {snoozeOpen && (
-          <div className="rem-snooze" role="group" aria-label="Remind me again in">
+          <div className="rem-snooze" role="group" aria-label={tr("Remind me again in")}>
             {SNOOZE_CHOICES.map((m) => (
               <button
                 key={m}
@@ -172,7 +173,7 @@ export function ReminderAlerts({ snap, onChanged, onView }: { snap: VaultSnapsho
                 disabled={busy}
                 onClick={() => void save(snooze(ev, current.key, m, Date.now()), `I'll remind you again in ${m < 60 ? `${m} minutes` : '1 hour'}.`)}
               >
-                {m < 60 ? `${m} min` : '1 hour'}
+                {m < 60 ? tr("{0} min", [m]) : tr("1 hour")}
               </button>
             ))}
           </div>

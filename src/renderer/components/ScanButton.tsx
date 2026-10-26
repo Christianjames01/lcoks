@@ -5,6 +5,7 @@ import { parseScan, parseScanQr, type ScanKind, type ScanResult } from '../../sh
 import { ApiError, api, errorMessage, unwrap } from '../lib/api';
 import { useToast } from './Toast';
 
+import { tr } from '../../shared/i18n';
 /** A QR code in the picture (tried at two sizes; small codes need the bigger one). */
 function findQr(img: HTMLImageElement): string | null {
   for (const max of [900, 1600]) {
@@ -103,7 +104,7 @@ export function ScanButton({ kind, onResult }: { kind: ScanKind; onResult: (r: S
       // An exact QR code (router sticker, gift card) wins over reading the printed text.
       const fromQr = parseScanQr(kind, photo.qr);
       const r = fromQr ?? parseScan(kind, await unwrap(api.app.recognizeText(photo.jpeg)));
-      if (!Object.keys(r.fields).length) toast(`Nothing readable found. Try again with the ${WHAT[kind]} flat, in good light.`, 'error');
+      if (!Object.keys(r.fields).length) toast(tr("Nothing readable found. Try again with the {0} flat, in good light.", [WHAT[kind]]), 'error');
       else onResult(r);
     } catch (e) {
       toast(e instanceof Error && !(e instanceof ApiError) ? e.message : errorMessage(e), 'error');
@@ -116,14 +117,14 @@ export function ScanButton({ kind, onResult }: { kind: ScanKind; onResult: (r: S
       <div className="scan-row">
         <button type="button" className="btn primary scan-main" onClick={() => void scan('camera')} disabled={busy}>
           {busy ? <span className="spinner" aria-hidden /> : <Camera size={16} aria-hidden />}
-          {busy ? 'Reading…' : `Scan ${WHAT[kind]} with camera`}
+          {busy ? tr("Reading…") : tr("Scan {0} with camera", [WHAT[kind]])}
         </button>
-        <button type="button" className="btn" onClick={() => void scan('gallery')} disabled={busy} aria-label="Scan from a photo" title="From a photo">
+        <button type="button" className="btn" onClick={() => void scan('gallery')} disabled={busy} aria-label={tr("Scan from a photo")} title={tr("From a photo")}>
           <ImageIcon size={16} aria-hidden />
         </button>
       </div>
       <span className="help-text row-flex" style={{ gap: 6 }}>
-        <ShieldCheck size={13} aria-hidden /> Read on this phone. Nothing is uploaded, and the photo isn't kept.
+        <ShieldCheck size={13} aria-hidden /> {tr("Read on this phone. Nothing is uploaded, and the photo isn't kept.")}
       </span>
     </div>
   );

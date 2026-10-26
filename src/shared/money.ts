@@ -1,4 +1,5 @@
 import type { ReceiptDetails } from './receipt';
+import { tr } from './i18n';
 
 // Expense & income tracking: categories, the quick-entry parser ("lunch 150",
 // "salary 30k") and small date / money helpers. Pure functions, shared by the
@@ -193,46 +194,51 @@ export interface MoneyCategory {
 export const MONEY_CATEGORIES: readonly MoneyCategory[] = [
   {
     id: 'food',
-    name: 'Food & Drinks',
+    name: tr("Food & Drinks"),
     kind: 'expense',
     icon: 'food',
-    words: ['food', 'lunch', 'dinner', 'breakfast', 'merienda', 'snack', 'jollibee', 'mcdo', 'mcdonalds', 'kfc', 'chowking', 'pizza', 'milktea', 'drinks', 'restaurant', 'eat', 'kain']
+    words: ['food', 'lunch', 'dinner', 'breakfast', 'merienda', 'snack', 'jollibee', 'mcdo', 'mcdonalds', 'kfc', 'chowking', 'pizza', 'milktea', 'drinks', 'restaurant', 'eat', 'kain', 'ulam', 'sud-an', 'sudan', 'sura', 'viand', 'karinderya', 'carinderia', 'turo-turo', 'kan-anan', 'pagkaon', 'pagkain', 'kaon', 'mangaon']
   },
   {
     id: 'coffee',
-    name: 'Coffee',
+    name: tr("Coffee"),
     kind: 'expense',
     icon: 'coffee',
     words: ['coffee', 'kape', 'cafe', 'café', 'starbucks', 'latte', 'americano', 'espresso', 'cappuccino', 'macchiato', 'mocha', 'frappe', 'frappuccino', 'cold brew', 'tim hortons', 'dunkin', 'coffee bean', 'bo\'s', 'kopi']
   },
-  { id: 'groceries', name: 'Groceries', kind: 'expense', icon: 'cart', words: ['grocery', 'groceries', 'market', 'palengke', 'supermarket', 'sm', 'puregold', 'savemore', 'rice', 'bigas'] },
+  { id: 'groceries', name: tr("Groceries"), kind: 'expense', icon: 'cart', words: ['grocery', 'groceries', 'market', 'palengke', 'supermarket', 'sm', 'puregold', 'savemore', 'rice', 'bigas'] },
   {
     id: 'transport',
-    name: 'Fare & Transport',
+    name: tr("Fare & Transport"),
     kind: 'expense',
     icon: 'car',
-    words: ['transport', 'grab', 'angkas', 'joyride', 'jeep', 'jeepney', 'tricycle', 'taxi', 'bus', 'mrt', 'lrt', 'fare', 'pamasahe', 'gas', 'fuel', 'gasoline', 'parking', 'toll', 'uber']
+    words: ['transport', 'grab', 'angkas', 'joyride', 'jeep', 'jeepney', 'tricycle', 'taxi', 'bus', 'mrt', 'lrt', 'fare', 'pamasahe', 'gas', 'fuel', 'gasoline', 'parking', 'toll', 'uber', 'plete', 'pliti', 'sakay', 'traysikel', 'habal', 'habal-habal', 'multicab', 'pamasaje']
   },
   {
     id: 'bills',
-    name: 'Bills & Utilities',
+    name: tr("Bills & Utilities"),
     kind: 'expense',
     icon: 'bolt',
-    words: ['bill', 'bills', 'electric', 'electricity', 'meralco', 'davao light', 'water', 'internet', 'wifi', 'pldt', 'converge', 'globe', 'smart', 'load', 'postpaid', 'phone']
+    words: ['bill', 'bills', 'electric', 'electricity', 'meralco', 'davao light', 'water', 'internet', 'wifi', 'pldt', 'converge', 'globe', 'smart', 'postpaid', 'kuryente', 'tubig', 'suga']
   },
-  { id: 'housing', name: 'Housing', kind: 'expense', icon: 'home', words: ['rent', 'upa', 'dorm', 'boarding', 'condo', 'mortgage', 'amortization', 'association'] },
-  { id: 'shopping', name: 'Shopping', kind: 'expense', icon: 'bag', words: ['shopping', 'shopee', 'lazada', 'clothes', 'shoes', 'shirt', 'gadget', 'mall'] },
-  { id: 'health', name: 'Health', kind: 'expense', icon: 'health', words: ['health', 'medicine', 'gamot', 'doctor', 'hospital', 'pharmacy', 'mercury', 'checkup', 'dental', 'vitamins', 'gym'] },
-  { id: 'entertainment', name: 'Entertainment', kind: 'expense', icon: 'film', words: ['movie', 'cinema', 'netflix', 'spotify', 'youtube', 'game', 'games', 'steam', 'concert', 'subscription'] },
-  { id: 'education', name: 'Education', kind: 'expense', icon: 'book', words: ['tuition', 'school', 'books', 'book', 'course', 'class', 'project', 'printing', 'print', 'xerox'] },
-  { id: 'personal', name: 'Personal Care', kind: 'expense', icon: 'sparkles', words: ['haircut', 'salon', 'barber', 'skincare', 'toiletries', 'laundry'] },
-  { id: 'family', name: 'Family & Gifts', kind: 'expense', icon: 'users', words: ['family', 'gift', 'regalo', 'birthday', 'donation', 'church', 'offering', 'padala'] },
-  { id: 'other', name: 'Other', kind: 'expense', icon: 'dots', words: [] },
-  { id: 'salary', name: 'Salary', kind: 'income', icon: 'wallet', words: ['salary', 'sweldo', 'sahod', 'payroll', 'paycheck', 'wage'] },
-  { id: 'business', name: 'Business', kind: 'income', icon: 'briefcase', words: ['business', 'sales', 'sold', 'client', 'freelance', 'commission', 'income'] },
-  { id: 'gifts', name: 'Gifts & Allowance', kind: 'income', icon: 'gift', words: ['allowance', 'baon', 'received', 'bonus', '13th'] },
-  { id: 'topup', name: 'Cash in / Top-up', kind: 'income', icon: 'wallet', words: ['cash in', 'cashin', 'top up', 'topup', 'add money', 'deposit', 'load wallet'] },
-  { id: 'other-income', name: 'Other income', kind: 'income', icon: 'trending', words: ['refund', 'interest', 'cashback', 'dividend', 'reimbursement'] }
+  { id: 'housing', name: tr("Housing"), kind: 'expense', icon: 'home', words: ['rent', 'upa', 'dorm', 'boarding', 'condo', 'mortgage', 'amortization', 'association'] },
+  { id: 'shopping', name: tr("Shopping"), kind: 'expense', icon: 'bag', words: ['shopping', 'shopee', 'lazada', 'clothes', 'shoes', 'shirt', 'gadget', 'mall'] },
+  { id: 'health', name: tr("Health"), kind: 'expense', icon: 'health', words: ['health', 'medicine', 'gamot', 'doctor', 'hospital', 'pharmacy', 'mercury', 'checkup', 'dental', 'vitamins', 'gym'] },
+  { id: 'entertainment', name: tr("Entertainment"), kind: 'expense', icon: 'film', words: ['movie', 'cinema', 'netflix', 'spotify', 'youtube', 'game', 'games', 'steam', 'concert', 'subscription'] },
+  { id: 'education', name: tr("Education"), kind: 'expense', icon: 'book', words: ['tuition', 'school', 'books', 'book', 'course', 'class', 'project', 'printing', 'print', 'xerox'] },
+  { id: 'personal', name: tr("Personal Care"), kind: 'expense', icon: 'sparkles', words: ['haircut', 'salon', 'barber', 'skincare', 'toiletries', 'laundry'] },
+  { id: 'family', name: tr("Family & Gifts"), kind: 'expense', icon: 'users', words: ['family', 'gift', 'regalo', 'birthday', 'donation', 'pamilya', 'handaan'] },
+  { id: 'load', name: tr("Load & Data"), kind: 'expense', icon: 'phone', words: ['load', 'eload', 'e-load', 'data', 'gosakto', 'go sakto', 'gigasurf', 'giga', 'magic data', 'promo', 'regular load', 'unli', 'surfing'] },
+  { id: 'padala', name: tr("Padala"), kind: 'expense', icon: 'cashout', words: ['padala', 'remittance', 'remit', 'palawan', 'cebuana', 'mlhuillier', 'm lhuillier', 'lbc', 'western union', 'send money', 'pinadala'] },
+  { id: 'baon', name: tr("Baon for kids"), kind: 'expense', icon: 'baby', words: ['baon ni', 'baon kay', 'baon ng', 'baon sa', 'baon para', 'allowance ni', 'allowance kay'] },
+  { id: 'sarisari', name: tr("Sari-sari"), kind: 'expense', icon: 'cart', words: ['sari-sari', 'sarisari', 'sari sari', 'tindahan', 'tienda'] },
+  { id: 'church', name: tr("Church & Tithes"), kind: 'expense', icon: 'gift', words: ['church', 'simbahan', 'tithes', 'tithe', 'ikapu', 'offering', 'misa', 'mass', 'halad', 'kolekta'] },
+  { id: 'other', name: tr("Other"), kind: 'expense', icon: 'dots', words: [] },
+  { id: 'salary', name: tr("Salary"), kind: 'income', icon: 'wallet', words: ['salary', 'sweldo', 'sahod', 'payroll', 'paycheck', 'wage'] },
+  { id: 'business', name: tr("Business"), kind: 'income', icon: 'briefcase', words: ['business', 'sales', 'sold', 'client', 'freelance', 'commission', 'income'] },
+  { id: 'gifts', name: tr("Gifts & Allowance"), kind: 'income', icon: 'gift', words: ['allowance', 'baon', 'received', 'bonus', '13th'] },
+  { id: 'topup', name: tr("Cash in / Top-up"), kind: 'income', icon: 'wallet', words: ['cash in', 'cashin', 'top up', 'topup', 'add money', 'deposit', 'load wallet'] },
+  { id: 'other-income', name: tr("Other income"), kind: 'income', icon: 'trending', words: ['refund', 'interest', 'cashback', 'dividend', 'reimbursement'] }
 ];
 
 export const MONEY_CATEGORY_IDS: ReadonlySet<string> = new Set(MONEY_CATEGORIES.map((c) => c.id));
@@ -366,8 +372,67 @@ export interface QuickParse {
   accountId?: string;
 }
 
+const GIVEN_BAON = /\b(baon|allowance)\s+(ni|kay|ng|sa|para)\b/i;
 const INCOME_HINT = /^\+|\b(salary|sweldo|sahod|income|bonus|allowance|baon|received|refund|cashback|sold|sales|interest|dividend|commission|payroll|freelance|cash ?in|top ?up|add money|deposit)\b/i;
-const AMOUNT_RE = /(^|\s)([+-]?)(?:₱|php|p|\$|usd|€|£|¥)?\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?\s?(k|m)?(?=\s|$)/i;
+const AMOUNT_RE = /(^|\s)([+-]?)(?:₱|php|p|\$|usd|€|£|¥)?\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?\s?(k|m|h)?(?=\s|$)/i;
+
+// Filipino money words: "isang daan" (100), "singkwenta" (50), "5 libo" (5,000),
+// "duha ka gatos" (200). Turned into digits before the amount is read.
+const NUM_WORDS: Record<string, number> = {
+  isa: 1, isang: 1, usa: 1, uno: 1, dalawa: 2, dalawang: 2, duha: 2, dos: 2, tatlo: 3, tatlong: 3, tulo: 3, tres: 3,
+  apat: 4, upat: 4, kwatro: 4, lima: 5, limang: 5, singko: 5, anim: 6, unom: 6, sais: 6, pito: 7, pitong: 7, siyete: 7,
+  walo: 8, walong: 8, otso: 8, siyam: 9, nuwebe: 9, sampu: 10, sampung: 10, napulo: 10, diyes: 10, dyes: 10,
+  onse: 11, dose: 12, trese: 13, katorse: 14, kinse: 15, disisais: 16, disisyete: 17, disiotso: 18, disinuwebe: 19,
+  bente: 20, beinte: 20, baynte: 20, trenta: 30, treinta: 30, kwarenta: 40, singkwenta: 50, sisenta: 60, saisenta: 60,
+  setenta: 70, otsenta: 80, nobenta: 90, siyento: 100, syento: 100, gatos: 100, daan: 100, raan: 100, mil: 1000, libo: 1000
+};
+const SCALE = new Set(['daan', 'raan', 'gatos', 'libo', 'mil', 'siyento', 'syento']);
+const LINK = new Set(['na', 'ka', "'t", 'at', 'y']);
+
+/** "dalawang daan at singkwenta pamasahe" → "250 pamasahe"; plain digits are left alone. */
+export function spelledAmounts(text: string): string {
+  const toks = text.split(/(\s+)/);
+  const out: string[] = [];
+  let i = 0;
+  while (i < toks.length) {
+    const w = toks[i]!.toLowerCase();
+    if (NUM_WORDS[w] === undefined && !/^\d+$/.test(w)) {
+      out.push(toks[i]!);
+      i++;
+      continue;
+    }
+    // Read a run like "dalawang daan at singkwenta" / "5 libo" / "duha ka gatos".
+    let total = 0;
+    let part = 0;
+    let used = 0;
+    let words = 0;
+    for (let j = i; j < toks.length; j++) {
+      const t = toks[j]!.toLowerCase();
+      if (/^\s*$/.test(t)) continue;
+      if (LINK.has(t) && used) continue;
+      const n = /^\d+$/.test(t) && !used ? Number(t) : NUM_WORDS[t];
+      if (n === undefined) break;
+      if (SCALE.has(t)) {
+        part = (part || 1) * n;
+        if (n >= 1000) {
+          total += part;
+          part = 0;
+        }
+      } else part += n;
+      if (!/^\d+$/.test(t)) words++;
+      used = j + 1;
+    }
+    const value = total + part;
+    if (!words || !value) {
+      out.push(toks[i]!);
+      i++;
+      continue;
+    }
+    out.push(String(value));
+    i = used;
+  }
+  return out.join('');
+}
 
 /**
  * Understand short entries like "lunch 150", "grab 85.50 yesterday gcash",
@@ -388,6 +453,7 @@ export function parseQuick(text: string, today: Date = new Date(), accounts: rea
     rest = rest.replace(/\b(today|ngayon)\b/gi, ' ');
   }
 
+  rest = spelledAmounts(rest);
   const m = AMOUNT_RE.exec(rest);
   if (!m) return null;
   const sign = m[2];
@@ -397,6 +463,7 @@ export function parseQuick(text: string, today: Date = new Date(), accounts: rea
   const mult = m[5]?.toLowerCase();
   if (mult === 'k') amount *= 1000;
   if (mult === 'm') amount *= 1_000_000;
+  if (mult === 'h') amount *= 100;
   if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) return null;
   rest = rest.slice(0, m.index) + ' ' + rest.slice(m.index + m[0].length);
 
@@ -413,7 +480,7 @@ export function parseQuick(text: string, today: Date = new Date(), accounts: rea
     }
   }
 
-  const kind: TxKind = sign === '+' || (sign !== '-' && INCOME_HINT.test(text.trim())) ? 'income' : 'expense';
+  const kind: TxKind = sign === '+' || (sign !== '-' && INCOME_HINT.test(text.trim()) && !GIVEN_BAON.test(text)) ? 'income' : 'expense';
   // The user's own categories first: their words are more specific ("ml", "cashout").
   const match = [...custom, ...editedBuiltins(edits).filter((c) => !isHiddenCategory(c.id, edits))].filter((c) => c.kind === kind).find((c) => c.words.some((w) => hasWord(rest, w)));
   const note = rest.replace(/\s+/g, ' ').trim();

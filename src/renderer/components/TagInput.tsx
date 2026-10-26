@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { useState } from 'react';
 
+import { tr } from '../../shared/i18n';
 const SUGGESTED = ['personal', 'work', 'bank', 'important', 'school', 'finance'];
 
 export function normalizeTag(t: string): string {
@@ -21,7 +22,7 @@ export function TagInput({ id, tags, onChange }: { id: string; tags: string[]; o
         {tags.map((t) => (
           <span key={t} className="tag" style={{ cursor: 'default' }}>
             {t}
-            <button type="button" className="x" aria-label={`Remove tag ${t}`} onClick={() => onChange(tags.filter((x) => x !== t))}>
+            <button type="button" className="x" aria-label={tr("Remove tag {0}", [t])} onClick={() => onChange(tags.filter((x) => x !== t))}>
               <X size={12} />
             </button>
           </span>
@@ -29,7 +30,7 @@ export function TagInput({ id, tags, onChange }: { id: string; tags: string[]; o
         <input
           id={id}
           value={draft}
-          placeholder={tags.length ? '' : 'Add a tag and press Enter'}
+          placeholder={tags.length ? '' : tr("Add a tag and press Enter")}
           onChange={(e) => {
             const v = e.target.value;
             if (v.endsWith(',')) add(v.slice(0, -1));
@@ -50,7 +51,7 @@ export function TagInput({ id, tags, onChange }: { id: string; tags: string[]; o
       {suggestions.length > 0 && (
         <div className="tags" style={{ marginTop: 8 }} id={`${id}-help`}>
           {suggestions.map((s) => (
-            <button key={s} type="button" className="tag" onClick={() => add(s)} aria-label={`Add tag ${s}`}>
+            <button key={s} type="button" className="tag" onClick={() => add(s)} aria-label={tr("Add tag {0}", [s])}>
               + {s}
             </button>
           ))}

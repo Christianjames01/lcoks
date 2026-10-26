@@ -57,6 +57,7 @@ import { ActionSheet } from '../components/HoldActions';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
 
+import { tr } from '../../shared/i18n';
 /** "Open this task" / "new task" request from outside (calendar, reminder, + button). */
 export interface TaskFocus {
   id: number;
@@ -170,8 +171,8 @@ export function TasksView({
       const input = done ? completeTask(t, new Date().toISOString()) : uncompleteTask(t);
       await saveTasks([input]);
       await onChanged();
-      if (done && t.repeat && t.due) toast(`Done. Next one: ${describeDue({ due: input.due, dueTime: input.dueTime }, new Date())}.`);
-      else toast(done ? 'Task completed.' : 'Task marked as not done.');
+      if (done && t.repeat && t.due) toast(tr("Done. Next one: {0}.", [describeDue({ due: input.due, dueTime: input.dueTime }, new Date())]));
+      else toast(done ? tr("Task completed.") : tr("Task marked as not done."));
     } catch (e) {
       toast(errorMessage(e), 'error');
     } finally {
@@ -183,7 +184,7 @@ export function TasksView({
     try {
       await saveTasks([uncompleteTask(t)]);
       await onChanged();
-      toast('Last completion undone.');
+      toast(tr("Last completion undone."));
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
@@ -199,12 +200,12 @@ export function TasksView({
     if (group !== 'all' || sort !== 'due' || query.trim()) return null;
     const tomorrow = addDays(today, 1);
     const defs: [string, string][] = [
-      ['overdue', 'Overdue'],
-      ['today', 'Today'],
-      ['tomorrow', 'Tomorrow'],
-      ['later', 'Later'],
-      ['nodate', 'No due date'],
-      ['completed', 'Completed']
+      ['overdue', tr("Overdue")],
+      ['today', tr("Today")],
+      ['tomorrow', tr("Tomorrow")],
+      ['later', tr("Later")],
+      ['nodate', tr("No due date")],
+      ['completed', tr("Completed")]
     ];
     const bucket = (t: Task) =>
       t.completed ? 'completed' : isTaskOverdue(t, now) ? 'overdue' : t.due === today ? 'today' : t.due === tomorrow ? 'tomorrow' : t.due ? 'later' : 'nodate';
@@ -233,14 +234,14 @@ export function TasksView({
       <div className="page-narrow">
         <header className="tk-hero">
           <div className="grow">
-            {!mobile && <h1 className="h1">Tasks</h1>}
+            {!mobile && <h1 className="h1">{tr("Tasks")}</h1>}
             <div className="tk-date">{now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</div>
             <p className="tk-sub">
               {progress.total === 0
-                ? 'Plan your day, one task at a time.'
+                ? tr("Plan your day, one task at a time.")
                 : progress.done === progress.total
-                  ? `All ${progress.total} done for today. Nice work.`
-                  : `${progress.done} of ${progress.total} done today`}
+                  ? tr("All {0} done for today. Nice work.", [progress.total])
+                  : tr("{0} of {1} done today", [progress.done, progress.total])}
             </p>
           </div>
           <ProgressRing done={progress.done} total={progress.total} />
@@ -249,9 +250,9 @@ export function TasksView({
         <div className="tk-actions">
           <div className="evc-search-box tk-search" role="search">
             <Search size={16} aria-hidden />
-            <input className="input" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks…" aria-label="Search tasks" autoComplete="off" maxLength={120} />
+            <input className="input" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr("Search tasks…")} aria-label={tr("Search tasks")} autoComplete="off" maxLength={120} />
             {query && (
-              <button type="button" className="icon-btn" onClick={() => setQuery('')} aria-label="Clear search">
+              <button type="button" className="icon-btn" onClick={() => setQuery('')} aria-label={tr("Clear search")}>
                 <X size={14} />
               </button>
             )}
@@ -261,29 +262,29 @@ export function TasksView({
             className={`tk-filter-btn ${showTools || toolCount ? 'on' : ''}`}
             onClick={() => setShowTools((v) => !v)}
             aria-expanded={showTools}
-            aria-label={toolCount ? `Sort and filter, ${toolCount} on` : 'Sort and filter'}
-            title="Sort and filter"
+            aria-label={toolCount ? tr("Sort and filter, {0} on", [toolCount]) : tr("Sort and filter")}
+            title={tr("Sort and filter")}
           >
             <SlidersHorizontal size={18} aria-hidden />
             {toolCount > 0 && <span className="tk-bell-count">{toolCount}</span>}
           </button>
           {/* Phones add tasks with the + in the bottom bar. */}
           {!mobile && (
-            <button type="button" className="btn primary tk-new" onClick={() => setEditor({ input: emptyTask() })} aria-label="New Task">
-              <Plus size={16} aria-hidden /> <span className="tk-new-text">New Task</span>
+            <button type="button" className="btn primary tk-new" onClick={() => setEditor({ input: emptyTask() })} aria-label={tr("New Task")}>
+              <Plus size={16} aria-hidden /> <span className="tk-new-text">{tr("New Task")}</span>
             </button>
           )}
         </div>
 
-        <div className="evc-filters tk-chips" role="group" aria-label="Show tasks">
+        <div className="evc-filters tk-chips" role="group" aria-label={tr("Show tasks")}>
           {(
             [
-              ['all', 'All', null],
-              ['today', 'Today', counts.today],
-              ['upcoming', 'Upcoming', counts.upcoming],
-              ['overdue', 'Overdue', counts.overdue],
-              ['reminders', 'Reminders', reminderCount],
-              ['completed', 'Done', counts.completed]
+              ['all', tr("All"), null],
+              ['today', tr("Today"), counts.today],
+              ['upcoming', tr("Upcoming"), counts.upcoming],
+              ['overdue', tr("Overdue"), counts.overdue],
+              ['reminders', tr("Reminders"), reminderCount],
+              ['completed', tr("Done"), counts.completed]
             ] as [TaskGroup, string, number | null][]
           ).map(([g, label, n]) => (
             <button key={g} type="button" className={`evc-chip ${g === 'overdue' && n ? 'warn' : ''}`} aria-pressed={group === g} onClick={() => setGroup(g)}>
@@ -296,30 +297,30 @@ export function TasksView({
         {showTools && (
           <div className="tk-tools">
             <label className="tk-select">
-              <span className="sr-only">Sort by</span>
-              <select className="input" value={sort} onChange={(e) => setSort(e.target.value as TaskSort)} aria-label="Sort tasks">
-                <option value="due">Sort: Due date</option>
-                <option value="priority">Sort: Priority</option>
-                <option value="created">Sort: Recently created</option>
-                <option value="updated">Sort: Recently updated</option>
-                <option value="title">Sort: A–Z</option>
+              <span className="sr-only">{tr("Sort by")}</span>
+              <select className="input" value={sort} onChange={(e) => setSort(e.target.value as TaskSort)} aria-label={tr("Sort tasks")}>
+                <option value="due">{tr("Sort: Due date")}</option>
+                <option value="priority">{tr("Sort: Priority")}</option>
+                <option value="created">{tr("Sort: Recently created")}</option>
+                <option value="updated">{tr("Sort: Recently updated")}</option>
+                <option value="title">{tr("Sort: A–Z")}</option>
               </select>
             </label>
             <label className="tk-select">
-              <span className="sr-only">Priority</span>
-              <select className="input" value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority | 'all')} aria-label="Filter by priority">
-                <option value="all">All priorities</option>
+              <span className="sr-only">{tr("Priority")}</span>
+              <select className="input" value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority | 'all')} aria-label={tr("Filter by priority")}>
+                <option value="all">{tr("All priorities")}</option>
                 {PRIORITIES.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} priority
+                    {p.name} {tr("priority")}
                   </option>
                 ))}
               </select>
             </label>
             <label className="tk-select">
-              <span className="sr-only">Category</span>
-              <select className="input" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter by category">
-                <option value="all">All categories</option>
+              <span className="sr-only">{tr("Category")}</span>
+              <select className="input" value={category} onChange={(e) => setCategory(e.target.value)} aria-label={tr("Filter by category")}>
+                <option value="all">{tr("All categories")}</option>
                 {[...TASK_CATEGORIES, ...custom].map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -337,7 +338,7 @@ export function TasksView({
                   setCategory('all');
                 }}
               >
-                Reset
+                {tr("Reset")}
               </button>
             )}
           </div>
@@ -346,33 +347,33 @@ export function TasksView({
         {needsPermission && (
           <div className="tk-banner" role="note">
             <Bell size={16} aria-hidden />
-            <span className="grow">Allow notifications so task reminders can ring even when VaultLocks is closed.</span>
+            <span className="grow">{tr("Allow notifications so task reminders can ring even when VaultLocks is closed.")}</span>
             <button type="button" className="btn sm primary" onClick={async () => setPermission(await api.notifications.request())}>
-              Allow
+              {tr("Allow")}
             </button>
           </div>
         )}
         {permission === 'denied' && tasks.some((t) => !t.completed && t.reminder) && (
           <div className="tk-banner muted" role="note">
             <Bell size={16} aria-hidden />
-            <span className="grow">Notifications are blocked, so reminders only pop up while VaultLocks is open. You can allow them in the system settings.</span>
+            <span className="grow">{tr("Notifications are blocked, so reminders only pop up while VaultLocks is open. You can allow them in the system settings.")}</span>
           </div>
         )}
 
-        <section className={`tk-panel ${ordered.length ? "" : "card"}`} aria-label="Tasks">
+        <section className={`tk-panel ${ordered.length ? "" : "card"}`} aria-label={tr("Tasks")}>
           {ordered.length === 0 ? (
             <div className="tk-empty">
               <ListTodo size={28} aria-hidden />
               {tasks.length === 0 ? (
                 <>
-                  <p>No tasks yet. Create your first task to get organized.</p>
+                  <p>{tr("No tasks yet. Create your first task to get organized.")}</p>
                   <button type="button" className="btn primary" onClick={() => setEditor({ input: emptyTask() })}>
-                    <Plus size={16} aria-hidden /> New Task
+                    <Plus size={16} aria-hidden /> {tr("New Task")}
                   </button>
                 </>
               ) : (
                 <>
-                  <p>{query.trim() ? `No tasks match “${query.trim()}”.` : group === 'completed' ? 'No completed tasks yet.' : group === 'overdue' ? 'Nothing overdue. Nice work.' : 'No tasks here.'}</p>
+                  <p>{query.trim() ? tr("No tasks match “{0}”.", [query.trim()]) : group === 'completed' ? tr("No completed tasks yet.") : group === 'overdue' ? tr("Nothing overdue. Nice work.") : tr("No tasks here.")}</p>
                   {filtered && (
                     <button
                       type="button"
@@ -384,7 +385,7 @@ export function TasksView({
                         setCategory('all');
                       }}
                     >
-                      Show all tasks
+                      {tr("Show all tasks")}
                     </button>
                   )}
                 </>
@@ -414,14 +415,14 @@ export function TasksView({
           title={menuFor.title}
           onClose={() => setMenuFor(null)}
           items={[
-            { key: 'edit', label: 'Edit', icon: <Pencil size={16} />, run: () => setEditor({ task: menuFor, input: { ...menuFor } }) },
+            { key: 'edit', label: tr("Edit"), icon: <Pencil size={16} />, run: () => setEditor({ task: menuFor, input: { ...menuFor } }) },
             {
               key: 'done',
-              label: menuFor.completed ? 'Mark as not done' : 'Mark complete',
+              label: menuFor.completed ? tr("Mark as not done") : tr("Mark complete"),
               icon: menuFor.completed ? <Square size={16} /> : <SquareCheck size={16} />,
               run: () => void toggle(menuFor)
             },
-            { key: 'delete', label: 'Delete', icon: <Trash2 size={16} />, danger: true, run: () => setDeleting(menuFor) }
+            { key: 'delete', label: tr("Delete"), icon: <Trash2 size={16} />, danger: true, run: () => setDeleting(menuFor) }
           ]}
         />
       )}
@@ -458,7 +459,7 @@ export function TasksView({
             const [saved] = await saveTasks([base ? { ...input, id: base.id, completed: base.completed, completedAt: base.completedAt, history: base.history, acks: base.acks } : input]);
             await onChanged();
             setEditor(null);
-            toast(base ? 'Task updated.' : 'Task saved.');
+            toast(base ? tr("Task updated.") : tr("Task saved."));
             return saved;
           }}
         />
@@ -467,13 +468,13 @@ export function TasksView({
       {deleting && (
         <ConfirmDialog
           placement="center"
-          title="Delete this task?"
+          title={tr("Delete this task?")}
           danger
-          confirmLabel="Delete Task"
+          confirmLabel={tr("Delete Task")}
           message={
             <>
               <div className="tk-del-title">{deleting.title}</div>
-              It will be deleted for good, with its reminder.
+              {tr("It will be deleted for good, with its reminder.")}
             </>
           }
           onCancel={() => setDeleting(null)}
@@ -482,7 +483,7 @@ export function TasksView({
               await saveTasks([], [deleting.id]);
               await onChanged();
               setDeleting(null);
-              toast('Task deleted.');
+              toast(tr("Task deleted."));
             } catch (e) {
               toast(errorMessage(e), 'error');
             }
@@ -501,7 +502,7 @@ function ProgressRing({ done, total }: { done: number; total: number }) {
   const c = 2 * Math.PI * r;
   const pct = total ? done / total : 0;
   return (
-    <div className="tk-ring" role="img" aria-label={total ? `${done} of ${total} tasks done today` : 'Nothing due today'}>
+    <div className="tk-ring" role="img" aria-label={total ? tr("{0} of {1} tasks done today", [done, total]) : tr("Nothing due today")}>
       <svg viewBox="0 0 56 56" width="56" height="56" aria-hidden>
         <circle cx="28" cy="28" r={r} className="tk-ring-track" />
         {pct > 0 && <circle cx="28" cy="28" r={r} className="tk-ring-fill" strokeDasharray={`${c * pct} ${c}`} transform="rotate(-90 28 28)" />}
@@ -515,7 +516,7 @@ function ProgressRing({ done, total }: { done: number; total: number }) {
 
 function PriorityBadge({ p }: { p: TaskPriority }) {
   return (
-    <span className={`tk-prio ${p}`} aria-label={`${priorityName(p)} priority`}>
+    <span className={`tk-prio ${p}`} aria-label={tr("{0} priority", [priorityName(p)])}>
       <Flag size={11} aria-hidden fill={p === 'high' ? 'currentColor' : 'none'} />
       {priorityName(p)}
     </span>
@@ -526,7 +527,7 @@ function TaskRow({ task: t, now, custom, onToggle, onOpen, onMore }: { task: Tas
   const overdue = isTaskOverdue(t, now);
   return (
     <li className={`tk-row ${t.completed ? 'done' : ''}`}>
-      <button type="button" className="tk-check" role="checkbox" aria-checked={t.completed} aria-label={t.completed ? `Mark “${t.title}” as not done` : `Complete “${t.title}”`} onClick={onToggle}>
+      <button type="button" className="tk-check" role="checkbox" aria-checked={t.completed} aria-label={t.completed ? tr("Mark “{0}” as not done", [t.title]) : tr("Complete “{0}”", [t.title])} onClick={onToggle}>
         {t.completed ? <CircleCheck size={24} aria-hidden /> : <Circle size={24} aria-hidden />}
       </button>
       <button type="button" className="tk-main" onClick={onOpen}>
@@ -535,7 +536,7 @@ function TaskRow({ task: t, now, custom, onToggle, onOpen, onMore }: { task: Tas
         <span className="tk-meta">
           {t.due && (
             <span className={overdue ? 'tk-overdue' : ''}>
-              <CalendarClock size={12} aria-hidden /> {overdue ? 'Overdue · ' : ''}
+              <CalendarClock size={12} aria-hidden /> {overdue ? tr("Overdue · ") : ''}
               {describeDue(t, now)}
             </span>
           )}
@@ -544,7 +545,7 @@ function TaskRow({ task: t, now, custom, onToggle, onOpen, onMore }: { task: Tas
             <Tag size={12} aria-hidden /> {categoryName(t.category, custom)}
           </span>
           {t.reminder && !t.completed && (
-            <span title={describeTaskReminder(t.reminder)} aria-label={`Reminder: ${describeTaskReminder(t.reminder)}`}>
+            <span title={describeTaskReminder(t.reminder)} aria-label={tr("Reminder: {0}", [describeTaskReminder(t.reminder)])}>
               <Bell size={12} aria-hidden />
             </span>
           )}
@@ -555,7 +556,7 @@ function TaskRow({ task: t, now, custom, onToggle, onOpen, onMore }: { task: Tas
           )}
         </span>
       </button>
-      <button type="button" className="icon-btn tk-more" onClick={onMore} aria-label={`More actions for “${t.title}”`} aria-haspopup="menu">
+      <button type="button" className="icon-btn tk-more" onClick={onMore} aria-label={tr("More actions for “{0}”", [t.title])} aria-haspopup="menu">
         <MoreHorizontal size={18} />
       </button>
     </li>
@@ -591,18 +592,18 @@ function TaskDetail({
       placement="center"
       size="narrow"
       title={<span className={t.completed ? 'tk-done-title' : ''}>{t.title}</span>}
-      subtitle={t.completed ? 'Completed' : overdue ? 'Overdue' : t.due ? 'Open' : 'Open · no due date'}
+      subtitle={t.completed ? tr("Completed") : overdue ? tr("Overdue") : t.due ? tr("Open") : tr("Open · no due date")}
       onClose={onClose}
       footer={
         <>
           <button type="button" className="btn" onClick={onDelete}>
-            <Trash2 size={15} aria-hidden /> Delete
+            <Trash2 size={15} aria-hidden /> {tr("Delete")}
           </button>
           <button type="button" className="btn" onClick={onEdit}>
-            <Pencil size={15} aria-hidden /> Edit
+            <Pencil size={15} aria-hidden /> {tr("Edit")}
           </button>
           <button type="button" className="btn primary" onClick={onToggle} data-autofocus>
-            {t.completed ? <Square size={15} aria-hidden /> : <SquareCheck size={15} aria-hidden />} {t.completed ? 'Mark not done' : 'Mark Complete'}
+            {t.completed ? <Square size={15} aria-hidden /> : <SquareCheck size={15} aria-hidden />} {t.completed ? tr("Mark not done") : tr("Mark Complete")}
           </button>
         </>
       }
@@ -610,45 +611,45 @@ function TaskDetail({
       <dl className="tk-dl">
         {t.description && (
           <>
-            <dt>Description</dt>
+            <dt>{tr("Description")}</dt>
             <dd className="tk-pre">{t.description}</dd>
           </>
         )}
-        <dt>Due</dt>
+        <dt>{tr("Due")}</dt>
         <dd className={overdue ? 'tk-overdue' : ''}>{describeDue(t, now)}</dd>
-        <dt>Priority</dt>
+        <dt>{tr("Priority")}</dt>
         <dd>
           <PriorityBadge p={t.priority} />
         </dd>
-        <dt>Category</dt>
+        <dt>{tr("Category")}</dt>
         <dd>{categoryName(t.category, custom)}</dd>
-        <dt>Reminder</dt>
+        <dt>{tr("Reminder")}</dt>
         <dd>{describeTaskReminder(t.reminder)}</dd>
-        <dt>Repeat</dt>
+        <dt>{tr("Repeat")}</dt>
         <dd>
-          {t.repeat ? REPEAT_NAMES[t.repeat] : 'Does not repeat'}
+          {t.repeat ? REPEAT_NAMES[t.repeat] : tr("Does not repeat")}
           {t.repeat && t.history.length > 0 && (
             <div className="muted small">
-              Done {t.history.length} time{t.history.length === 1 ? '' : 's'} · last on {formatDay(last!.due, { month: 'short', day: 'numeric' })}{' '}
+              {tr("Done")} {t.history.length} {tr("time")}{t.history.length === 1 ? '' : 's'} {tr("· last on")} {formatDay(last!.due, { month: 'short', day: 'numeric' })}{' '}
               <button type="button" className="linkish" onClick={onUndo}>
-                <Undo2 size={12} aria-hidden /> Undo
+                <Undo2 size={12} aria-hidden /> {tr("Undo")}
               </button>
             </div>
           )}
         </dd>
         {t.notes && (
           <>
-            <dt>Notes</dt>
+            <dt>{tr("Notes")}</dt>
             <dd className="tk-pre">{t.notes}</dd>
           </>
         )}
-        <dt>Created</dt>
+        <dt>{tr("Created")}</dt>
         <dd>{when(t.createdAt)}</dd>
-        <dt>Updated</dt>
+        <dt>{tr("Updated")}</dt>
         <dd>{when(t.updatedAt)}</dd>
         {t.completed && t.completedAt && (
           <>
-            <dt>Completed</dt>
+            <dt>{tr("Completed")}</dt>
             <dd>{when(t.completedAt)}</dd>
           </>
         )}
@@ -710,11 +711,11 @@ function TaskEditor({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
-    if (!title.trim()) return setError({ field: 'title', message: 'Give the task a title.' });
-    if (dueTime && !due) return setError({ field: 'due', message: 'Pick a due date for this time.' });
-    if (reminder !== 'none' && reminder !== 'custom' && !due) return setError({ field: 'reminder', message: 'This reminder counts from the due date — set one, or choose a custom date and time.' });
-    if (reminder === 'custom' && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(customAt)) return setError({ field: 'reminder', message: 'Choose the reminder date and time.' });
-    if (repeat !== 'none' && !due) return setError({ field: 'repeat', message: 'A repeating task needs a due date.' });
+    if (!title.trim()) return setError({ field: 'title', message: tr("Give the task a title.") });
+    if (dueTime && !due) return setError({ field: 'due', message: tr("Pick a due date for this time.") });
+    if (reminder !== 'none' && reminder !== 'custom' && !due) return setError({ field: 'reminder', message: tr("This reminder counts from the due date — set one, or choose a custom date and time.") });
+    if (reminder === 'custom' && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(customAt)) return setError({ field: 'reminder', message: tr("Choose the reminder date and time.") });
+    if (repeat !== 'none' && !due) return setError({ field: 'repeat', message: tr("A repeating task needs a due date.") });
     setError(null);
     setBusy(true);
     try {
@@ -738,24 +739,24 @@ function TaskEditor({
     <>
       <Dialog
         placement="center"
-        title={isNew ? 'New Task' : 'Edit Task'}
+        title={isNew ? tr("New Task") : tr("Edit Task")}
         onClose={attemptClose}
         busy={busy}
         footer={
           <>
             <button type="button" className="btn" onClick={attemptClose} disabled={busy}>
-              Cancel
+              {tr("Cancel")}
             </button>
             <button type="submit" form="task-form" className="btn primary" disabled={busy}>
               {busy && <span className="spinner" aria-hidden />}
-              Save Task
+              {tr("Save Task")}
             </button>
           </>
         }
       >
         <form id="task-form" className="evc-form" onSubmit={submit} noValidate>
           <div className="field">
-            <label htmlFor="tk-title">Task title</label>
+            <label htmlFor="tk-title">{tr("Task title")}</label>
             <input
               id="tk-title"
               className="input"
@@ -764,7 +765,7 @@ function TaskEditor({
                 setTitle(e.target.value);
                 if (error?.field === 'title') setError(null);
               }}
-              placeholder="e.g. Pay tuition fee"
+              placeholder={tr("e.g. Pay tuition fee")}
               maxLength={200}
               autoComplete="off"
               aria-invalid={error?.field === 'title'}
@@ -773,19 +774,19 @@ function TaskEditor({
             {errFor('title')}
           </div>
           <div className="field">
-            <label htmlFor="tk-desc">Description (optional)</label>
+            <label htmlFor="tk-desc">{tr("Description (optional)")}</label>
             <textarea id="tk-desc" className="input" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={4000} />
           </div>
           <div className="evc-when">
             <div className="field">
-              <label htmlFor="tk-due">Due date (optional)</label>
+              <label htmlFor="tk-due">{tr("Due date (optional)")}</label>
               <div className="tk-date-row">
                 <input id="tk-due" className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} aria-invalid={error?.field === 'due'} />
                 {due && (
                   <button
                     type="button"
                     className="icon-btn"
-                    aria-label="Clear due date"
+                    aria-label={tr("Clear due date")}
                     onClick={() => {
                       setDue('');
                       setDueTime('');
@@ -799,14 +800,14 @@ function TaskEditor({
               {errFor('due')}
             </div>
             <div className="field">
-              <label htmlFor="tk-time">Due time (optional)</label>
+              <label htmlFor="tk-time">{tr("Due time (optional)")}</label>
               <input id="tk-time" className="input" type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} disabled={!due} />
-              {!due && <div className="help-text">Set a date first.</div>}
+              {!due && <div className="help-text">{tr("Set a date first.")}</div>}
             </div>
           </div>
           <div className="field">
-            <span className="label">Priority</span>
-            <div className="segmented tk-prio-pick" role="radiogroup" aria-label="Priority">
+            <span className="label">{tr("Priority")}</span>
+            <div className="segmented tk-prio-pick" role="radiogroup" aria-label={tr("Priority")}>
               {(['low', 'medium', 'high'] as TaskPriority[]).map((p) => (
                 <button key={p} type="button" role="radio" aria-checked={priority === p} aria-pressed={priority === p} onClick={() => setPriority(p)}>
                   <Flag size={13} aria-hidden fill={p === 'high' ? 'currentColor' : 'none'} /> {priorityName(p)}
@@ -815,49 +816,49 @@ function TaskEditor({
             </div>
           </div>
           <div className="field">
-            <span className="label">Category</span>
-            <div className="cat-picker" role="radiogroup" aria-label="Category">
+            <span className="label">{tr("Category")}</span>
+            <div className="cat-picker" role="radiogroup" aria-label={tr("Category")}>
               {[...TASK_CATEGORIES, ...custom].map((c) => (
                 <button key={c.id} type="button" role="radio" aria-checked={category === c.id} className="cat-chip" onClick={() => setCategory(c.id)}>
                   {c.name}
                 </button>
               ))}
               <button type="button" className="cat-chip tk-manage" onClick={onManageCategories}>
-                <Pencil size={13} aria-hidden /> Edit categories
+                <Pencil size={13} aria-hidden /> {tr("Edit categories")}
               </button>
             </div>
           </div>
           <div className="field">
-            <label htmlFor="tk-rem">Reminder</label>
+            <label htmlFor="tk-rem">{tr("Reminder")}</label>
             <select id="tk-rem" className="input" value={reminder} onChange={(e) => setReminder(e.target.value as ReminderChoice)} aria-invalid={error?.field === 'reminder'}>
-              <option value="none">None</option>
+              <option value="none">{tr("None")}</option>
               {TASK_REMINDER_PRESETS.map((p) => (
                 <option key={p.minutes} value={`b${p.minutes}`}>
                   {p.label}
                 </option>
               ))}
-              <option value="custom">Custom date and time…</option>
+              <option value="custom">{tr("Custom date and time…")}</option>
             </select>
             {reminder === 'custom' && (
-              <input className="input tk-custom-at" type="datetime-local" value={customAt} onChange={(e) => setCustomAt(e.target.value)} aria-label="Reminder date and time" />
+              <input className="input tk-custom-at" type="datetime-local" value={customAt} onChange={(e) => setCustomAt(e.target.value)} aria-label={tr("Reminder date and time")} />
             )}
-            {reminder !== 'none' && reminder !== 'custom' && !due && <div className="help-text">Counts from the due date{dueTime ? '' : ' (9:00 AM when there is no time)'}.</div>}
+            {reminder !== 'none' && reminder !== 'custom' && !due && <div className="help-text">{tr("Counts from the due date")}{dueTime ? '' : tr(" (9:00 AM when there is no time)")}.</div>}
             {errFor('reminder')}
           </div>
           <div className="field">
-            <label htmlFor="tk-repeat">Repeat</label>
+            <label htmlFor="tk-repeat">{tr("Repeat")}</label>
             <select id="tk-repeat" className="input" value={repeat} onChange={(e) => setRepeat(e.target.value as TaskRepeat | 'none')} disabled={!due} aria-invalid={error?.field === 'repeat'}>
-              <option value="none">None</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
+              <option value="none">{tr("None")}</option>
+              <option value="daily">{tr("Daily")}</option>
+              <option value="weekly">{tr("Weekly")}</option>
+              <option value="monthly">{tr("Monthly")}</option>
+              <option value="yearly">{tr("Yearly")}</option>
             </select>
-            <div className="help-text">{due ? 'When you complete it, it moves to the next date.' : 'Set a due date to repeat this task.'}</div>
+            <div className="help-text">{due ? tr("When you complete it, it moves to the next date.") : tr("Set a due date to repeat this task.")}</div>
             {errFor('repeat')}
           </div>
           <div className="field">
-            <label htmlFor="tk-notes">Notes (optional)</label>
+            <label htmlFor="tk-notes">{tr("Notes (optional)")}</label>
             <textarea id="tk-notes" className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} />
           </div>
           {errFor('form')}
@@ -866,10 +867,10 @@ function TaskEditor({
       {discard && (
         <ConfirmDialog
           placement="center"
-          title="Discard changes?"
-          confirmLabel="Discard"
+          title={tr("Discard changes?")}
+          confirmLabel={tr("Discard")}
           danger
-          message="What you typed in this task will be lost."
+          message={tr("What you typed in this task will be lost.")}
           onCancel={() => setDiscard(false)}
           onConfirm={() => {
             setDiscard(false);
@@ -907,17 +908,17 @@ function CategoryManager({ snap, onClose, onChanged }: { snap: VaultSnapshot; on
   const add = async () => {
     const n = name.trim();
     if (!n) return;
-    if ([...TASK_CATEGORIES, ...list].some((c) => c.name.toLowerCase() === n.toLowerCase())) return toast('That category already exists.', 'error');
-    if (list.length >= 20) return toast('At most 20 categories.', 'error');
+    if ([...TASK_CATEGORIES, ...list].some((c) => c.name.toLowerCase() === n.toLowerCase())) return toast(tr("That category already exists."), 'error');
+    if (list.length >= 20) return toast(tr("At most 20 categories."), 'error');
     await persist([...list, { id: `c${Date.now().toString(36)}`, name: n.slice(0, 30) }], 'Category added.');
     setName('');
   };
 
   return (
     <>
-      <Dialog placement="center" size="narrow" title="Task categories" onClose={onClose} busy={busy}>
+      <Dialog placement="center" size="narrow" title={tr("Task categories")} onClose={onClose} busy={busy}>
         <p className="muted small" style={{ marginTop: 0 }}>
-          Built-in: {TASK_CATEGORIES.map((c) => c.name).join(', ')}. Removing your own category moves its tasks to Other — no task is deleted.
+          {tr("Built-in:")} {TASK_CATEGORIES.map((c) => c.name).join(', ')}{tr(". Removing your own category moves its tasks to Other — no task is deleted.")}
         </p>
         <ul className="tk-cats">
           {list.map((c) => (
@@ -937,19 +938,19 @@ function CategoryManager({ snap, onClose, onChanged }: { snap: VaultSnapshot; on
             void add();
           }}
         >
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="New category, e.g. Church" maxLength={30} aria-label="New category name" />
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={tr("New category, e.g. Church")} maxLength={30} aria-label={tr("New category name")} />
           <button type="submit" className="btn primary" disabled={busy || !name.trim()}>
-            Add
+            {tr("Add")}
           </button>
         </form>
       </Dialog>
       {removing && (
         <ConfirmDialog
           placement="center"
-          title={`Remove “${removing.name}”?`}
-          confirmLabel="Remove"
+          title={tr("Remove “{0}”?", [removing.name])}
+          confirmLabel={tr("Remove")}
           danger
-          message={`${snap.tasks.filter((t) => t.category === removing.id).length} task(s) in it move to Other.`}
+          message={tr("{0} task(s) in it move to Other.", [snap.tasks.filter((t) => t.category === removing.id).length])}
           onCancel={() => setRemoving(null)}
           onConfirm={async () => {
             try {
@@ -976,13 +977,13 @@ function CategoryRow({ cat, busy, onRename, onRemove }: { cat: TaskCategory; bus
   const changed = value.trim() !== '' && value.trim() !== cat.name;
   return (
     <li className="tk-cat">
-      <input className="input" value={value} onChange={(e) => setValue(e.target.value)} maxLength={30} aria-label={`Rename ${cat.name}`} />
+      <input className="input" value={value} onChange={(e) => setValue(e.target.value)} maxLength={30} aria-label={tr("Rename {0}", [cat.name])} />
       {changed && (
         <button type="button" className="btn sm" disabled={busy} onClick={() => onRename(value.trim())}>
-          Save
+          {tr("Save")}
         </button>
       )}
-      <button type="button" className="icon-btn" disabled={busy} onClick={onRemove} aria-label={`Remove ${cat.name}`}>
+      <button type="button" className="icon-btn" disabled={busy} onClick={onRemove} aria-label={tr("Remove {0}", [cat.name])}>
         <Trash2 size={15} />
       </button>
     </li>
@@ -1051,7 +1052,7 @@ export function TaskAlerts({ snap, onChanged, onView }: { snap: VaultSnapshot; o
           <AlarmClock size={18} aria-hidden /> {task.title}
         </span>
       }
-      subtitle={queue.length > 1 ? `Task reminder 1 of ${queue.length}` : 'Task reminder'}
+      subtitle={queue.length > 1 ? tr("Task reminder 1 of {0}", [queue.length]) : tr("Task reminder")}
       onClose={() => void act(dismissInput)}
       footer={
         <div className="rem-actions">
@@ -1064,19 +1065,19 @@ export function TaskAlerts({ snap, onChanged, onView }: { snap: VaultSnapshot; o
               onView(task.id);
             }}
           >
-            View task
+            {tr("View task")}
           </button>
           <button type="button" className="btn" disabled={busy} onClick={() => void act(completeTask({ ...task, acks: [...task.acks, current.key] }, new Date().toISOString()), 'Task completed.')}>
-            <SquareCheck size={15} aria-hidden /> Mark complete
+            <SquareCheck size={15} aria-hidden /> {tr("Mark complete")}
           </button>
           <button type="button" className="btn primary" disabled={busy} onClick={() => void act(dismissInput)} data-autofocus style={{ gridColumn: '1 / -1' }}>
-            Dismiss
+            {tr("Dismiss")}
           </button>
         </div>
       }
     >
       <div className="rem-body">
-        <p className="rem-message">{task.due ? `Due ${describeDue(task, new Date()).replace(/^[A-Z]/, (c) => c.toLowerCase())}.` : 'This is your reminder.'}</p>
+        <p className="rem-message">{task.due ? tr("Due {0}.", [describeDue(task, new Date()).replace(/^[A-Z]/, (c) => c.toLowerCase())]) : tr("This is your reminder.")}</p>
         <div className="rem-when">
           <PriorityBadge p={task.priority} />
           <span>{categoryName(task.category, snap.settings.taskCategories)}</span>

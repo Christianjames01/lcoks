@@ -8,6 +8,7 @@ import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { formatDate } from '../lib/format';
 
+import { tr } from '../../shared/i18n';
 function daysLeft(deletedAt: string): number {
   const ms = new Date(deletedAt).getTime() + TRASH_DAYS * 86_400_000 - Date.now();
   return Math.max(0, Math.ceil(ms / 86_400_000));
@@ -24,7 +25,7 @@ export function TrashView({ snap, onChanged }: { snap: VaultSnapshot; onChanged:
     try {
       await unwrap(api.vault.restoreEntry(t.id));
       await onChanged();
-      toast(`“${t.title}” restored.`);
+      toast(tr("“{0}” restored.", [t.title]));
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
@@ -36,21 +37,21 @@ export function TrashView({ snap, onChanged }: { snap: VaultSnapshot; onChanged:
         <div className="row-flex" style={{ alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap' }}>
           <div className="grow" style={{ flex: 1, minWidth: 220 }}>
             <h2 className="h2" style={{ margin: 0 }}>
-              Recently Deleted
+              {tr("Recently Deleted")}
             </h2>
             <p className="muted small" style={{ margin: '4px 0 0' }}>
-              Deleted items (with their attachments) are kept for {TRASH_DAYS} days, then removed permanently.
+              {tr("Deleted items (with their attachments) are kept for")} {TRASH_DAYS} {tr("days, then removed permanently.")}
             </p>
           </div>
           {items.length > 0 && (
             <button type="button" className="btn sm danger" onClick={() => setEmptying(true)}>
-              <Trash2 size={14} aria-hidden /> Empty
+              <Trash2 size={14} aria-hidden /> {tr("Empty")}
             </button>
           )}
         </div>
 
         {items.length === 0 ? (
-          <EmptyState card art="trash" title="Nothing here" text={`Items you delete appear here for ${TRASH_DAYS} days, so you can restore them.`} />
+          <EmptyState card art="trash" title={tr("Nothing here")} text={tr("Items you delete appear here for {0} days, so you can restore them.", [TRASH_DAYS])} />
         ) : (
           <ul className="list card" style={{ padding: 6 }}>
             {items.map((t) => {
@@ -65,15 +66,15 @@ export function TrashView({ snap, onChanged }: { snap: VaultSnapshot; onChanged:
                         {t.title}
                       </span>
                       <span className="row-sub" style={{ display: 'block' }}>
-                        {cat?.name ?? 'Item'} · deleted {formatDate(t.deletedAt)} · {left} day{left === 1 ? '' : 's'} left
-                        {t.attachmentCount ? ` · ${t.attachmentCount} attachment(s)` : ''}
+                        {cat?.name ?? tr("Item")} {tr("· deleted")} {formatDate(t.deletedAt)} · {left} {tr("day")}{left === 1 ? '' : 's'} {tr("left")}
+                        {t.attachmentCount ? tr(" · {0} attachment(s)", [t.attachmentCount]) : ''}
                       </span>
                     </span>
                   </div>
-                  <button type="button" className="btn sm" onClick={() => void restore(t)} aria-label={`Restore ${t.title}`}>
-                    <RotateCcw size={14} aria-hidden /> Restore
+                  <button type="button" className="btn sm" onClick={() => void restore(t)} aria-label={tr("Restore {0}", [t.title])}>
+                    <RotateCcw size={14} aria-hidden /> {tr("Restore")}
                   </button>
-                  <button type="button" className="icon-btn" onClick={() => setPurging(t)} aria-label={`Delete ${t.title} permanently`} title="Delete permanently">
+                  <button type="button" className="icon-btn" onClick={() => setPurging(t)} aria-label={tr("Delete {0} permanently", [t.title])} title={tr("Delete permanently")}>
                     <Trash2 size={16} />
                   </button>
                 </li>
@@ -85,12 +86,12 @@ export function TrashView({ snap, onChanged }: { snap: VaultSnapshot; onChanged:
 
       {purging && (
         <ConfirmDialog placement="center"
-          title="Delete permanently?"
+          title={tr("Delete permanently?")}
           danger
-          confirmLabel="Delete permanently"
+          confirmLabel={tr("Delete permanently")}
           message={
             <>
-              <strong style={{ color: 'var(--fg)' }}>{purging.title}</strong> and its attachments will be erased from this device. This cannot be undone.
+              <strong style={{ color: 'var(--fg)' }}>{purging.title}</strong> {tr("and its attachments will be erased from this device. This cannot be undone.")}
             </>
           }
           onCancel={() => setPurging(null)}
@@ -99,7 +100,7 @@ export function TrashView({ snap, onChanged }: { snap: VaultSnapshot; onChanged:
               await unwrap(api.vault.purgeEntry(purging.id));
               setPurging(null);
               await onChanged();
-              toast('Deleted permanently.');
+              toast(tr("Deleted permanently."));
             } catch (e) {
               setPurging(null);
               toast(errorMessage(e), 'error');
@@ -109,17 +110,17 @@ export function TrashView({ snap, onChanged }: { snap: VaultSnapshot; onChanged:
       )}
       {emptying && (
         <ConfirmDialog placement="center"
-          title="Empty Recently Deleted?"
+          title={tr("Empty Recently Deleted?")}
           danger
-          confirmLabel={`Delete ${items.length} item${items.length === 1 ? '' : 's'}`}
-          message={<>All {items.length} item(s) in Recently Deleted and their attachments will be erased permanently. This cannot be undone.</>}
+          confirmLabel={tr("Delete {0} item{1}", [items.length, items.length === 1 ? '' : 's'])}
+          message={<>{tr("All")} {items.length} {tr("item(s) in Recently Deleted and their attachments will be erased permanently. This cannot be undone.")}</>}
           onCancel={() => setEmptying(false)}
           onConfirm={async () => {
             try {
               const n = await unwrap(api.vault.emptyTrash());
               setEmptying(false);
               await onChanged();
-              toast(`${n} item(s) deleted permanently.`);
+              toast(tr("{0} item(s) deleted permanently.", [n]));
             } catch (e) {
               setEmptying(false);
               toast(errorMessage(e), 'error');

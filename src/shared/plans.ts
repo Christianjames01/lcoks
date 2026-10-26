@@ -4,6 +4,7 @@
 import { hashId } from './calendar';
 import { addMonths, dayKey, formatMoney, monthOf, parseDay, type Transaction } from './money';
 
+import { tr } from './i18n';
 const DAY = 86_400_000;
 
 // --------------------------------------------------------------- budgets --
@@ -91,8 +92,8 @@ export function debtTotals(list: readonly Debt[]): { owedToMe: number; iOwe: num
 export function debtTransaction(d: Debt, amount: number, date: string, accountId?: string): Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'> {
   const what = d.note ? ` · ${d.note}` : '';
   return d.direction === 'owedToMe'
-    ? { kind: 'income', amount, category: 'other-income', note: `${d.person} paid back${what}`, date, ...(accountId ? { accountId } : {}) }
-    : { kind: 'expense', amount, category: 'other', note: `Paid back ${d.person}${what}`, date, ...(accountId ? { accountId } : {}) };
+    ? { kind: 'income', amount, category: 'other-income', note: tr("{0} paid back{1}", [d.person, what]), date, ...(accountId ? { accountId } : {}) }
+    : { kind: 'expense', amount, category: 'other', note: tr("Paid back {0}{1}", [d.person, what]), date, ...(accountId ? { accountId } : {}) };
 }
 
 // ----------------------------------------------------------------- bills --
@@ -274,8 +275,8 @@ export function planNotifications(
         out.push({
           id: hashId(`bill|${b.id}|${period}|${back}`),
           at,
-          title: opts.preview ? `${b.name} ${back ? 'is due tomorrow' : 'is due today'}` : 'VaultLocks bill reminder',
-          body: opts.preview ? (b.amount ? `About ${money(b.amount)}. Open VaultLocks to mark it paid.` : 'Open VaultLocks to mark it paid.') : 'A bill is due. Open VaultLocks to see it.',
+          title: opts.preview ? `${b.name} ${back ? 'is due tomorrow' : 'is due today'}` : tr("VaultLocks bill reminder"),
+          body: opts.preview ? (b.amount ? tr("About {0}. Open VaultLocks to mark it paid.", [money(b.amount)]) : tr("Open VaultLocks to mark it paid.")) : tr("A bill is due. Open VaultLocks to see it."),
           kind: 'calendar',
           silent: !opts.sound
         });
@@ -290,8 +291,8 @@ export function planNotifications(
     out.push({
       id: hashId(`debt|${d.id}|${d.due}`),
       at,
-      title: opts.preview ? (d.direction === 'owedToMe' ? `Collect ${left} from ${d.person}` : `Pay back ${d.person}: ${left}`) : 'VaultLocks utang reminder',
-      body: opts.preview ? d.note || 'Open VaultLocks to mark it paid.' : 'Open VaultLocks to see it.',
+      title: opts.preview ? (d.direction === 'owedToMe' ? tr("Collect {0} from {1}", [left, d.person]) : tr("Pay back {0}: {1}", [d.person, left])) : tr("VaultLocks utang reminder"),
+      body: opts.preview ? d.note || tr("Open VaultLocks to mark it paid.") : tr("Open VaultLocks to see it."),
       kind: 'calendar',
       silent: !opts.sound
     });

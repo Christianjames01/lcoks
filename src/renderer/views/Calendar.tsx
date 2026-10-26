@@ -17,7 +17,8 @@ import {
   Square,
   SquareCheck,
   Trash2,
-  X
+  X,
+  Flag
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
@@ -63,10 +64,12 @@ import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
 
+import { dayNames, tr } from '../../shared/i18n';
+import { HOLIDAY_KIND_LABEL, holidaysOf, holidaysOn, type Holiday } from '../../shared/holidays';
 type View = 'month' | 'week' | 'day' | 'agenda';
 type Filter = 'all' | 'today' | 'upcoming' | 'completed' | 'reminders' | 'overdue';
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAYS = dayNames().map((d) => d.slice(0, 3));
 const HOUR_PX = 48;
 const VIEW_KEY = 'vaultlocks.calendarView';
 
@@ -80,6 +83,26 @@ export interface CalendarFocus {
 }
 
 const startOfWeek = (day: string) => addDays(day, -weekdayOf(day));
+
+const HOLIDAYS_KEY = 'vaultlocks.holidays';
+function useHolidaysSetting(): [boolean, (v: boolean) => void] {
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(HOLIDAYS_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const set = (v: boolean) => {
+    setOn(v);
+    try {
+      localStorage.setItem(HOLIDAYS_KEY, v ? 'on' : 'off');
+    } catch {
+      /* this session only */
+    }
+  };
+  return [on, set];
+}
 
 function useNow(ms = 30_000): Date {
   const [now, setNow] = useState(() => new Date());
@@ -109,6 +132,7 @@ export function CalendarView({
   const toast = useToast();
   const now = useNow();
   const today = dayKey(now);
+  const [holidaysOn_, setHolidaysOn] = useHolidaysSetting();
   const [view, setViewState] = useState<View>(() => {
     try {
       const v = localStorage.getItem(VIEW_KEY);
@@ -144,7 +168,7 @@ export function CalendarView({
     try {
       await unwrap(api.vault.saveTasks([t.completed ? uncompleteTask(t) : completeTask(t, new Date().toISOString())], []));
       await onChanged();
-      toast(t.completed ? 'Task marked as not done.' : 'Task completed.');
+      toast(t.completed ? tr("Task marked as not done.") : tr("Task completed."));
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
@@ -252,7 +276,7 @@ export function CalendarView({
   return (
     <div className="page calendar-page">
       <div className="page-narrow">
-        {!mobile && <h1 className="h1 money-title">Calendar</h1>}
+        {!mobile && <h1 className="h1 money-title">{tr("Calendar")}</h1>}
 
         <div className="evc-search" role="search">
           <div className="evc-search-box">
@@ -262,26 +286,26 @@ export function CalendarView({
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search events, dates, categories…"
-              aria-label="Search calendar"
+              placeholder={tr("Search events, dates, categories…")}
+              aria-label={tr("Search calendar")}
               autoComplete="off"
               maxLength={120}
             />
             {query && (
-              <button type="button" className="icon-btn" onClick={() => setQuery('')} aria-label="Clear search">
+              <button type="button" className="icon-btn" onClick={() => setQuery('')} aria-label={tr("Clear search")}>
                 <X size={14} />
               </button>
             )}
           </div>
-          <div className="evc-filters" role="group" aria-label="Filter events">
+          <div className="evc-filters" role="group" aria-label={tr("Filter events")}>
             {(
               [
-                ['all', 'All events'],
-                ['today', 'Today'],
-                ['upcoming', 'Upcoming'],
-                ['overdue', 'Overdue'],
-                ['reminders', 'With reminders'],
-                ['completed', 'Completed']
+                ['all', tr("All events")],
+                ['today', tr("Today")],
+                ['upcoming', tr("Upcoming")],
+                ['overdue', tr("Overdue")],
+                ['reminders', tr("With reminders")],
+                ['completed', tr("Completed")]
               ] as [Filter, string][]
             ).map(([f, label]) => (
               <button key={f} type="button" className="evc-chip" aria-pressed={filter === f} onClick={() => setFilter(f)}>
@@ -292,10 +316,10 @@ export function CalendarView({
         </div>
 
         {searching ? (
-          <section className="card evc-panel" aria-label="Search results">
+          <section className="card evc-panel" aria-label={tr("Search results")}>
             <div className="evc-panel-head">
               <h2 className="evc-panel-title">
-                {results.length} result{results.length === 1 ? '' : 's'}
+                {results.length} {tr("result")}{results.length === 1 ? '' : 's'}
               </h2>
               <button
                 type="button"
@@ -305,46 +329,49 @@ export function CalendarView({
                   setFilter('all');
                 }}
               >
-                Clear
+                {tr("Clear")}
               </button>
             </div>
-            <OccurrenceList items={results} now={now} showDate onOpen={(o) => setDetail({ eventId: o.event.id, day: o.day })} onToggle={toggleDone} empty="No events match." />
+            <OccurrenceList items={results} now={now} showDate onOpen={(o) => setDetail({ eventId: o.event.id, day: o.day })} onToggle={toggleDone} empty={tr("No events match.")} />
           </section>
         ) : (
           <>
             <header className="money-head evc-head">
-              <div className="month-switch" role="group" aria-label="Date">
-                <button type="button" className="icon-btn" onClick={() => move(-1)} aria-label={`Previous ${view === 'agenda' ? 'month' : view}`}>
+              <div className="month-switch" role="group" aria-label={tr("Date")}>
+                <button type="button" className="icon-btn" onClick={() => move(-1)} aria-label={tr("Previous {0}", [view === 'agenda' ? 'month' : view])}>
                   <ChevronLeft size={18} />
                 </button>
                 <span className="month-label evc-label" aria-live="polite">
                   {heading}
                 </span>
-                <button type="button" className="icon-btn" onClick={() => move(1)} aria-label={`Next ${view === 'agenda' ? 'month' : view}`}>
+                <button type="button" className="icon-btn" onClick={() => move(1)} aria-label={tr("Next {0}", [view === 'agenda' ? 'month' : view])}>
                   <ChevronRight size={18} />
                 </button>
               </div>
               {selected !== today && (
                 <button type="button" className="btn sm" onClick={() => setSelected(today)}>
-                  Today
+                  {tr("Today")}
                 </button>
               )}
-              <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Reminder settings" title="Reminder settings">
+              <button type="button" className={`btn sm hol-toggle${holidaysOn_ ? ' on' : ''}`} aria-pressed={holidaysOn_} onClick={() => setHolidaysOn(!holidaysOn_)} title={tr("Show Philippine holidays")}>
+                <Flag size={14} aria-hidden /> {tr("PH holidays")}
+              </button>
+              <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label={tr("Reminder settings")} title={tr("Reminder settings")}>
                 <Settings2 size={18} />
               </button>
             </header>
 
-            <div className="segmented evc-views" role="tablist" aria-label="Calendar view">
+            <div className="segmented evc-views" role="tablist" aria-label={tr("Calendar view")}>
               {(
                 [
-                  ['month', 'Month'],
-                  ['week', 'Week'],
-                  ['day', 'Day'],
-                  ['agenda', 'Agenda']
+                  ['month', tr("Month")],
+                  ['week', tr("Week")],
+                  ['day', tr("Day")],
+                  ['agenda', tr("Agenda")]
                 ] as [View, string][]
               ).map(([v, l]) => (
                 <button key={v} type="button" role="tab" aria-selected={view === v} aria-pressed={view === v} onClick={() => setView(v)}>
-                  {l}
+                  {tr(l)}
                 </button>
               ))}
             </div>
@@ -352,9 +379,10 @@ export function CalendarView({
             {view === 'month' && (
               <>
                 <section className="card evc-panel" aria-label={heading}>
-                  <MonthGrid month={monthOf(selected)} today={today} selected={selected} events={events} tasksByDay={tasksByDay} mobile={mobile} onSelect={setSelected} />
+                  <MonthGrid month={monthOf(selected)} today={today} selected={selected} events={events} tasksByDay={tasksByDay} mobile={mobile} holidays={holidaysOn_} onSelect={setSelected} />
                 </section>
                 <DayPanel
+                  holidays={holidaysOn_}
                   day={selected}
                   today={today}
                   events={events}
@@ -366,6 +394,7 @@ export function CalendarView({
                   onOpen={(o) => setDetail({ eventId: o.event.id, day: o.day })}
                   onToggle={toggleDone}
                 />
+                {holidaysOn_ && <MonthHolidays month={monthOf(selected)} selected={selected} onSelectDay={setSelected} />}
                 <MonthEvents
                   month={monthOf(selected)}
                   today={today}
@@ -393,6 +422,7 @@ export function CalendarView({
             )}
             {view === 'day' && (
               <DayPanel
+                holidays={holidaysOn_}
                 day={selected}
                 today={today}
                 events={events}
@@ -415,7 +445,7 @@ export function CalendarView({
         {!mobile && (
           <div className="evc-add-row">
             <button type="button" className="btn primary" onClick={() => openNew(selected)}>
-              <CalendarPlus size={16} aria-hidden /> Add event
+              <CalendarPlus size={16} aria-hidden /> {tr("Add event")}
             </button>
           </div>
         )}
@@ -475,10 +505,10 @@ export function CalendarView({
       {confirmDelete && (
         <ConfirmDialog
           placement="center"
-          title="Delete this event?"
+          title={tr("Delete this event?")}
           danger
-          confirmLabel="Delete"
-          message={`“${confirmDelete.occ.event.title}” and its reminders will be deleted.`}
+          confirmLabel={tr("Delete")}
+          message={tr("“{0}” and its reminders will be deleted.", [confirmDelete.occ.event.title])}
           onCancel={() => setConfirmDelete(null)}
           onConfirm={async () => {
             try {
@@ -521,6 +551,7 @@ function timeRange(o: Occurrence): string {
 // ---------------------------------------------------------------- month --
 
 function MonthGrid({
+  holidays: showHolidays,
   month,
   today,
   selected,
@@ -529,6 +560,7 @@ function MonthGrid({
   mobile,
   onSelect
 }: {
+  holidays: boolean;
   month: string;
   today: string;
   selected: string;
@@ -566,7 +598,7 @@ function MonthGrid({
 
   const max = mobile ? 3 : 2;
   return (
-    <div className="evc-grid" role="grid" aria-label="Month" onKeyDown={onKey}>
+    <div className="evc-grid" role="grid" aria-label={tr("Month")} onKeyDown={onKey}>
       {WEEKDAYS.map((w) => (
         <span key={w} className="cal-wd" role="columnheader" aria-label={w}>
           {mobile ? w.charAt(0) : w}
@@ -576,16 +608,18 @@ function MonthGrid({
         const list = byDay.get(day) ?? [];
         const dayTasks = tasksByDay.get(day) ?? [];
         const outside = monthOf(day) !== month;
+        const hol = showHolidays ? holidaysOn(day).filter((h) => h.kind !== 'reminder') : [];
         return (
           <button
             key={day}
             type="button"
             role="gridcell"
-            className={`evc-day ${outside ? 'outside' : ''}`}
+            className={`evc-day ${outside ? 'outside' : ''}${hol.length ? ' holiday' : ''}`}
+            title={hol.map((h) => h.name).join(' · ') || undefined}
             data-day={day}
             aria-selected={day === selected}
             aria-current={day === today ? 'date' : undefined}
-            aria-label={`${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}${list.length ? `, ${list.length} event${list.length === 1 ? '' : 's'}` : ''}${dayTasks.length ? `, ${dayTasks.length} task${dayTasks.length === 1 ? '' : 's'}` : ''}`}
+            aria-label={`${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}${hol.length ? `, ${hol.map((h) => h.name).join(', ')}` : ''}${list.length ? `, ${list.length} event${list.length === 1 ? '' : 's'}` : ''}${dayTasks.length ? `, ${dayTasks.length} task${dayTasks.length === 1 ? '' : 's'}` : ''}`}
             tabIndex={day === selected ? 0 : -1}
             onClick={() => onSelect(day)}
           >
@@ -603,6 +637,11 @@ function MonthGrid({
               )
             ) : (
               <span className="evc-labels" aria-hidden>
+                {hol.slice(0, 1).map((h) => (
+                  <span key={h.name} className="evc-label-chip evc-hol-chip">
+                    {h.name}
+                  </span>
+                ))}
                 {list.slice(0, max).map((o) => (
                   <span key={o.key} className={`evc-label-chip ${o.done ? 'done' : ''}`} style={{ ['--ev' as string]: eventCategory(o.event.category).color }}>
                     {!o.event.allDay && o.day === day ? `${formatTime(o.event.startTime).replace(':00', '').replace(' ', '').toLowerCase()} ` : ''}
@@ -614,13 +653,47 @@ function MonthGrid({
                     {t.completed ? '☑' : '☐'} {t.title}
                   </span>
                 ))}
-                {list.length + dayTasks.length > max && <span className="evc-more">+{list.length + dayTasks.length - max} more</span>}
+                {list.length + dayTasks.length > max && <span className="evc-more">+{list.length + dayTasks.length - max} {tr("more")}</span>}
               </span>
             )}
           </button>
         );
       })}
     </div>
+  );
+}
+
+function HolidayRow({ h, onClick }: { h: Holiday; onClick?: () => void }) {
+  const body = (
+    <>
+      <span className={`hol-dot ${h.kind}`} aria-hidden />
+      <span className="grow">
+        <span className="hol-name">{h.name}</span>
+        <span className="hol-kind">{tr(HOLIDAY_KIND_LABEL[h.kind])}</span>
+      </span>
+    </>
+  );
+  return <li className="hol-row">{onClick ? <button type="button" className="hol-btn" onClick={onClick}>{body}<span className="hol-date">{formatDay(h.date, { month: 'short', day: 'numeric' })}</span></button> : body}</li>;
+}
+
+/** This month's holidays under the calendar (tap one to go to the day). */
+function MonthHolidays({ month, selected, onSelectDay }: { month: string; selected: string; onSelectDay: (day: string) => void }) {
+  const list = useMemo(() => holidaysOf(Number(month.slice(0, 4))).filter((h) => h.date.startsWith(month)), [month]);
+  // One row per name (Kadayawan spans three days).
+  const rows = list.filter((h, i) => list.findIndex((x) => x.name === h.name) === i);
+  if (!rows.length) return null;
+  return (
+    <section className="card evc-panel hol-panel" aria-label={tr("Holidays")}>
+      <h2 className="evc-panel-title hol-title">
+        <Flag size={15} aria-hidden /> {tr("Holidays")}
+      </h2>
+      <ul className="hol-list">
+        {rows.map((h) => (
+          <HolidayRow key={h.date + h.name} h={h} onClick={h.date === selected ? undefined : () => onSelectDay(h.date)} />
+        ))}
+      </ul>
+      <p className="hol-note">{tr("Holy Week, Eid and Chinese New Year dates follow the yearly proclamation and may move.")}</p>
+    </section>
   );
 }
 
@@ -657,20 +730,20 @@ function MonthEvents({
   const label = parseDay(first).toLocaleDateString(undefined, { month: 'long' });
 
   return (
-    <section className="card evc-panel evc-month-list" aria-label={`All events in ${label}`}>
+    <section className="card evc-panel evc-month-list" aria-label={tr("All events in {0}", [label])}>
       <div className="evc-panel-head">
         <h2 className="evc-panel-title">
-          All events in {label} <span className="muted">({total})</span>
+          {tr("All events in")} {label} <span className="muted">({total})</span>
         </h2>
       </div>
       {days.length === 0 ? (
-        <div className="evc-empty muted">No events this month.</div>
+        <div className="evc-empty muted">{tr("No events this month.")}</div>
       ) : (
         days.map(([day, list]) => (
           <div key={day} className={`evc-month-day ${day === today ? 'today' : ''} ${day < today ? 'past' : ''}`}>
-            <button type="button" className="evc-month-day-head" onClick={() => onSelectDay(day)} aria-label={`Show ${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}`}>
+            <button type="button" className="evc-month-day-head" onClick={() => onSelectDay(day)} aria-label={tr("Show {0}", [formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })])}>
               <span className="evc-month-day-num">{Number(day.slice(8))}</span>
-              <span className="evc-month-day-name">{day === today ? 'Today' : formatDay(day, { weekday: 'long' })}</span>
+              <span className="evc-month-day-name">{day === today ? tr("Today") : formatDay(day, { weekday: 'long' })}</span>
             </button>
             <OccurrenceList items={list} now={now} onOpen={onOpen} onToggle={onToggle} empty="" />
           </div>
@@ -683,6 +756,7 @@ function MonthEvents({
 // ------------------------------------------------------------------ day --
 
 function DayPanel({
+  holidays: showHolidays,
   day,
   today,
   events,
@@ -697,6 +771,7 @@ function DayPanel({
   onEdit,
   onDelete
 }: {
+  holidays?: boolean;
   day: string;
   today: string;
   events: CalendarEvent[];
@@ -712,18 +787,26 @@ function DayPanel({
   onDelete?: (o: Occurrence) => void;
 }) {
   const list = useMemo(() => occurrencesInRange(events, day, day), [events, day]);
-  const title = day === today ? 'Today' : day === addDays(today, 1) ? 'Tomorrow' : day === addDays(today, -1) ? 'Yesterday' : formatDay(day, { weekday: 'long' });
+  const title = day === today ? tr('Today') : day === addDays(today, 1) ? tr('Tomorrow') : day === addDays(today, -1) ? tr('Yesterday') : formatDay(day, { weekday: 'long' });
+  const hol = showHolidays ? holidaysOn(day) : [];
   return (
-    <section className={`card evc-panel ${large ? 'large' : ''}`} aria-label={`Events on ${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}`}>
+    <section className={`card evc-panel ${large ? 'large' : ''}`} aria-label={tr("Events on {0}", [formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })])}>
       <div className="evc-panel-head">
         <div className="grow">
           <h2 className="evc-panel-title">{title}</h2>
           <div className="muted small">{formatDay(day, { month: 'long', day: 'numeric', year: 'numeric' })}</div>
         </div>
         <button type="button" className="btn sm" onClick={onAdd}>
-          <Plus size={14} aria-hidden /> Add
+          <Plus size={14} aria-hidden /> {tr("Add")}
         </button>
       </div>
+      {hol.length > 0 && (
+        <ul className="hol-list">
+          {hol.map((h) => (
+            <HolidayRow key={h.name} h={h} />
+          ))}
+        </ul>
+      )}
       <OccurrenceList
         items={list}
         now={now}
@@ -731,11 +814,11 @@ function DayPanel({
         onToggle={onToggle}
         onEdit={onEdit}
         onDelete={onDelete}
-        empty={tasks.length ? 'No events.' : 'Nothing scheduled. Tap Add to plan something.'}
+        empty={tasks.length ? tr("No events.") : tr("Nothing scheduled. Tap Add to plan something.")}
       />
       {tasks.length > 0 && (
         <div className="evc-tasks">
-          <h3 className="evc-tasks-title">Tasks due</h3>
+          <h3 className="evc-tasks-title">{tr("Tasks due")}</h3>
           <ul className="evc-list">
             {tasks.map((t) => (
               <li key={t.id} className={`evc-item evc-task ${t.completed ? 'done' : ''}`}>
@@ -744,7 +827,7 @@ function DayPanel({
                   className="evc-check"
                   role="checkbox"
                   aria-checked={t.completed}
-                  aria-label={t.completed ? `Mark task ${t.title} as not done` : `Complete task ${t.title}`}
+                  aria-label={t.completed ? tr("Mark task {0} as not done", [t.title]) : tr("Complete task {0}", [t.title])}
                   onClick={() => onToggleTask(t)}
                 >
                   {t.completed ? <SquareCheck size={22} aria-hidden /> : <Square size={22} aria-hidden />}
@@ -752,10 +835,10 @@ function DayPanel({
                 <button type="button" className="evc-item-main" onClick={() => onOpenTask(t.id)}>
                   <span className="evc-item-title">{t.title}</span>
                   <span className="evc-item-meta">
-                    <span>Task</span>
-                    <span>{t.dueTime ? formatTime(t.dueTime) : 'Any time'}</span>
-                    <span>{priorityName(t.priority)} priority</span>
-                    {isTaskOverdue(t, now) && <span className="evc-badge overdue">Overdue · {describeDue(t, now)}</span>}
+                    <span>{tr("Task")}</span>
+                    <span>{t.dueTime ? formatTime(t.dueTime) : tr("Any time")}</span>
+                    <span>{priorityName(t.priority)} {tr("priority")}</span>
+                    {isTaskOverdue(t, now) && <span className="evc-badge overdue">{tr("Overdue ·")} {describeDue(t, now)}</span>}
                   </span>
                 </button>
               </li>
@@ -800,7 +883,7 @@ function OccurrenceList({
               className="evc-check"
               role="checkbox"
               aria-checked={o.done}
-              aria-label={o.done ? `Mark ${o.event.title} as not done` : `Mark ${o.event.title} as done`}
+              aria-label={o.done ? tr("Mark {0} as not done", [o.event.title]) : tr("Mark {0} as done", [o.event.title])}
               onClick={() => onToggle(o)}
             >
               {o.done ? <CircleCheck size={22} aria-hidden /> : <Circle size={22} aria-hidden />}
@@ -817,13 +900,13 @@ function OccurrenceList({
                   {cat.name}
                 </span>
                 {reminders > 0 && (
-                  <span title={`${reminders} reminder${reminders === 1 ? '' : 's'}`}>
+                  <span title={tr("{0} reminder{1}", [reminders, reminders === 1 ? '' : 's'])}>
                     <Bell size={12} aria-hidden /> {reminders}
                   </span>
                 )}
                 {o.event.repeat && (
                   <span title={describeRepeat(o.event.repeat, o.event.start)}>
-                    <RepeatIcon size={12} aria-hidden /> Repeats
+                    <RepeatIcon size={12} aria-hidden /> {tr("Repeats")}
                   </span>
                 )}
                 {o.event.location && (
@@ -831,19 +914,19 @@ function OccurrenceList({
                     <MapPin size={12} aria-hidden /> {o.event.location}
                   </span>
                 )}
-                {overdue && <span className="evc-badge overdue">Overdue</span>}
-                {o.done && <span className="evc-badge done">Done</span>}
+                {overdue && <span className="evc-badge overdue">{tr("Overdue")}</span>}
+                {o.done && <span className="evc-badge done">{tr("Done")}</span>}
               </span>
             </button>
             {(onEdit || onDelete) && (
               <span className="evc-item-actions">
                 {onEdit && (
-                  <button type="button" className="icon-btn" onClick={() => onEdit(o)} aria-label={`Edit ${o.event.title}`} title="Edit">
+                  <button type="button" className="icon-btn" onClick={() => onEdit(o)} aria-label={tr("Edit {0}", [o.event.title])} title={tr("Edit")}>
                     <Pencil size={15} />
                   </button>
                 )}
                 {onDelete && (
-                  <button type="button" className="icon-btn" onClick={() => onDelete(o)} aria-label={`Delete ${o.event.title}`} title="Delete">
+                  <button type="button" className="icon-btn" onClick={() => onDelete(o)} aria-label={tr("Delete {0}", [o.event.title])} title={tr("Delete")}>
                     <Trash2 size={15} />
                   </button>
                 )}
@@ -942,7 +1025,7 @@ function WeekGrid({
       </div>
       {hasAllDay && (
         <div className="evc-allday">
-          <span className="evc-gutter small muted">all-day</span>
+          <span className="evc-gutter small muted">{tr("all-day")}</span>
           {allDay.map((list, i) => (
             <div key={days[i]} className="evc-allday-col">
               {list.map((o) => (
@@ -998,7 +1081,7 @@ function WeekGrid({
           ))}
         </div>
       </div>
-      <div className="evc-hint muted small">Tap an empty time to add an event there.</div>
+      <div className="evc-hint muted small">{tr("Tap an empty time to add an event there.")}</div>
     </div>
   );
 }
@@ -1012,13 +1095,13 @@ function Agenda({ events, now, today, onOpen, onToggle }: { events: CalendarEven
     const tomorrow = addDays(today, 1);
     const weekEnd = addDays(today, 7);
     const g: { id: string; title: string; items: Occurrence[] }[] = [
-      { id: 'overdue', title: 'Overdue', items: all.filter((o) => isOverdue(o, now)) },
-      { id: 'today', title: 'Today', items: all.filter((o) => !o.done && !isOverdue(o, now) && o.day <= today && o.endDay >= today) },
-      { id: 'tomorrow', title: 'Tomorrow', items: all.filter((o) => !o.done && o.day === tomorrow) },
-      { id: 'week', title: 'This week', items: all.filter((o) => !o.done && o.day > tomorrow && o.day <= weekEnd) },
+      { id: 'overdue', title: tr("Overdue"), items: all.filter((o) => isOverdue(o, now)) },
+      { id: 'today', title: tr("Today"), items: all.filter((o) => !o.done && !isOverdue(o, now) && o.day <= today && o.endDay >= today) },
+      { id: 'tomorrow', title: tr("Tomorrow"), items: all.filter((o) => !o.done && o.day === tomorrow) },
+      { id: 'week', title: tr("This week"), items: all.filter((o) => !o.done && o.day > tomorrow && o.day <= weekEnd) },
       // Repeats only for the next month, so a daily habit doesn't bury one-off deadlines.
-      { id: 'upcoming', title: 'Upcoming', items: all.filter((o) => !o.done && o.day > weekEnd && (!o.event.repeat || o.day <= addDays(today, 30))) },
-      { id: 'completed', title: 'Completed', items: all.filter((o) => o.done).reverse() }
+      { id: 'upcoming', title: tr("Upcoming"), items: all.filter((o) => !o.done && o.day > weekEnd && (!o.event.repeat || o.day <= addDays(today, 30))) },
+      { id: 'completed', title: tr("Completed"), items: all.filter((o) => o.done).reverse() }
     ];
     return g;
   }, [events, now, today]);
@@ -1030,17 +1113,17 @@ function Agenda({ events, now, today, onOpen, onToggle }: { events: CalendarEven
     <div className="evc-agenda">
       <div className="evc-agenda-summary" role="status">
         <span>
-          <strong>{groups[1]!.items.length}</strong> today
+          <strong>{groups[1]!.items.length}</strong> {tr("today")}
         </span>
         <span>
-          <strong>{week.length}</strong> in the next 7 days
+          <strong>{week.length}</strong> {tr("in the next 7 days")}
         </span>
         <span>
-          <Bell size={13} aria-hidden /> <strong>{withReminders}</strong> with reminders
+          <Bell size={13} aria-hidden /> <strong>{withReminders}</strong> {tr("with reminders")}
         </span>
         {groups[0]!.items.length > 0 && (
           <span className="overdue">
-            <strong>{groups[0]!.items.length}</strong> overdue
+            <strong>{groups[0]!.items.length}</strong> {tr("overdue")}
           </span>
         )}
       </div>
@@ -1068,7 +1151,7 @@ function Agenda({ events, now, today, onOpen, onToggle }: { events: CalendarEven
           )
         )
       )}
-      {open === 0 && !groups[5]!.items.length && <div className="card evc-panel evc-empty muted">Nothing planned yet. Add an event to see it here.</div>}
+      {open === 0 && !groups[5]!.items.length && <div className="card evc-panel evc-empty muted">{tr("Nothing planned yet. Add an event to see it here.")}</div>}
     </div>
   );
 }
@@ -1095,13 +1178,13 @@ function EventDetail({ occ, now, onClose, onEdit, onDelete, onToggle }: { occ: O
       footer={
         <>
           <button type="button" className="btn" onClick={onDelete}>
-            <Trash2 size={15} aria-hidden /> Delete
+            <Trash2 size={15} aria-hidden /> {tr("Delete")}
           </button>
           <button type="button" className="btn" onClick={onEdit}>
-            <Pencil size={15} aria-hidden /> Edit
+            <Pencil size={15} aria-hidden /> {tr("Edit")}
           </button>
           <button type="button" className="btn primary" onClick={onToggle} data-autofocus>
-            {occ.done ? <Circle size={15} aria-hidden /> : <CircleCheck size={15} aria-hidden />} {occ.done ? 'Not done' : 'Mark done'}
+            {occ.done ? <Circle size={15} aria-hidden /> : <CircleCheck size={15} aria-hidden />} {occ.done ? tr("Not done") : tr("Mark done")}
           </button>
         </>
       }
@@ -1133,7 +1216,7 @@ function EventDetail({ occ, now, onClose, onEdit, onDelete, onToggle }: { occ: O
           {ev.reminders.some((r) => r.enabled) ? <Bell size={16} aria-hidden /> : <BellOff size={16} aria-hidden />}
           <div>
             {ev.reminders.length === 0
-              ? 'No reminders'
+              ? tr("No reminders")
               : ev.reminders.map((r) => (
                   <div key={r.id} className={r.enabled ? '' : 'muted'}>
                     {describeReminder(r)}
@@ -1142,7 +1225,7 @@ function EventDetail({ occ, now, onClose, onEdit, onDelete, onToggle }: { occ: O
                 ))}
           </div>
         </div>
-        {(overdue || occ.done) && <div className={`evc-badge ${occ.done ? 'done' : 'overdue'}`}>{occ.done ? 'Completed' : 'Overdue — not marked done yet'}</div>}
+        {(overdue || occ.done) && <div className={`evc-badge ${occ.done ? 'done' : 'overdue'}`}>{occ.done ? tr("Completed") : tr("Overdue — not marked done yet")}</div>}
         {ev.notes && <p className="evc-notes">{ev.notes}</p>}
       </div>
     </Dialog>
@@ -1174,22 +1257,22 @@ function ScopeDialog({ kind, onPick, onCancel, onDone }: { kind: 'edit' | 'delet
   };
   const verb = kind === 'edit' ? 'Change' : 'Delete';
   return (
-    <Dialog placement="center" size="narrow" role="alertdialog" title={kind === 'edit' ? 'Edit a repeating event' : 'Delete a repeating event'} onClose={onCancel} busy={busy}>
+    <Dialog placement="center" size="narrow" role="alertdialog" title={kind === 'edit' ? tr("Edit a repeating event") : tr("Delete a repeating event")} onClose={onCancel} busy={busy}>
       <p className="muted" style={{ margin: '0 0 14px', lineHeight: 1.55 }}>
-        {kind === 'edit' ? 'Which events should change?' : 'Which events should be deleted? Their reminders are cancelled too.'}
+        {kind === 'edit' ? tr("Which events should change?") : tr("Which events should be deleted? Their reminders are cancelled too.")}
       </p>
       <div className="evc-scope">
         <button type="button" className="btn block" disabled={busy} onClick={() => pick('this')} data-autofocus>
-          {verb} only this event
+          {verb} {tr("only this event")}
         </button>
         <button type="button" className="btn block" disabled={busy} onClick={() => pick('future')}>
-          {verb} this and following events
+          {verb} {tr("this and following events")}
         </button>
         <button type="button" className={`btn block ${kind === 'delete' ? 'danger' : 'primary'}`} disabled={busy} onClick={() => pick('all')}>
-          {verb} all events in the series
+          {verb} {tr("all events in the series")}
         </button>
         <button type="button" className="btn block ghost" disabled={busy} onClick={onCancel}>
-          Cancel
+          {tr("Cancel")}
         </button>
       </div>
     </Dialog>
@@ -1265,8 +1348,8 @@ function EventEditor({
   };
 
   const addRule = (rule: ReminderRule) => {
-    if (reminders.some((r) => reminderSignature(r) === reminderSignature(rule))) return setRuleError('That reminder is already set.');
-    if (reminders.length >= 12) return setRuleError('At most 12 reminders per event.');
+    if (reminders.some((r) => reminderSignature(r) === reminderSignature(rule))) return setRuleError(tr("That reminder is already set."));
+    if (reminders.length >= 12) return setRuleError(tr("At most 12 reminders per event."));
     setRuleError(null);
     setReminders([...reminders, rule]);
     setAdding('');
@@ -1284,14 +1367,14 @@ function EventEditor({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return setError({ field: 'title', message: 'Give the event a title.' });
-    if (!start) return setError({ field: 'start', message: 'Choose a start date.' });
-    if (!end || end < start) return setError({ field: 'end', message: 'The end date can’t be before the start.' });
+    if (!title.trim()) return setError({ field: 'title', message: tr("Give the event a title.") });
+    if (!start) return setError({ field: 'start', message: tr("Choose a start date.") });
+    if (!end || end < start) return setError({ field: 'end', message: tr("The end date can’t be before the start.") });
     if (!allDay) {
-      if (!startTime || !endTime) return setError({ field: 'time', message: 'Choose a start and end time.' });
-      if (start === end && timeToMin(endTime) < timeToMin(startTime)) return setError({ field: 'time', message: 'The event must end after it starts.' });
+      if (!startTime || !endTime) return setError({ field: 'time', message: tr("Choose a start and end time.") });
+      if (start === end && timeToMin(endTime) < timeToMin(startTime)) return setError({ field: 'time', message: tr("The event must end after it starts.") });
     }
-    if (repeatMode !== 'none' && endMode === 'until' && until < start) return setError({ field: 'repeat', message: 'The repeat must end after the event starts.' });
+    if (repeatMode !== 'none' && endMode === 'until' && until < start) return setError({ field: 'repeat', message: tr("The repeat must end after the event starts.") });
     setError(null);
     setBusy(true);
     try {
@@ -1331,35 +1414,35 @@ function EventEditor({
   return (
     <Dialog
       placement="center"
-      title={isNew ? 'New event' : 'Edit event'}
+      title={isNew ? tr("New event") : tr("Edit event")}
       onClose={onClose}
       busy={busy}
       footer={
         <>
           {onDelete && (
             <button type="button" className="btn" onClick={onDelete} disabled={busy} style={{ marginRight: 'auto' }}>
-              <Trash2 size={15} aria-hidden /> Delete
+              <Trash2 size={15} aria-hidden /> {tr("Delete")}
             </button>
           )}
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="submit" form="event-form" className="btn primary" disabled={busy}>
             {busy && <span className="spinner" aria-hidden />}
-            Save
+            {tr("Save")}
           </button>
         </>
       }
     >
       <form id="event-form" className="evc-form" onSubmit={submit} noValidate>
         <div className="field">
-          <label htmlFor="ev-title">Title</label>
+          <label htmlFor="ev-title">{tr("Title")}</label>
           <input
             id="ev-title"
             className="input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Submit school requirements"
+            placeholder={tr("e.g. Submit school requirements")}
             maxLength={200}
             aria-invalid={error?.field === 'title'}
             autoComplete="off"
@@ -1370,25 +1453,25 @@ function EventEditor({
 
         <div className="setting evc-switch-row">
           <label className="grow" htmlFor="ev-allday">
-            All-day
+            {tr("All-day")}
           </label>
           <input id="ev-allday" type="checkbox" className="switch" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
         </div>
 
         <div className="evc-when">
           <div className="field">
-            <label htmlFor="ev-start">Starts</label>
+            <label htmlFor="ev-start">{tr("Starts")}</label>
             <div className="evc-dt">
               <input id="ev-start" className="input" type="date" value={start} onChange={(e) => e.target.value && moveStart(e.target.value)} required aria-invalid={error?.field === 'start'} />
-              {!allDay && <input className="input" type="time" value={startTime} onChange={(e) => moveStartTime(e.target.value)} aria-label="Start time" required />}
+              {!allDay && <input className="input" type="time" value={startTime} onChange={(e) => moveStartTime(e.target.value)} aria-label={tr("Start time")} required />}
             </div>
             {errFor('start')}
           </div>
           <div className="field">
-            <label htmlFor="ev-end">Ends</label>
+            <label htmlFor="ev-end">{tr("Ends")}</label>
             <div className="evc-dt">
               <input id="ev-end" className="input" type="date" value={end} min={start} onChange={(e) => e.target.value && setEnd(e.target.value)} required aria-invalid={error?.field === 'end'} />
-              {!allDay && <input className="input" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} aria-label="End time" required aria-invalid={error?.field === 'time'} />}
+              {!allDay && <input className="input" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} aria-label={tr("End time")} required aria-invalid={error?.field === 'time'} />}
             </div>
             {errFor('end')}
             {errFor('time')}
@@ -1396,8 +1479,8 @@ function EventEditor({
         </div>
 
         <div className="field">
-          <span className="label">Category</span>
-          <div className="cat-picker" role="radiogroup" aria-label="Category">
+          <span className="label">{tr("Category")}</span>
+          <div className="cat-picker" role="radiogroup" aria-label={tr("Category")}>
             {EVENT_CATEGORIES.map((c) => (
               <button key={c.id} type="button" role="radio" aria-checked={category === c.id} className="cat-chip" onClick={() => setCategory(c.id)}>
                 <i className="evc-cat-dot" style={{ background: c.color }} aria-hidden />
@@ -1408,8 +1491,8 @@ function EventEditor({
         </div>
 
         <div className="field">
-          <span className="label">Reminders</span>
-          {reminders.length === 0 && <div className="help-text">No reminders. Add one below.</div>}
+          <span className="label">{tr("Reminders")}</span>
+          {reminders.length === 0 && <div className="help-text">{tr("No reminders. Add one below.")}</div>}
           <ul className="evc-rules">
             {reminders.map((r) => {
               const at = r.type === 'before' ? refAt - r.minutes * 60_000 : r.type === 'dayAt' ? atLocal(addDays(start, -r.days), r.time).getTime() : atLocal(r.at.slice(0, 10), r.at.slice(11)).getTime();
@@ -1419,7 +1502,7 @@ function EventEditor({
                   <AlarmClock size={16} aria-hidden />
                   <span className="grow">
                     {describeReminder(r)}
-                    {passed && <span className="muted small"> · time has passed</span>}
+                    {passed && <span className="muted small"> {tr("· time has passed")}</span>}
                   </span>
                   <input
                     type="checkbox"
@@ -1428,7 +1511,7 @@ function EventEditor({
                     aria-label={`${describeReminder(r)} ${r.enabled ? 'on' : 'off'}`}
                     onChange={(e) => setReminders(reminders.map((x) => (x.id === r.id ? { ...x, enabled: e.target.checked } : x)))}
                   />
-                  <button type="button" className="icon-btn" aria-label={`Remove reminder: ${describeReminder(r)}`} onClick={() => setReminders(reminders.filter((x) => x.id !== r.id))}>
+                  <button type="button" className="icon-btn" aria-label={tr("Remove reminder: {0}", [describeReminder(r)])} onClick={() => setReminders(reminders.filter((x) => x.id !== r.id))}>
                     <X size={15} />
                   </button>
                 </li>
@@ -1438,7 +1521,7 @@ function EventEditor({
           <div className="evc-add-rule">
             <select
               className="input"
-              aria-label="Add a reminder"
+              aria-label={tr("Add a reminder")}
               value=""
               onChange={(e) => {
                 const v = e.target.value;
@@ -1446,43 +1529,43 @@ function EventEditor({
                 if (v !== '') addRule({ id: newRuleId(), type: 'before', minutes: Number(v), enabled: true });
               }}
             >
-              <option value="">+ Add reminder…</option>
+              <option value="">{tr("+ Add reminder…")}</option>
               {REMINDER_PRESETS.map((p) => (
                 <option key={p.minutes} value={p.minutes}>
                   {p.label}
                 </option>
               ))}
-              <option value="dayAt">On the day / days before at a time…</option>
-              <option value="at">Custom date and time…</option>
+              <option value="dayAt">{tr("On the day / days before at a time…")}</option>
+              <option value="at">{tr("Custom date and time…")}</option>
             </select>
           </div>
           {adding === 'dayAt' && (
             <div className="evc-rule-form">
-              <select className="input" value={dayAtDays} onChange={(e) => setDayAtDays(Number(e.target.value))} aria-label="Which day">
-                <option value={0}>On the day</option>
+              <select className="input" value={dayAtDays} onChange={(e) => setDayAtDays(Number(e.target.value))} aria-label={tr("Which day")}>
+                <option value={0}>{tr("On the day")}</option>
                 {[1, 2, 3, 5, 7, 14].map((d) => (
                   <option key={d} value={d}>
-                    {d} day{d === 1 ? '' : 's'} before
+                    {d} {tr("day")}{d === 1 ? '' : 's'} {tr("before")}
                   </option>
                 ))}
               </select>
-              <input className="input" type="time" value={dayAtTime} onChange={(e) => setDayAtTime(e.target.value)} aria-label="Reminder time" />
+              <input className="input" type="time" value={dayAtTime} onChange={(e) => setDayAtTime(e.target.value)} aria-label={tr("Reminder time")} />
               <button type="button" className="btn sm primary" disabled={!dayAtTime} onClick={() => addRule({ id: newRuleId(), type: 'dayAt', days: dayAtDays, time: dayAtTime, enabled: true })}>
-                Add
+                {tr("Add")}
               </button>
               <button type="button" className="btn sm" onClick={() => setAdding('')}>
-                Cancel
+                {tr("Cancel")}
               </button>
             </div>
           )}
           {adding === 'at' && (
             <div className="evc-rule-form">
-              <input className="input" type="datetime-local" value={customAt} onChange={(e) => setCustomAt(e.target.value)} aria-label="Reminder date and time" />
+              <input className="input" type="datetime-local" value={customAt} onChange={(e) => setCustomAt(e.target.value)} aria-label={tr("Reminder date and time")} />
               <button type="button" className="btn sm primary" disabled={!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(customAt)} onClick={() => addRule({ id: newRuleId(), type: 'at', at: customAt.slice(0, 16), enabled: true })}>
-                Add
+                {tr("Add")}
               </button>
               <button type="button" className="btn sm" onClick={() => setAdding('')}>
-                Cancel
+                {tr("Cancel")}
               </button>
             </div>
           )}
@@ -1494,29 +1577,29 @@ function EventEditor({
         </div>
 
         <div className="field">
-          <label htmlFor="ev-repeat">Repeat</label>
+          <label htmlFor="ev-repeat">{tr("Repeat")}</label>
           <select id="ev-repeat" className="input" value={repeatMode} onChange={(e) => setRepeatMode(e.target.value as RepeatMode)}>
-            <option value="none">Does not repeat</option>
-            <option value="daily">Every day</option>
-            <option value="weekly">Every week on {WEEKDAYS[weekdayOf(start)]}</option>
-            <option value="monthly">Every month on day {Number(start.slice(8))}</option>
-            <option value="yearly">Every year on {formatDay(start, { month: 'short', day: 'numeric' })}</option>
-            <option value="custom">Custom…</option>
+            <option value="none">{tr("Does not repeat")}</option>
+            <option value="daily">{tr("Every day")}</option>
+            <option value="weekly">{tr("Every week on")} {WEEKDAYS[weekdayOf(start)]}</option>
+            <option value="monthly">{tr("Every month on day")} {Number(start.slice(8))}</option>
+            <option value="yearly">{tr("Every year on")} {formatDay(start, { month: 'short', day: 'numeric' })}</option>
+            <option value="custom">{tr("Custom…")}</option>
           </select>
           {repeatMode === 'custom' && (
             <div className="evc-repeat">
               <div className="evc-rule-form">
-                <span className="muted">Every</span>
-                <input className="input evc-n" type="number" min={1} max={99} value={interval} onChange={(e) => setIntervalN(Number(e.target.value))} aria-label="Repeat interval" />
-                <select className="input" value={freq} onChange={(e) => setFreq(e.target.value as RepeatFreq)} aria-label="Repeat unit">
-                  <option value="daily">day(s)</option>
-                  <option value="weekly">week(s)</option>
-                  <option value="monthly">month(s)</option>
-                  <option value="yearly">year(s)</option>
+                <span className="muted">{tr("Every")}</span>
+                <input className="input evc-n" type="number" min={1} max={99} value={interval} onChange={(e) => setIntervalN(Number(e.target.value))} aria-label={tr("Repeat interval")} />
+                <select className="input" value={freq} onChange={(e) => setFreq(e.target.value as RepeatFreq)} aria-label={tr("Repeat unit")}>
+                  <option value="daily">{tr("day(s)")}</option>
+                  <option value="weekly">{tr("week(s)")}</option>
+                  <option value="monthly">{tr("month(s)")}</option>
+                  <option value="yearly">{tr("year(s)")}</option>
                 </select>
               </div>
               {freq === 'weekly' && (
-                <div className="evc-weekdays" role="group" aria-label="On these days">
+                <div className="evc-weekdays" role="group" aria-label={tr("On these days")}>
                   {WEEKDAYS.map((w, i) => (
                     <button
                       key={w}
@@ -1535,15 +1618,15 @@ function EventEditor({
           )}
           {repeatMode !== 'none' && (
             <div className="evc-rule-form">
-              <span className="muted">Ends</span>
-              <select className="input" value={endMode} onChange={(e) => setEndMode(e.target.value as EndMode)} aria-label="Repeat ends">
-                <option value="never">Never</option>
-                <option value="until">On a date</option>
-                <option value="count">After a number of times</option>
+              <span className="muted">{tr("Ends")}</span>
+              <select className="input" value={endMode} onChange={(e) => setEndMode(e.target.value as EndMode)} aria-label={tr("Repeat ends")}>
+                <option value="never">{tr("Never")}</option>
+                <option value="until">{tr("On a date")}</option>
+                <option value="count">{tr("After a number of times")}</option>
               </select>
-              {endMode === 'until' && <input className="input" type="date" value={until} min={start} onChange={(e) => e.target.value && setUntil(e.target.value)} aria-label="Repeat until" />}
+              {endMode === 'until' && <input className="input" type="date" value={until} min={start} onChange={(e) => e.target.value && setUntil(e.target.value)} aria-label={tr("Repeat until")} />}
               {endMode === 'count' && (
-                <input className="input evc-n" type="number" min={1} max={1000} value={count} onChange={(e) => setCount(Number(e.target.value))} aria-label="Number of times" />
+                <input className="input evc-n" type="number" min={1} max={1000} value={count} onChange={(e) => setCount(Number(e.target.value))} aria-label={tr("Number of times")} />
               )}
             </div>
           )}
@@ -1551,11 +1634,11 @@ function EventEditor({
         </div>
 
         <div className="field">
-          <label htmlFor="ev-location">Location (optional)</label>
+          <label htmlFor="ev-location">{tr("Location (optional)")}</label>
           <input id="ev-location" className="input" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={200} autoComplete="off" />
         </div>
         <div className="field">
-          <label htmlFor="ev-notes">Notes (optional)</label>
+          <label htmlFor="ev-notes">{tr("Notes (optional)")}</label>
           <textarea id="ev-notes" className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} />
         </div>
         {errFor('form')}
@@ -1595,9 +1678,9 @@ function ReminderSettings({
     markPhoneCalendarChosen();
     const items = phoneItems();
     const r = await api.phoneCalendar.sync(true, items, id);
-    if (!r.ok) return toast(`Couldn’t update the phone calendar: ${r.message}`, 'error');
+    if (!r.ok) return toast(tr("Couldn’t update the phone calendar: {0}", [r.message]), 'error');
     const name = id ? calendars.find((c) => c.id === id)?.name ?? 'that calendar' : '“VaultLocks”';
-    toast(`Moved ${r.value} item${r.value === 1 ? '' : 's'} to ${name}. Check your phone’s Calendar app.`);
+    toast(tr("Moved {0} item{1} to {2}. Check your phone’s Calendar app.", [r.value, r.value === 1 ? '' : 's', name]));
   };
   useEffect(() => {
     void api.notifications.status().then(setPermission);
@@ -1608,10 +1691,10 @@ function ReminderSettings({
     if (on && phoneCal !== 'granted') {
       const s = await api.phoneCalendar.request();
       setPhoneCal(s);
-      if (s !== 'granted') return toast('Allow calendar access for VaultLocks to show events in the phone’s calendar widgets.', 'error');
+      if (s !== 'granted') return toast(tr("Allow calendar access for VaultLocks to show events in the phone’s calendar widgets."), 'error');
     }
     await update({ phoneCalendarOff: !on });
-    toast(on ? 'Your next 14 days now show in the phone’s calendar widgets.' : 'Removed from the phone’s calendar.');
+    toast(on ? tr("Your next 14 days now show in the phone’s calendar widgets.") : tr("Removed from the phone’s calendar."));
   };
   const update = async (patch: Partial<VaultSettings>) => {
     try {
@@ -1623,24 +1706,24 @@ function ReminderSettings({
   };
   const defaults = settings.calendarDefaultReminders;
   return (
-    <Dialog placement="center" title="Reminder settings" onClose={onClose}>
+    <Dialog placement="center" title={tr("Reminder settings")} onClose={onClose}>
       <div className="evc-settings">
-        <Row title="Event & task reminders" desc="Alarm pop-ups in the app, and notifications on this device. Also used for task reminders.">
-          <input type="checkbox" className="switch" checked={settings.calendarReminders} onChange={(e) => update({ calendarReminders: e.target.checked })} aria-label="Event and task reminders" />
+        <Row title={tr("Event & task reminders")} desc={tr("Alarm pop-ups in the app, and notifications on this device. Also used for task reminders.")}>
+          <input type="checkbox" className="switch" checked={settings.calendarReminders} onChange={(e) => update({ calendarReminders: e.target.checked })} aria-label={tr("Event and task reminders")} />
         </Row>
-        <Row title="Sound" desc="Play a chime with reminders.">
-          <input type="checkbox" className="switch" checked={settings.calendarSound} onChange={(e) => update({ calendarSound: e.target.checked })} aria-label="Reminder sound" />
+        <Row title={tr("Sound")} desc={tr("Play a chime with reminders.")}>
+          <input type="checkbox" className="switch" checked={settings.calendarSound} onChange={(e) => update({ calendarSound: e.target.checked })} aria-label={tr("Reminder sound")} />
         </Row>
-        <Row title="Show event titles in notifications" desc="Off: notifications only say you have an event and when. Titles stay inside the vault.">
-          <input type="checkbox" className="switch" checked={settings.calendarPreview} onChange={(e) => update({ calendarPreview: e.target.checked })} aria-label="Show event titles in notifications" />
+        <Row title={tr("Show event titles in notifications")} desc={tr("Off: notifications only say you have an event and when. Titles stay inside the vault.")}>
+          <input type="checkbox" className="switch" checked={settings.calendarPreview} onChange={(e) => update({ calendarPreview: e.target.checked })} aria-label={tr("Show event titles in notifications")} />
         </Row>
         {phoneCal && phoneCal !== 'unsupported' && (
           <>
             <Row
-              title="Show in the phone’s calendar widgets"
-              desc="On automatically: your next 14 days of events and tasks appear in the phone’s own Calendar widgets on the lock screen and home screen. They are copied into a separate “VaultLocks” calendar on this phone, updated each time you unlock or change something (on iPhone with iCloud Calendar on, that calendar can also sync to your iCloud). Turning this off removes it."
+              title={tr("Show in the phone’s calendar widgets")}
+              desc={tr("On automatically: your next 14 days of events and tasks appear in the phone’s own Calendar widgets on the lock screen and home screen. They are copied into a separate “VaultLocks” calendar on this phone, updated each time you unlock or change something (on iPhone with iCloud Calendar on, that calendar can also sync to your iCloud). Turning this off removes it.")}
             >
-              <input type="checkbox" className="switch" checked={!settings.phoneCalendarOff && phoneCal === 'granted'} onChange={(e) => void togglePhoneCalendar(e.target.checked)} aria-label="Show in the phone’s calendar widgets" />
+              <input type="checkbox" className="switch" checked={!settings.phoneCalendarOff && phoneCal === 'granted'} onChange={(e) => void togglePhoneCalendar(e.target.checked)} aria-label={tr("Show in the phone’s calendar widgets")} />
             </Row>
             {!settings.phoneCalendarOff && phoneCal === 'granted' && (
               <div className="evc-rule-form" style={{ marginTop: 0, paddingBottom: 10 }}>
@@ -1652,16 +1735,16 @@ function ReminderSettings({
                     const t = await resolvePhoneTarget();
                     setTarget(t.id);
                     const r = await api.phoneCalendar.sync(true, items, t.id);
-                    if (!r.ok) return toast(`Couldn’t update the phone calendar: ${r.message}`, 'error');
+                    if (!r.ok) return toast(tr("Couldn’t update the phone calendar: {0}", [r.message]), 'error');
                     const today = items.filter((i) => new Date(i.start).toDateString() === new Date().toDateString()).length;
                     toast(
                       r.value === 0
-                        ? `Nothing to copy: no events or open tasks in the next 14 days.`
-                        : `Copied ${r.value} item${r.value === 1 ? '' : 's'} (${today} today) to ${describeTarget(t)}. ${t.calendar?.type === 'com.google' ? 'Google may take a minute to show them on other devices.' : ''}`
+                        ? tr("Nothing to copy: no events or open tasks in the next 14 days.")
+                        : tr("Copied {0} item{1} ({2} today) to {3}. {4}", [r.value, r.value === 1 ? '' : 's', today, describeTarget(t), t.calendar?.type === 'com.google' ? 'Google may take a minute to show them on other devices.' : ''])
                     );
                   }}
                 >
-                  Sync now
+                  {tr("Sync now")}
                 </button>
                 <button
                   type="button"
@@ -1671,15 +1754,15 @@ function ReminderSettings({
                     if (!r.ok) toast(r.message, 'error');
                   }}
                 >
-                  Open phone calendar
+                  {tr("Open phone calendar")}
                 </button>
               </div>
             )}
             {!settings.phoneCalendarOff && phoneCal === 'granted' && calendars.length > 0 && (
               <div className="evc-setting-block">
-                <div className="title">Put them in</div>
-                <select className="input" value={target} onChange={(e) => void chooseTarget(Number(e.target.value))} aria-label="Phone calendar to use">
-                  <option value={0}>VaultLocks’ own calendar (this phone only)</option>
+                <div className="title">{tr("Put them in")}</div>
+                <select className="input" value={target} onChange={(e) => void chooseTarget(Number(e.target.value))} aria-label={tr("Phone calendar to use")}>
+                  <option value={0}>{tr("VaultLocks’ own calendar (this phone only)")}</option>
                   {calendars.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -1688,26 +1771,25 @@ function ReminderSettings({
                   ))}
                 </select>
                 <div className="help-text">
-                  If nothing shows in your phone’s Calendar (Xiaomi/HyperOS often hides VaultLocks’ own calendar), pick your phone or Google calendar here. VaultLocks only
-                  changes the events it added; a Google calendar also syncs them to your Google account.
+                  {tr("If nothing shows in your phone’s Calendar (Xiaomi/HyperOS often hides VaultLocks’ own calendar), pick your phone or Google calendar here. VaultLocks only changes the events it added; a Google calendar also syncs them to your Google account.")}
                 </div>
               </div>
             )}
-            <Row title="Show names in the widget" desc="Off: the widget only shows “VaultLocks event” or “VaultLocks task” and the time. Names are readable by anyone who sees your phone’s calendar.">
+            <Row title={tr("Show names in the widget")} desc={tr("Off: the widget only shows “VaultLocks event” or “VaultLocks task” and the time. Names are readable by anyone who sees your phone’s calendar.")}>
               <input
                 type="checkbox"
                 className="switch"
                 checked={settings.phoneCalendarNames}
                 disabled={settings.phoneCalendarOff}
                 onChange={(e) => void update({ phoneCalendarNames: e.target.checked })}
-                aria-label="Show names in the widget"
+                aria-label={tr("Show names in the widget")}
               />
             </Row>
           </>
         )}
         <div className="evc-setting-block">
-          <div className="title">Default reminders for new events</div>
-          <div className="evc-weekdays" role="group" aria-label="Default reminders">
+          <div className="title">{tr("Default reminders for new events")}</div>
+          <div className="evc-weekdays" role="group" aria-label={tr("Default reminders")}>
             {REMINDER_PRESETS.map((p) => (
               <button
                 key={p.minutes}
@@ -1726,25 +1808,25 @@ function ReminderSettings({
           </div>
         </div>
         <div className="evc-setting-block">
-          <div className="title">Remind me later</div>
-          <div className="segmented" role="group" aria-label="Snooze length">
+          <div className="title">{tr("Remind me later")}</div>
+          <div className="segmented" role="group" aria-label={tr("Snooze length")}>
             {SNOOZE_CHOICES.map((m) => (
               <button key={m} type="button" aria-pressed={settings.calendarSnooze === m} onClick={() => update({ calendarSnooze: m })}>
-                {m < 60 ? `${m} min` : '1 hour'}
+                {m < 60 ? tr("{0} min", [m]) : tr("1 hour")}
               </button>
             ))}
           </div>
         </div>
         <Row
-          title="Notification permission"
+          title={tr("Notification permission")}
           desc={
             permission === 'granted'
-              ? 'Allowed. Reminders arrive even when VaultLocks is closed on the phone. On a computer, while VaultLocks is open or in the tray.'
+              ? tr("Allowed. Reminders arrive even when VaultLocks is closed on the phone. On a computer, while VaultLocks is open or in the tray.")
               : permission === 'denied'
-                ? 'Blocked. Allow notifications for VaultLocks in the system settings. Reminders still pop up inside the app.'
+                ? tr("Blocked. Allow notifications for VaultLocks in the system settings. Reminders still pop up inside the app.")
                 : permission === 'unsupported'
-                  ? 'Notifications aren’t available here. Reminders pop up while the app is open.'
-                  : 'Needed for reminders when VaultLocks is closed.'
+                  ? tr("Notifications aren’t available here. Reminders pop up while the app is open.")
+                  : tr("Needed for reminders when VaultLocks is closed.")
           }
         >
           {permission === 'granted' ? (
@@ -1754,27 +1836,27 @@ function ReminderSettings({
               onClick={async () => {
                 try {
                   await unwrap(api.notifications.test());
-                  toast('A sample reminder will appear in a few seconds.');
+                  toast(tr("A sample reminder will appear in a few seconds."));
                 } catch (e) {
                   toast(errorMessage(e), 'error');
                 }
               }}
             >
-              Send test
+              {tr("Send test")}
             </button>
           ) : permission === 'prompt' ? (
             <button type="button" className="btn sm primary" onClick={async () => setPermission(await api.notifications.request())}>
-              Allow
+              {tr("Allow")}
             </button>
           ) : null}
         </Row>
         {exact && exact !== 'unsupported' && (
           <Row
-            title="Exact timing"
+            title={tr("Exact timing")}
             desc={
               exact === 'granted'
-                ? 'On. Reminders ring at the exact minute, even when the phone is saving battery.'
-                : 'Off. Android may ring reminders a few minutes late to save battery. Allow “Alarms & reminders” for VaultLocks to get exact times.'
+                ? tr("On. Reminders ring at the exact minute, even when the phone is saving battery.")
+                : tr("Off. Android may ring reminders a few minutes late to save battery. Allow “Alarms & reminders” for VaultLocks to get exact times.")
             }
           >
             {exact === 'denied' && (
@@ -1786,11 +1868,11 @@ function ReminderSettings({
                   setExact(s);
                   if (s === 'granted') {
                     await onChanged(); // reschedules everything as exact alarms
-                    toast('Reminders now ring at the exact time.');
+                    toast(tr("Reminders now ring at the exact time."));
                   }
                 }}
               >
-                Allow
+                {tr("Allow")}
               </button>
             )}
           </Row>

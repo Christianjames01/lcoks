@@ -1,6 +1,7 @@
 import type { AttachmentInput } from '../../shared/types';
 import { api } from './api';
 
+import { tr } from '../../shared/i18n';
 /** A problem with a chosen file (safe to show to the user as-is). */
 export class FileError extends Error {}
 
@@ -72,7 +73,7 @@ export function fileBadge(name: string, mime: string): string {
   const ext = /\.([a-z0-9]{1,5})$/i.exec(name)?.[1];
   if (ext) return ext.toUpperCase();
   const k = fileKind(mime);
-  return { image: 'IMG', pdf: 'PDF', doc: 'DOC', sheet: 'XLS', slides: 'PPT', text: 'TXT', archive: 'ZIP', audio: 'AUDIO', video: 'VIDEO', other: 'FILE' }[k];
+  return { image: 'IMG', pdf: 'PDF', doc: 'DOC', sheet: 'XLS', slides: 'PPT', text: tr("TXT"), archive: 'ZIP', audio: 'AUDIO', video: 'VIDEO', other: 'FILE' }[k];
 }
 
 /**
@@ -108,7 +109,7 @@ function readDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new FileError('This file could not be read.'));
+    r.onerror = () => reject(new FileError(tr("This file could not be read.")));
     r.readAsDataURL(file);
   });
 }
@@ -117,7 +118,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const i = new Image();
     i.onload = () => resolve(i);
-    i.onerror = () => reject(new FileError('This image could not be opened.'));
+    i.onerror = () => reject(new FileError(tr("This image could not be opened.")));
     i.src = src;
   });
 }

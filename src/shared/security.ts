@@ -3,6 +3,7 @@
 
 import type { EntryView, VaultMeta } from './types';
 
+import { tr } from './i18n';
 /** A password not changed for this long counts as old. */
 export const OLD_PASSWORD_DAYS = 365;
 const DAY = 86_400_000;
@@ -51,8 +52,8 @@ export function securityReport(
   if (weak.length) {
     issues.push({
       id: 'weak',
-      title: `${weak.length} weak password${weak.length === 1 ? '' : 's'}`,
-      detail: 'Easy to guess. Replace them with long, random passwords from the generator.',
+      title: tr("{0} weak password{1}", [weak.length, weak.length === 1 ? '' : 's']),
+      detail: tr("Easy to guess. Replace them with long, random passwords from the generator."),
       items: weak,
       severity: 'bad',
       penalty: cost(weak.length, 40, 8)
@@ -61,8 +62,8 @@ export function securityReport(
   if (reused.length) {
     issues.push({
       id: 'reused',
-      title: `${reused.length} reused password${reused.length === 1 ? '' : 's'}`,
-      detail: 'If one site leaks, every account with the same password is at risk. Give each one its own password.',
+      title: tr("{0} reused password{1}", [reused.length, reused.length === 1 ? '' : 's']),
+      detail: tr("If one site leaks, every account with the same password is at risk. Give each one its own password."),
       items: reused,
       severity: 'bad',
       penalty: cost(reused.length, 30, 8)
@@ -71,8 +72,8 @@ export function securityReport(
   if (old.length) {
     issues.push({
       id: 'old',
-      title: `${old.length} old password${old.length === 1 ? '' : 's'}`,
-      detail: `Not changed in over a year. Consider updating important accounts.`,
+      title: tr("{0} old password{1}", [old.length, old.length === 1 ? '' : 's']),
+      detail: tr("Not changed in over a year. Consider updating important accounts."),
       items: old,
       severity: 'warn',
       penalty: cost(old.length, 10, 3)
@@ -82,17 +83,17 @@ export function securityReport(
   if (entries.length > 0 && (!meta.lastBackupAt || (backupReminderDays > 0 && backupAge > backupReminderDays))) {
     issues.push({
       id: 'backup',
-      title: meta.lastBackupAt ? 'Backup is out of date' : 'No backup yet',
-      detail: 'Your vault lives only on this device. Keep an encrypted backup somewhere safe.',
+      title: meta.lastBackupAt ? tr("Backup is out of date") : tr("No backup yet"),
+      detail: tr("Your vault lives only on this device. Keep an encrypted backup somewhere safe."),
       items: [],
       severity: meta.lastBackupAt ? 'warn' : 'bad',
       penalty: meta.lastBackupAt ? 8 : 15
     });
   }
 
-  if (entries.length === 0) return { score: null, label: 'No items yet', level: 'good', passwords: 0, issues: [] };
+  if (entries.length === 0) return { score: null, label: tr("No items yet"), level: 'good', passwords: 0, issues: [] };
   const score = Math.max(0, Math.min(100, 100 - issues.reduce((s, i) => s + i.penalty, 0)));
   const level = score >= 90 ? 'great' : score >= 75 ? 'good' : score >= 50 ? 'fair' : 'poor';
-  const label = { great: 'Excellent', good: 'Good', fair: 'Fair', poor: 'Needs work' }[level];
+  const label = tr({ great: 'Excellent', good: 'Good', fair: 'Fair', poor: 'Needs work' }[level]);
   return { score, label, level, passwords: withPw.length, issues };
 }

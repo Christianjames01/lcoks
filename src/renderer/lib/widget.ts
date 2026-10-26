@@ -9,6 +9,7 @@ import { dayKey, formatMoney, monthOf } from '../../shared/money';
 import { billsInOrder } from '../../shared/plans';
 import type { VaultSnapshot } from '../../shared/types';
 
+import { tr } from '../../shared/i18n';
 export function widgetData(snap: VaultSnapshot, now: number): WidgetData {
   const today = dayKey(new Date(now));
   const tomorrow = dayKey(new Date(now + 86_400_000));
@@ -24,16 +25,16 @@ export function widgetData(snap: VaultSnapshot, now: number): WidgetData {
     if (o.done) continue;
     const at = occurrenceBounds(o).start.getTime();
     if (at < now - 30 * 60_000 && !o.event.allDay) continue;
-    next.push({ at, title: show ? o.event.title : 'Event', sub: o.event.allDay ? (o.day === today ? 'Today' : 'Tomorrow') : `${o.day === today ? '' : 'Tomorrow, '}${formatTime(o.event.startTime)}` });
+    next.push({ at, title: show ? o.event.title : tr("Event"), sub: o.event.allDay ? (o.day === today ? tr("Today") : tr("Tomorrow")) : `${o.day === today ? '' : 'Tomorrow, '}${formatTime(o.event.startTime)}` });
   }
   for (const t of snap.tasks) {
     if (t.completed || !t.due || t.due > tomorrow) continue;
     const at = new Date(`${t.due}T${t.dueTime || '09:00'}:00`).getTime();
-    next.push({ at, title: show ? t.title : 'Task', sub: t.due < today ? 'Task · overdue' : `Task · ${t.due === today ? 'today' : 'tomorrow'}${t.dueTime ? `, ${formatTime(t.dueTime)}` : ''}` });
+    next.push({ at, title: show ? t.title : tr("Task"), sub: t.due < today ? tr("Task · overdue") : tr("Task · {0}{1}", [t.due === today ? 'today' : 'tomorrow', t.dueTime ? `, ${formatTime(t.dueTime)}` : '']) });
   }
   for (const s of billsInOrder(snap.bills, today)) {
     if (s.state !== 'overdue' && s.state !== 'today' && !(s.state === 'soon' && s.due === tomorrow)) continue;
-    next.push({ at: new Date(`${s.due}T09:00:00`).getTime(), title: show ? `Pay ${s.bill.name}` : 'Bill', sub: s.state === 'overdue' ? 'Bill · overdue' : s.due === today ? 'Bill · today' : 'Bill · tomorrow' });
+    next.push({ at: new Date(`${s.due}T09:00:00`).getTime(), title: show ? tr("Pay {0}", [s.bill.name]) : tr("Bill"), sub: s.state === 'overdue' ? tr("Bill · overdue") : s.due === today ? tr("Bill · today") : tr("Bill · tomorrow") });
   }
   next.sort((a, b) => a.at - b.at);
   return { day: today, spentToday: money(spent), monthLine, next: next.slice(0, 6) };

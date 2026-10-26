@@ -22,13 +22,14 @@ import { morphOpen } from '../lib/motion';
 import { markUsed, useRecentlyUsed } from '../lib/recent';
 import type { Route } from './VaultApp';
 
+import { tr } from '../../shared/i18n';
 type ListSort = 'name' | 'used' | 'updated' | 'created' | 'category';
 const SORTS: [ListSort, string][] = [
-  ['name', 'Name (A–Z)'],
-  ['used', 'Recently used'],
-  ['updated', 'Recently updated'],
-  ['created', 'Recently added'],
-  ['category', 'Category']
+  ['name', tr("Name (A–Z)")],
+  ['used', tr("Recently used")],
+  ['updated', tr("Recently updated")],
+  ['created', tr("Recently added")],
+  ['category', tr("Category")]
 ];
 
 const SORT_KEY = 'vaultlocks.sort';
@@ -175,20 +176,20 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
   };
 
   const empty = (() => {
-    if (searching) return <EmptyState art="search" title="No matches" text="Search covers titles, usernames, websites, categories, notes and tags." />;
+    if (searching) return <EmptyState art="search" title={tr("No matches")} text={tr("Search covers titles, usernames, websites, categories, notes and tags.")} />;
     if (filter === 'favorites')
-      return <EmptyState art="favorites" title="No favorites yet" text="Open an item and tap the star (or long-press a row) to keep it here." />;
+      return <EmptyState art="favorites" title={tr("No favorites yet")} text={tr("Open an item and tap the star (or long-press a row) to keep it here.")} />;
     if (filter === 'weak' || filter === 'reused' || filter === 'old')
-      return <EmptyState art="secure" title="Nothing to fix" text="None of your passwords are in this list. Nice work." />;
+      return <EmptyState art="secure" title={tr("Nothing to fix")} text={tr("None of your passwords are in this list. Nice work.")} />;
     return (
       <EmptyState
         art="category"
-        title="Nothing here yet"
-        text={filter.startsWith('tag:') ? 'No items have this tag any more.' : 'Add an item and it will show up here.'}
+        title={tr("Nothing here yet")}
+        text={filter.startsWith('tag:') ? tr("No items have this tag any more.") : tr("Add an item and it will show up here.")}
         action={
           !filter.startsWith('tag:') && (
             <button type="button" className="btn primary sm" onClick={onNew}>
-              <Plus size={14} aria-hidden /> New item
+              <Plus size={14} aria-hidden /> {tr("New item")}
             </button>
           )
         }
@@ -215,38 +216,38 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
             return (
               <div className="gift-summary">
                 <span className="grow">
-                  <span className="label">Left on {entries.length} card{entries.length === 1 ? '' : 's'}</span>
+                  <span className="label">{tr("Left on")} {entries.length} {tr("card")}{entries.length === 1 ? '' : 's'}</span>
                   <span className="gift-summary-total">{formatMoney(left, snap.settings.currency)}</span>
                 </span>
-                {soon > 0 && <span className="vl-pill warn">{soon} expire{soon === 1 ? 's' : ''} soon</span>}
+                {soon > 0 && <span className="vl-pill warn">{soon} {tr("expire")}{soon === 1 ? 's' : ''} {tr("soon")}</span>}
               </div>
             );
           })()}
           {sortable && input.length > 1 && (
             <div className="list-tools">
               <label htmlFor="sort" className="sr-only">
-                Sort items
+                {tr("Sort items")}
               </label>
               <select id="sort" className="select" value={sort} onChange={(e) => changeSort(e.target.value as ListSort)}>
                 {SORTS.map(([k, label]) => (
                   <option key={k} value={k}>
-                    Sort: {label}
+                    {tr("Sort:")} {label}
                   </option>
                 ))}
               </select>
             </div>
           )}
           {filter === 'favorites' && !searching && (
-            <div className="segmented" role="group" aria-label="Sort favorites">
+            <div className="segmented" role="group" aria-label={tr("Sort favorites")}>
               {(['manual', 'name', 'updated'] as const).map((m) => (
                 <button key={m} type="button" aria-pressed={snap.settings.favoriteSort === m} onClick={() => setFavSort(m)}>
-                  {m === 'manual' ? 'Manual' : m === 'name' ? 'Name' : 'Recent'}
+                  {m === 'manual' ? tr("Manual") : m === 'name' ? tr("Name") : tr("Recent")}
                 </button>
               ))}
             </div>
           )}
           {tagChips.length > 0 && !searching && (
-            <div className="tag-chips" role="group" aria-label="Filter by tag">
+            <div className="tag-chips" role="group" aria-label={tr("Filter by tag")}>
               {tagChips.map(([t, n]) => (
                 <button key={t} type="button" className="tchip" aria-pressed={tag === t} onClick={() => setActiveTag(tag === t ? null : t)}>
                   #{t} <span className="tchip-n">{n}</span>
@@ -259,7 +260,7 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
           empty
         ) : (
           <div className="list-wrap">
-            <ul ref={listRef} className={`list ${grouping === 'letter' && mobile ? 'with-index' : ''}`} role="listbox" aria-label="Items" onKeyDown={onListKey}>
+            <ul ref={listRef} className={`list ${grouping === 'letter' && mobile ? 'with-index' : ''}`} role="listbox" aria-label={tr("Items")} onKeyDown={onListKey}>
               {entries.map((e, i) => {
                 const cat = snap.categories.find((c) => c.id === e.categoryId);
                 const isSel = e.id === selectedId;
@@ -293,13 +294,13 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
                                 // The note body is a secret: show that it is locked, never a preview of it.
                                 <>
                                   <Lock size={11} aria-hidden className="inline-lock" />
-                                  Encrypted note · {formatDate(e.updatedAt)}
+                                  {tr("Encrypted note ·")} {formatDate(e.updatedAt)}
                                 </>
                               ) : (
                                 e.categoryId === GIFT_CATEGORY && parseAmountText(e.fields.balance) !== null ? (
                                 <>
-                                  {formatMoney(parseAmountText(e.fields.balance)!, snap.settings.currency)} left
-                                  {e.fields.expiryDate ? ` · until ${formatDate(e.fields.expiryDate)}` : ''}
+                                  {formatMoney(parseAmountText(e.fields.balance)!, snap.settings.currency)} {tr("left")}
+                                  {e.fields.expiryDate ? tr(" · until {0}", [formatDate(e.fields.expiryDate)]) : ''}
                                 </>
                               ) : (
                                 <>
@@ -311,8 +312,8 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
                           </span>
                           {(e.favorite || e.attachmentCount > 0) && (
                             <span className="row-end">
-                              {e.attachmentCount > 0 && <Paperclip size={13} aria-label={`${e.attachmentCount} attachment(s)`} />}
-                              {e.favorite && <Star size={13} className="star" fill="currentColor" aria-label="Favorite" />}
+                              {e.attachmentCount > 0 && <Paperclip size={13} aria-label={tr("{0} attachment(s)", [e.attachmentCount])} />}
+                              {e.favorite && <Star size={13} className="star" fill="currentColor" aria-label={tr("Favorite")} />}
                             </span>
                           )}
                         </button>
@@ -325,8 +326,8 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
                             style={{ height: 22 }}
                             disabled={i === 0}
                             onClick={() => move(e.id, -1)}
-                            aria-label={`Move ${e.title} up`}
-                            title="Move up"
+                            aria-label={tr("Move {0} up", [e.title])}
+                            title={tr("Move up")}
                           >
                             <ArrowUp size={13} />
                           </button>
@@ -336,8 +337,8 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
                             style={{ height: 22 }}
                             disabled={i === entries.length - 1}
                             onClick={() => move(e.id, 1)}
-                            aria-label={`Move ${e.title} down`}
-                            title="Move down"
+                            aria-label={tr("Move {0} down", [e.title])}
+                            title={tr("Move down")}
                           >
                             <ArrowDown size={13} />
                           </button>
@@ -353,7 +354,7 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
         )}
       </section>
 
-      <section className="detail" aria-label="Item details">
+      <section className="detail" aria-label={tr("Item details")}>
         {selected ? (
           <EntryDetail
             key={selected.id}
@@ -367,7 +368,7 @@ export function ItemsView({ snap, filter, query, entries: input, mobile, selecte
           />
         ) : (
           <div className="empty" style={{ height: '100%' }}>
-            <div className="muted">Select an item to view its details.</div>
+            <div className="muted">{tr("Select an item to view its details.")}</div>
           </div>
         )}
       </section>
@@ -456,7 +457,7 @@ function EntryDetail({
       await unwrap(api.vault.setFavorite(entry.id, !entry.favorite));
       api.app.haptic('tap');
       await onChanged();
-      toast(entry.favorite ? 'Removed from favorites.' : 'Added to favorites.');
+      toast(entry.favorite ? tr("Removed from favorites.") : tr("Added to favorites."));
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
@@ -467,7 +468,7 @@ function EntryDetail({
       const copy = await unwrap(api.vault.duplicateEntry(entry.id));
       await onChanged();
       onSelect(copy.id);
-      toast('Item duplicated.');
+      toast(tr("Item duplicated."));
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
@@ -477,13 +478,13 @@ function EntryDetail({
     <div className="detail-inner">
       {onBack && (
         <button type="button" className="btn ghost sm" style={{ marginBottom: 12, marginLeft: -10 }} onClick={onBack}>
-          <ArrowLeft size={15} aria-hidden /> Back
+          <ArrowLeft size={15} aria-hidden /> {tr("Back")}
         </button>
       )}
       <div className="detail-head">
         <EntryIcon entry={entry} category={category} size={48} />
         <div className="grow">
-          <div className="label">{category?.name ?? 'Item'}</div>
+          <div className="label">{category?.name ?? tr("Item")}</div>
           <h1 className="h1 selectable" data-vt="title" style={{ marginTop: 4 }}>
             {entry.title}
           </h1>
@@ -494,15 +495,15 @@ function EntryDetail({
             className={`icon-btn ${entry.favorite ? 'on' : ''}`}
             onClick={toggleFavorite}
             aria-pressed={entry.favorite}
-            aria-label={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
-            title={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={entry.favorite ? tr("Remove from favorites") : tr("Add to favorites")}
+            title={entry.favorite ? tr("Remove from favorites") : tr("Add to favorites")}
           >
             <Star size={17} fill={entry.favorite ? 'currentColor' : 'none'} />
           </button>
-          <button type="button" className="icon-btn" onClick={duplicate} aria-label="Duplicate item" title="Duplicate">
+          <button type="button" className="icon-btn" onClick={duplicate} aria-label={tr("Duplicate item")} title={tr("Duplicate")}>
             <CopyPlus size={16} />
           </button>
-          <button type="button" className="icon-btn" onClick={onEdit} aria-label="Edit item" title="Edit">
+          <button type="button" className="icon-btn" onClick={onEdit} aria-label={tr("Edit item")} title={tr("Edit")}>
             <Pencil size={16} />
           </button>
         </div>
@@ -533,7 +534,7 @@ function EntryDetail({
 
       {entry.tags.length > 0 && (
         <div className="dfield">
-          <span className="label">Tags</span>
+          <span className="label">{tr("Tags")}</span>
           <div className="tags">
             {entry.tags.map((t) => (
               <span key={t} className="tag" style={{ cursor: 'default' }}>
@@ -545,15 +546,15 @@ function EntryDetail({
       )}
 
       <div className="dim small" style={{ marginTop: 14 }}>
-        Created {formatDateTime(entry.createdAt)} · Updated {formatDateTime(entry.updatedAt)}
+        {tr("Created")} {formatDateTime(entry.createdAt)} {tr("· Updated")} {formatDateTime(entry.updatedAt)}
       </div>
 
       <div className="detail-foot">
         <button type="button" className="btn" onClick={onEdit}>
-          <Pencil size={15} aria-hidden /> Edit
+          <Pencil size={15} aria-hidden /> {tr("Edit")}
         </button>
         <button type="button" className="btn danger" onClick={onDelete}>
-          <Trash size={15} aria-hidden /> Delete
+          <Trash size={15} aria-hidden /> {tr("Delete")}
         </button>
       </div>
     </div>
@@ -576,7 +577,7 @@ function PlainField({ entryId, def, value }: { entryId: string; def: FieldDef; v
       const { seconds } = await unwrap(api.vault.copyText(value));
       markUsed(entryId);
       api.app.haptic('success');
-      toast(`${def.label} copied. Clipboard clears in ${seconds}s.`);
+      toast(tr("{0} copied. Clipboard clears in {1}s.", [def.label, seconds]));
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
@@ -592,7 +593,7 @@ function PlainField({ entryId, def, value }: { entryId: string; def: FieldDef; v
           const r = await api.app.openExternal(value);
           if (!r.ok) toast(r.message, 'error');
         }}
-        title="Open in your browser"
+        title={tr("Open in your browser")}
       >
         {value} <ExternalLink size={12} aria-hidden style={{ verticalAlign: -1 }} />
       </a>
@@ -606,7 +607,7 @@ function PlainField({ entryId, def, value }: { entryId: string; def: FieldDef; v
       <div className={`value ${def.type === 'textarea' ? 'pre' : ''}`}>{content}</div>
       {copyable && (
         <div className="tools">
-          <button type="button" className="icon-btn" onClick={copy} aria-label={`Copy ${def.label}`} title={`Copy ${def.label}`}>
+          <button type="button" className="icon-btn" onClick={copy} aria-label={tr("Copy {0}", [def.label])} title={tr("Copy {0}", [def.label])}>
             <Copy size={15} />
           </button>
         </div>
@@ -664,7 +665,7 @@ function SecretField({ entry, def, revealSeconds }: { entry: EntryView; def: Fie
       const { seconds } = await unwrap(api.vault.copyField(entry.id, def.key));
       markUsed(entry.id);
       api.app.haptic('success');
-      toast(`${def.label} copied. Clipboard clears in ${seconds}s.`);
+      toast(tr("{0} copied. Clipboard clears in {1}s.", [def.label, seconds]));
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
@@ -677,14 +678,14 @@ function SecretField({ entry, def, revealSeconds }: { entry: EntryView; def: Fie
       <span className="label">
         {def.label}
         {meta.reused && (
-          <span className="badge warn" title="Another item uses the same password">
-            Reused
+          <span className="badge warn" title={tr("Another item uses the same password")}>
+            {tr("Reused")}
           </span>
         )}
       </span>
       <div
         className={`value ${revealed === null ? 'masked' : long ? 'pre' : 'mono'}`}
-        aria-label={revealed === null ? `${def.label} hidden` : undefined}
+        aria-label={revealed === null ? tr("{0} hidden", [def.label]) : undefined}
         aria-live="polite"
       >
         {revealed === null ? masked : revealed}
@@ -695,18 +696,18 @@ function SecretField({ entry, def, revealSeconds }: { entry: EntryView; def: Fie
           className={`icon-btn has-ring ${revealed !== null ? 'on' : ''}`}
           onClick={reveal}
           aria-pressed={revealed !== null}
-          aria-label={revealed !== null ? `Hide ${def.label}` : `Show ${def.label}`}
-          title={revealed !== null ? (revealSeconds ? `Hide (hides by itself after ${revealSeconds}s)` : 'Hide') : revealSeconds ? `Show (auto-hides after ${revealSeconds}s)` : 'Show'}
+          aria-label={revealed !== null ? tr("Hide {0}", [def.label]) : tr("Show {0}", [def.label])}
+          title={revealed !== null ? (revealSeconds ? tr("Hide (hides by itself after {0}s)", [revealSeconds]) : tr("Hide")) : revealSeconds ? tr("Show (auto-hides after {0}s)", [revealSeconds]) : tr("Show")}
         >
           {revealed !== null ? <EyeOff size={15} /> : <Eye size={15} />}
           {revealed !== null && revealSeconds > 0 && <CountdownRing key={revealCount} seconds={revealSeconds} />}
         </button>
         {!long && (
-          <button type="button" className="icon-btn" onClick={showLarge} aria-label={`Show ${def.label} in large type`} title="Large type">
+          <button type="button" className="icon-btn" onClick={showLarge} aria-label={tr("Show {0} in large type", [def.label])} title={tr("Large type")}>
             <Maximize2 size={15} />
           </button>
         )}
-        <button type="button" className="icon-btn" onClick={copy} aria-label={`Copy ${def.label}`} title={`Copy ${def.label}`}>
+        <button type="button" className="icon-btn" onClick={copy} aria-label={tr("Copy {0}", [def.label])} title={tr("Copy {0}", [def.label])}>
           <Copy size={15} />
         </button>
       </div>

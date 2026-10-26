@@ -8,6 +8,7 @@ import { ApiError, api, errorMessage, unwrap } from '../lib/api';
 import { QuickAddLocked } from './QuickAddLocked';
 import { QuickUnlockPanel } from './QuickUnlockPanel';
 
+import { tr } from '../../shared/i18n';
 function Logo() {
   return (
     <div className="auth-logo" aria-hidden>
@@ -65,22 +66,22 @@ export function Welcome({ onCreate, onRestored }: { onCreate: () => void; onRest
       <Aura />
       <div className="auth-card">
         <Logo />
-        <h1 className="auth-title">Welcome to VaultLocks</h1>
+        <h1 className="auth-title">{tr("Welcome to VaultLocks")}</h1>
         <p className="auth-sub">
-          A private password manager that
+          {tr("A private password manager that")}
           <br />
-          stores your data locally.
+          {tr("stores your data locally.")}
         </p>
         <button type="button" className="btn primary wide block" onClick={onCreate} autoFocus>
-          Create new vault
+          {tr("Create new vault")}
         </button>
         <button type="button" className="btn block" style={{ marginTop: 10 }} onClick={() => setRestoring(true)}>
-          <FolderOpen size={15} aria-hidden /> Restore from encrypted backup
+          <FolderOpen size={15} aria-hidden /> {tr("Restore from encrypted backup")}
         </button>
         <div className="auth-note">
-          Works fully offline. No account, no cloud, no tracking.
+          {tr("Works fully offline. No account, no cloud, no tracking.")}
           <br />
-          Everything is encrypted with Argon2id + AES-256-GCM.
+          {tr("Everything is encrypted with Argon2id + AES-256-GCM.")}
         </div>
       </div>
       {restoring && <RestoreLockedDialog vaultExists={false} onClose={() => setRestoring(false)} onRestored={onRestored} />}
@@ -134,17 +135,17 @@ export function Setup({ onBack, onCreated }: { onBack: () => void; onCreated: ()
       <Aura />
       <form className="auth-card wide" onSubmit={submit} noValidate>
         <button type="button" className="btn ghost sm" style={{ alignSelf: 'flex-start', marginBottom: 12 }} onClick={onBack} disabled={busy}>
-          <ArrowLeft size={14} aria-hidden /> Back
+          <ArrowLeft size={14} aria-hidden /> {tr("Back")}
         </button>
         <h1 className="auth-title" style={{ textAlign: 'left' }}>
-          Create a master password
+          {tr("Create a master password")}
         </h1>
         <p className="muted" style={{ margin: '0 0 24px' }}>
-          This password encrypts your vault. It is never stored and cannot be recovered.
+          {tr("This password encrypts your vault. It is never stored and cannot be recovered.")}
         </p>
 
         <div className="field">
-          <label htmlFor="setup-pw">Master password</label>
+          <label htmlFor="setup-pw">{tr("Master password")}</label>
           <PasswordInput
             id="setup-pw"
             value={pw}
@@ -165,7 +166,7 @@ export function Setup({ onBack, onCreated }: { onBack: () => void; onCreated: ()
         </div>
 
         <div className="field">
-          <label htmlFor="setup-confirm">Confirm password</label>
+          <label htmlFor="setup-confirm">{tr("Confirm password")}</label>
           <PasswordInput
             id="setup-confirm"
             value={confirm}
@@ -182,7 +183,7 @@ export function Setup({ onBack, onCreated }: { onBack: () => void; onCreated: ()
         </div>
 
         <div className="field">
-          <label htmlFor="setup-hint">Password hint (optional)</label>
+          <label htmlFor="setup-hint">{tr("Password hint (optional)")}</label>
           <input
             id="setup-hint"
             className="input"
@@ -194,7 +195,7 @@ export function Setup({ onBack, onCreated }: { onBack: () => void; onCreated: ()
             autoComplete="off"
           />
           <span id="setup-hint-help" className="help-text">
-            The hint is stored <strong>unencrypted</strong> and shown on the unlock screen. Never put your password, or part of it, in the hint.
+            {tr("The hint is stored")} <strong>{tr("unencrypted")}</strong> {tr("and shown on the unlock screen. Never put your password, or part of it, in the hint.")}
           </span>
           {errors.hint && (
             <span className="error-text" role="alert">
@@ -205,7 +206,7 @@ export function Setup({ onBack, onCreated }: { onBack: () => void; onCreated: ()
 
         <label className="checkbox" style={{ margin: '6px 0 6px' }}>
           <input type="checkbox" checked={ack} onChange={(e) => { setAck(e.target.checked); edit('ack', () => undefined)(''); }} aria-invalid={!!errors.ack || undefined} />
-          <span>I understand that losing my master password may make my vault permanently inaccessible.</span>
+          <span>{tr("I understand that losing my master password may make my vault permanently inaccessible.")}</span>
         </label>
         {errors.ack && (
           <span className="error-text" role="alert" style={{ marginBottom: 6 }}>
@@ -221,10 +222,10 @@ export function Setup({ onBack, onCreated }: { onBack: () => void; onCreated: ()
         <button type="submit" className="btn primary wide block" style={{ marginTop: 22 }} disabled={busy}>
           {busy ? (
             <>
-              <span className="spinner" aria-hidden /> Deriving encryption key…
+              <span className="spinner" aria-hidden /> {tr("Deriving encryption key…")}
             </>
           ) : (
-            'Create vault'
+            tr("Create vault")
           )}
         </button>
       </form>
@@ -291,30 +292,30 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
       <LockClock />
       <form className="auth-card lock-card" onSubmit={submit}>
         <Logo />
-        <h1 className="auth-title">VaultLocks</h1>
+        <h1 className="auth-title">{tr("VaultLocks")}</h1>
         <p className="auth-sub">
           <span className="status-pill locked" role="status">
-            <Lock size={11} strokeWidth={2.2} aria-hidden /> Locked
+            <Lock size={11} strokeWidth={2.2} aria-hidden /> {tr("Locked")}
           </span>
-          Your data stays on this device.
+          {tr("Your data stays on this device.")}
         </p>
 
         {quick === null ? (
           <div className="row-flex" style={{ justifyContent: 'center' }}>
-            <span className="spinner" aria-label="Loading" />
+            <span className="spinner" aria-label={tr("Loading")} />
           </div>
         ) : showQuick ? (
           <QuickUnlockPanel status={quick} onUnlocked={onUnlocked} onUsePassword={() => setUsePassword(true)} onStatusChanged={loadQuick} />
         ) : (
         <>
         <label htmlFor="unlock-pw" className="sr-only">
-          Master password
+          {tr("Master password")}
         </label>
         <PasswordInput
           id="unlock-pw"
           value={pw}
           onChange={setPw}
-          placeholder="Master password"
+          placeholder={tr("Master password")}
           autoFocus
           mono={false}
           invalid={!!error}
@@ -324,17 +325,17 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
         {error && (
           <div id="unlock-err" className="error-text" role="alert" style={{ marginTop: 10, alignItems: 'flex-start' }}>
             <CircleAlert size={14} aria-hidden style={{ marginTop: 3, flex: 'none' }} />
-            <span>{wait > 0 ? `Too many attempts. Try again in ${wait} seconds.` : error}</span>
+            <span>{wait > 0 ? tr("Too many attempts. Try again in {0} seconds.", [wait]) : error}</span>
           </div>
         )}
 
         <button type="submit" className="btn primary wide block" style={{ marginTop: 16 }} disabled={busy || !pw || wait > 0}>
           {busy ? (
             <>
-              <span className="spinner" aria-hidden /> Unlocking…
+              <span className="spinner" aria-hidden /> {tr("Unlocking…")}
             </>
           ) : (
-            'Unlock'
+            tr("Unlock")
           )}
         </button>
         </>
@@ -347,17 +348,17 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
               className="lock-link"
               onClick={async () => {
                 const r = await api.app.getHint();
-                setHint(r.ok ? (r.value ?? '(no hint)') : '(unavailable)');
+                setHint(r.ok ? (r.value ?? tr("(no hint)")) : '(unavailable)');
               }}
             >
-              Show hint
+              {tr("Show hint")}
             </button>
           )}
           <button type="button" className="lock-link" onClick={() => setShowForgot((v) => !v)} aria-expanded={showForgot}>
-            Forgot password?
+            {tr("Forgot password?")}
           </button>
           <button type="button" className="lock-link" onClick={() => setRestoring(true)}>
-            Restore backup
+            {tr("Restore backup")}
           </button>
         </div>
 
@@ -365,15 +366,14 @@ export function Unlock({ hasHint, onUnlocked }: { hasHint: boolean; onUnlocked: 
           <div className="notice" style={{ marginTop: 16 }} role="status">
             <Info size={15} aria-hidden />
             <span>
-              <strong style={{ color: 'var(--fg)' }}>Hint:</strong> <span className="selectable">{hint}</span>
+              <strong style={{ color: 'var(--fg)' }}>{tr("Hint:")}</strong> <span className="selectable">{hint}</span>
             </span>
           </div>
         )}
 
         {showForgot && (
           <div className="auth-note" role="note">
-            There is no password recovery mechanism because the vault is designed to remain private. Your master password is never stored
-            anywhere, so nobody — including the developers — can unlock your vault without it.
+            {tr("There is no password recovery mechanism because the vault is designed to remain private. Your master password is never stored anywhere, so nobody — including the developers — can unlock your vault without it.")}
           </div>
         )}
       </form>
@@ -424,46 +424,46 @@ export function RestoreLockedDialog({ vaultExists, onClose, onRestored }: { vaul
 
   return (
     <Dialog
-      title="Restore encrypted backup"
+      title={tr("Restore encrypted backup")}
       onClose={close}
       busy={busy}
       footer={
         <>
           <button type="button" className="btn" onClick={close} disabled={busy}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn primary" disabled={!file || !pw || !confirmReplace || busy} onClick={() => void restore()}>
-            {busy && <span className="spinner" aria-hidden />} Verify &amp; restore
+            {busy && <span className="spinner" aria-hidden />} {tr("Verify & restore")}
           </button>
         </>
       }
     >
       <form onSubmit={restore}>
         <div className="field">
-          <span className="label">Backup file</span>
+          <span className="label">{tr("Backup file")}</span>
           <div className="row-flex">
             <button type="button" className="btn" onClick={pick} disabled={busy}>
-              <FolderOpen size={15} aria-hidden /> Choose file…
+              <FolderOpen size={15} aria-hidden /> {tr("Choose file…")}
             </button>
             <span className="muted small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {file ? file.fileName : 'No file selected'}
+              {file ? file.fileName : tr("No file selected")}
             </span>
           </div>
         </div>
         <div className="field">
-          <label htmlFor="restore-pw">Backup password</label>
+          <label htmlFor="restore-pw">{tr("Backup password")}</label>
           <PasswordInput id="restore-pw" value={pw} onChange={setPw} mono={false} />
-          <span className="help-text">The master password that was in use when the backup was created. It becomes your master password.</span>
+          <span className="help-text">{tr("The master password that was in use when the backup was created. It becomes your master password.")}</span>
         </div>
         {vaultExists && (
           <>
             <div className="notice strong" style={{ marginBottom: 12 }}>
               <TriangleAlert size={16} aria-hidden />
-              <span>The vault currently on this device will be replaced by the backup. This cannot be undone.</span>
+              <span>{tr("The vault currently on this device will be replaced by the backup. This cannot be undone.")}</span>
             </div>
             <label className="checkbox">
               <input type="checkbox" checked={confirmReplace} onChange={(e) => setConfirmReplace(e.target.checked)} />
-              <span>Replace the existing vault on this device</span>
+              <span>{tr("Replace the existing vault on this device")}</span>
             </label>
           </>
         )}

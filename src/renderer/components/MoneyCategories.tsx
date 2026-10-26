@@ -7,6 +7,7 @@ import { MoneyIconOf } from '../views/Money';
 import { ConfirmDialog, Dialog } from './Dialog';
 import { useToast } from './Toast';
 
+import { tr } from '../../shared/i18n';
 /** Add or edit one of the user's own Expenses categories. */
 export function MoneyCategoryEditor({
   initial,
@@ -31,7 +32,7 @@ export function MoneyCategoryEditor({
   const icons: MoneyIcon[] = builtin && !CUSTOM_MONEY_ICONS.includes(builtin.icon) ? [builtin.icon, ...CUSTOM_MONEY_ICONS] : [...CUSTOM_MONEY_ICONS];
 
   const save = async () => {
-    if (!name.trim()) return setError('Give the category a name.');
+    if (!name.trim()) return setError(tr("Give the category a name."));
     setBusy(true);
     try {
       const c = await unwrap(
@@ -43,7 +44,7 @@ export function MoneyCategoryEditor({
           words: words.split(/[,\n]/).map((w) => w.trim()).filter(Boolean)
         })
       );
-      toast(initial ? 'Category saved.' : `Category “${c.name}” added.`);
+      toast(initial ? tr("Category saved.") : tr("Category “{0}” added.", [c.name]));
       await onSaved(c);
       onClose();
     } catch (e) {
@@ -56,24 +57,24 @@ export function MoneyCategoryEditor({
     <Dialog
       placement="center"
       size="narrow"
-      title={initial ? `Edit ${initial.name}` : k === 'income' ? 'New income category' : 'New expense category'}
-      subtitle={builtin && builtin.name !== initial?.name ? `Built-in: ${builtin.name}` : undefined}
+      title={initial ? tr("Edit {0}", [initial.name]) : k === 'income' ? tr("New income category") : tr("New expense category")}
+      subtitle={builtin && builtin.name !== initial?.name ? tr("Built-in: {0}", [builtin.name]) : undefined}
       onClose={onClose}
       busy={busy}
       footer={
         <>
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn primary" onClick={() => void save()} disabled={busy}>
             {busy && <span className="spinner" aria-hidden />}
-            Save
+            {tr("Save")}
           </button>
         </>
       }
     >
       <div className="field">
-        <label htmlFor="mc-name">Name</label>
+        <label htmlFor="mc-name">{tr("Name")}</label>
         <input
           id="mc-name"
           className="input"
@@ -82,7 +83,7 @@ export function MoneyCategoryEditor({
             setName(e.target.value);
             setError(null);
           }}
-          placeholder={k === 'income' ? 'e.g. Tutoring' : 'e.g. Games, GCash cash out'}
+          placeholder={k === 'income' ? tr("e.g. Tutoring") : tr("e.g. Games, GCash cash out")}
           maxLength={30}
           autoComplete="off"
           data-autofocus
@@ -91,8 +92,8 @@ export function MoneyCategoryEditor({
         {error && <span className="error-text">{error}</span>}
       </div>
       <div className="field">
-        <span className="label">Icon</span>
-        <div className="mc-icons" role="radiogroup" aria-label="Icon">
+        <span className="label">{tr("Icon")}</span>
+        <div className="mc-icons" role="radiogroup" aria-label={tr("Icon")}>
           {icons.map((i) => (
             <button key={i} type="button" role="radio" aria-checked={icon === i} className="mc-icon" onClick={() => setIcon(i)} aria-label={i}>
               <MoneyIconOf icon={i} size={18} />
@@ -101,9 +102,9 @@ export function MoneyCategoryEditor({
         </div>
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
-        <label htmlFor="mc-words">Quick-entry words (optional)</label>
-        <input id="mc-words" className="input" value={words} onChange={(e) => setWords(e.target.value)} placeholder="e.g. ml, mobile legends, steam" maxLength={300} autoComplete="off" />
-        <span className="help-text">Typing one of these in the quick box (“ml 200”) picks this category. Separate with commas.</span>
+        <label htmlFor="mc-words">{tr("Quick-entry words (optional)")}</label>
+        <input id="mc-words" className="input" value={words} onChange={(e) => setWords(e.target.value)} placeholder={tr("e.g. ml, mobile legends, steam")} maxLength={300} autoComplete="off" />
+        <span className="help-text">{tr("Typing one of these in the quick box (“ml 200”) picks this category. Separate with commas.")}</span>
       </div>
     </Dialog>
   );
@@ -116,10 +117,10 @@ export function MoneyCategoryList({ list, onChanged }: { list: readonly MoneyCat
   const [deleting, setDeleting] = useState<MoneyCategory | null>(null);
   return (
     <div className="mc-list-wrap">
-      <span className="label">Your categories</span>
+      <span className="label">{tr("Your categories")}</span>
       {list.length === 0 ? (
         <p className="help-text" style={{ margin: '4px 0 8px' }}>
-          Add your own, like Games or GCash cash out. They show up when you add an expense.
+          {tr("Add your own, like Games or GCash cash out. They show up when you add an expense.")}
         </p>
       ) : (
         <ul className="mc-list">
@@ -131,14 +132,14 @@ export function MoneyCategoryList({ list, onChanged }: { list: readonly MoneyCat
               <span className="grow">
                 <span style={{ display: 'block', fontWeight: 600 }}>{c.name}</span>
                 <span className="dim small">
-                  {c.kind === 'income' ? 'Income' : 'Expense'}
+                  {c.kind === 'income' ? tr("Income") : tr("Expense")}
                   {c.words.length ? ` · ${c.words.join(', ')}` : ''}
                 </span>
               </span>
-              <button type="button" className="icon-btn" onClick={() => setEditing({ c, kind: c.kind })} aria-label={`Edit ${c.name}`}>
+              <button type="button" className="icon-btn" onClick={() => setEditing({ c, kind: c.kind })} aria-label={tr("Edit {0}", [c.name])}>
                 <Pencil size={15} />
               </button>
-              <button type="button" className="icon-btn" onClick={() => setDeleting(c)} aria-label={`Delete ${c.name}`}>
+              <button type="button" className="icon-btn" onClick={() => setDeleting(c)} aria-label={tr("Delete {0}", [c.name])}>
                 <Trash size={15} />
               </button>
             </li>
@@ -147,27 +148,27 @@ export function MoneyCategoryList({ list, onChanged }: { list: readonly MoneyCat
       )}
       <div className="row-flex" style={{ gap: 8, flexWrap: 'wrap' }}>
         <button type="button" className="btn sm" onClick={() => setEditing({ kind: 'expense' })}>
-          <Plus size={14} aria-hidden /> Expense category
+          <Plus size={14} aria-hidden /> {tr("Expense category")}
         </button>
         <button type="button" className="btn sm" onClick={() => setEditing({ kind: 'income' })}>
-          <Plus size={14} aria-hidden /> Income category
+          <Plus size={14} aria-hidden /> {tr("Income category")}
         </button>
       </div>
       {editing && <MoneyCategoryEditor initial={editing.c} kind={editing.kind} onClose={() => setEditing(null)} onSaved={onChanged} />}
       {deleting && (
         <ConfirmDialog
           placement="center"
-          title={`Delete “${deleting.name}”?`}
+          title={tr("Delete “{0}”?", [deleting.name])}
           danger
-          confirmLabel="Delete"
-          message={`Records in it move to ${deleting.kind === 'income' ? 'Other income' : 'Other'}. Nothing else is deleted.`}
+          confirmLabel={tr("Delete")}
+          message={tr("Records in it move to {0}. Nothing else is deleted.", [deleting.kind === 'income' ? 'Other income' : 'Other'])}
           onCancel={() => setDeleting(null)}
           onConfirm={async () => {
             try {
               const moved = await unwrap(api.vault.deleteMoneyCategory(deleting.id));
               await onChanged();
               setDeleting(null);
-              toast(moved ? `Category deleted. ${moved} record${moved === 1 ? '' : 's'} moved to Other.` : 'Category deleted.');
+              toast(moved ? tr("Category deleted. {0} record{1} moved to Other.", [moved, moved === 1 ? '' : 's']) : tr("Category deleted."));
             } catch (e) {
               toast(errorMessage(e), 'error');
             }
@@ -187,8 +188,8 @@ export function useCategoryActions(onChanged: () => Promise<void>, onDeleted?: (
   const [editing, setEditing] = useState<MoneyCategory | null>(null);
   const [deleting, setDeleting] = useState<MoneyCategory | null>(null);
   const itemsFor = (c: MoneyCategory): ActionItem[] => [
-    { key: 'edit', label: `Edit ${c.name}`, icon: <Pencil size={16} aria-hidden />, run: () => setEditing(c) },
-    ...(isDefaultCategory(c.id) ? [] : [{ key: 'delete', label: `Delete ${c.name}`, icon: <Trash size={16} aria-hidden />, danger: true, run: () => setDeleting(c) }])
+    { key: 'edit', label: tr("Edit {0}", [c.name]), icon: <Pencil size={16} aria-hidden />, run: () => setEditing(c) },
+    ...(isDefaultCategory(c.id) ? [] : [{ key: 'delete', label: tr("Delete {0}", [c.name]), icon: <Trash size={16} aria-hidden />, danger: true, run: () => setDeleting(c) }])
   ];
   const dialogs: ReactNode = (
     <>
@@ -196,13 +197,13 @@ export function useCategoryActions(onChanged: () => Promise<void>, onDeleted?: (
       {deleting && (
         <ConfirmDialog
           placement="center"
-          title={`Delete “${deleting.name}”?`}
+          title={tr("Delete “{0}”?", [deleting.name])}
           danger
-          confirmLabel="Delete"
+          confirmLabel={tr("Delete")}
           message={
             isBuiltinCategory(deleting.id)
-              ? `It is hidden from your categories and its records move to ${deleting.kind === 'income' ? 'Other income' : 'Other'}. You can bring it back in Budget & categories.`
-              : `Records in it move to ${deleting.kind === 'income' ? 'Other income' : 'Other'}. Nothing else is deleted.`
+              ? tr("It is hidden from your categories and its records move to {0}. You can bring it back in Budget & categories.", [deleting.kind === 'income' ? 'Other income' : 'Other'])
+              : tr("Records in it move to {0}. Nothing else is deleted.", [deleting.kind === 'income' ? 'Other income' : 'Other'])
           }
           onCancel={() => setDeleting(null)}
           onConfirm={async () => {
@@ -212,7 +213,7 @@ export function useCategoryActions(onChanged: () => Promise<void>, onDeleted?: (
               await onChanged();
               setDeleting(null);
               onDeleted?.(c);
-              toast(moved ? `${c.name} deleted. ${moved} record${moved === 1 ? '' : 's'} moved to Other.` : `${c.name} deleted.`);
+              toast(moved ? tr("{0} deleted. {1} record{2} moved to Other.", [c.name, moved, moved === 1 ? '' : 's']) : tr("{0} deleted.", [c.name]));
             } catch (e) {
               toast(errorMessage(e), 'error');
             }
@@ -231,7 +232,7 @@ export function EditedBuiltins({ edits, onChanged }: { edits: Readonly<Record<st
   if (!changed.length) return null;
   return (
     <div className="mc-list-wrap">
-      <span className="label">Changed built-in categories</span>
+      <span className="label">{tr("Changed built-in categories")}</span>
       <ul className="mc-list">
         {changed.map((c) => {
           const e = edits[c.id]!;
@@ -242,7 +243,7 @@ export function EditedBuiltins({ edits, onChanged }: { edits: Readonly<Record<st
               </span>
               <span className="grow">
                 <span style={{ display: 'block', fontWeight: 600 }}>{e.name ?? c.name}</span>
-                <span className="dim small">{e.hidden ? 'Deleted' : e.name && e.name !== c.name ? `Was ${c.name}` : 'Changed'}</span>
+                <span className="dim small">{e.hidden ? tr("Deleted") : e.name && e.name !== c.name ? tr("Was {0}", [c.name]) : tr("Changed")}</span>
               </span>
               <button
                 type="button"
@@ -251,13 +252,13 @@ export function EditedBuiltins({ edits, onChanged }: { edits: Readonly<Record<st
                   try {
                     await unwrap(api.vault.restoreMoneyCategory(c.id));
                     await onChanged();
-                    toast(`${c.name} restored.`);
+                    toast(tr("{0} restored.", [c.name]));
                   } catch (err) {
                     toast(errorMessage(err), 'error');
                   }
                 }}
               >
-                <RotateCcw size={14} aria-hidden /> Restore
+                <RotateCcw size={14} aria-hidden /> {tr("Restore")}
               </button>
             </li>
           );

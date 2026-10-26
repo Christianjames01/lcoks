@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import type { EntryView } from '../../shared/types';
 import { api } from '../lib/api';
 
+import { tr } from '../../shared/i18n';
 /** Things you can do to an item from its row: menu, swipe and keyboard shortcuts all go through these. */
 export interface EntryActions {
   copyPassword(e: EntryView): Promise<void>;
@@ -29,10 +30,10 @@ export function passwordKeyOf(e: EntryView): string | undefined {
 }
 
 const USERNAME_KEYS: [string, string][] = [
-  ['username', 'Username'],
-  ['email', 'Email'],
-  ['mobileNumber', 'Mobile number'],
-  ['accountName', 'Account name']
+  ['username', tr("Username")],
+  ['email', tr("Email")],
+  ['mobileNumber', tr("Mobile number")],
+  ['accountName', tr("Account name")]
 ];
 export function usernameOf(e: EntryView): { label: string; value: string } | null {
   for (const [k, label] of USERNAME_KEYS) if (e.fields[k]) return { label, value: e.fields[k]! };
@@ -70,17 +71,17 @@ export function EntryMenu({
 
   const items: { key: string; label: string; icon: ReactNode; run: () => void; danger?: boolean }[] = [];
   if (secretKey)
-    items.push({ key: 'pw', label: secretKey === 'password' ? 'Copy password' : `Copy ${secretKey === 'pin' ? 'PIN' : 'secret'}`, icon: <Copy size={16} />, run: () => void actions.copyPassword(entry) });
-  if (user) items.push({ key: 'user', label: `Copy ${user.label.toLowerCase()}`, icon: <User size={16} />, run: () => void actions.copyUsername(entry) });
-  if (site) items.push({ key: 'site', label: 'Open website', icon: <ExternalLink size={16} />, run: () => void actions.openWebsite(entry) });
-  items.push({ key: 'edit', label: 'Edit', icon: <Pencil size={16} />, run: () => actions.edit(entry) });
+    items.push({ key: 'pw', label: secretKey === 'password' ? tr("Copy password") : tr("Copy {0}", [secretKey === 'pin' ? 'PIN' : 'secret']), icon: <Copy size={16} />, run: () => void actions.copyPassword(entry) });
+  if (user) items.push({ key: 'user', label: tr("Copy {0}", [user.label.toLowerCase()]), icon: <User size={16} />, run: () => void actions.copyUsername(entry) });
+  if (site) items.push({ key: 'site', label: tr("Open website"), icon: <ExternalLink size={16} />, run: () => void actions.openWebsite(entry) });
+  items.push({ key: 'edit', label: tr("Edit"), icon: <Pencil size={16} />, run: () => actions.edit(entry) });
   items.push({
     key: 'fav',
-    label: entry.favorite ? 'Remove from favorites' : 'Add to favorites',
+    label: entry.favorite ? tr("Remove from favorites") : tr("Add to favorites"),
     icon: <Star size={16} fill={entry.favorite ? 'currentColor' : 'none'} />,
     run: () => void actions.toggleFavorite(entry)
   });
-  items.push({ key: 'del', label: 'Delete', icon: <Trash2 size={16} />, run: () => actions.remove(entry), danger: true });
+  items.push({ key: 'del', label: tr("Delete"), icon: <Trash2 size={16} />, run: () => actions.remove(entry), danger: true });
 
   // Keep the pop-up inside the window.
   useLayoutEffect(() => {
@@ -149,7 +150,7 @@ export function EntryMenu({
         ref={ref}
         className={sheet ? 'hold-menu' : 'context-menu'}
         role="menu"
-        aria-label={`Actions for ${entry.title}`}
+        aria-label={tr("Actions for {0}", [entry.title])}
         onKeyDown={onKey}
         onPointerDown={() => (pressed.current = true)}
         style={sheet ? undefined : { left: pos?.left ?? at.x, top: pos?.top ?? at.y, visibility: pos ? 'visible' : 'hidden' }}
@@ -173,7 +174,7 @@ export function EntryMenu({
         ))}
         {sheet && (
           <button type="button" className="menu-item cancel" onClick={(e) => (e.detail === 0 || pressed.current) && onClose()}>
-            Cancel
+            {tr("Cancel")}
           </button>
         )}
       </div>
@@ -330,7 +331,7 @@ export function GestureRow({ entry, swipe, children }: { entry: EntryView; swipe
           {dx > 0 && (
             <div className={`swipe-under copy ${dx > COPY_AT ? 'armed' : ''}`} aria-hidden>
               <Copy size={18} />
-              <span>{copyKey ? (copyKey === 'password' ? 'Copy password' : 'Copy') : user ? `Copy ${user.label.toLowerCase()}` : ''}</span>
+              <span>{copyKey ? (copyKey === 'password' ? tr("Copy password") : tr("Copy")) : user ? tr("Copy {0}", [user.label.toLowerCase()]) : ''}</span>
             </div>
           )}
           {dx < 0 && (
@@ -345,7 +346,7 @@ export function GestureRow({ entry, swipe, children }: { entry: EntryView; swipe
                 }}
               >
                 <Star size={18} fill={entry.favorite ? 'currentColor' : 'none'} />
-                {entry.favorite ? 'Unfavorite' : 'Favorite'}
+                {entry.favorite ? tr("Unfavorite") : tr("Favorite")}
               </button>
               <button
                 type="button"
@@ -357,7 +358,7 @@ export function GestureRow({ entry, swipe, children }: { entry: EntryView; swipe
                 }}
               >
                 <Trash2 size={18} />
-                Delete
+                {tr("Delete")}
               </button>
             </div>
           )}

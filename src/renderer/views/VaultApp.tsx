@@ -40,6 +40,7 @@ import { TaskAlerts, TasksView, type TaskFocus } from './Tasks';
 import { TitleBar } from './TitleBar';
 import { TrashView } from './Trash';
 
+import { tr } from '../../shared/i18n';
 export type Route =
   | { view: 'dashboard' }
   /** filter: 'all' | 'favorites' | 'weak' | 'reused' | 'old' | 'cat:<id>' | 'tag:<tag>'; entry: opened directly (phone: detail screen only). */
@@ -138,9 +139,9 @@ export function VaultApp({ version }: { version: string }) {
       const { added, unreadable } = r.value;
       if (added) {
         await refresh();
-        toast(`${added} expense${added === 1 ? '' : 's'} added from quick add.`);
+        toast(tr("{0} expense{1} added from quick add.", [added, added === 1 ? '' : 's']));
       }
-      if (unreadable.length) toast(`Couldn't read an amount in: ${unreadable.map((t) => `“${t}”`).join(', ')}. Please add ${unreadable.length === 1 ? 'it' : 'them'} again.`, 'error');
+      if (unreadable.length) toast(tr("Couldn't read an amount in: {0}. Please add {1} again.", [unreadable.map((t) => `“${t}”`).join(', '), unreadable.length === 1 ? 'it' : 'them']), 'error');
     };
     void check();
     document.addEventListener('visibilitychange', check);
@@ -239,7 +240,7 @@ export function VaultApp({ version }: { version: string }) {
         if (status !== 'granted') return;
       }
       const r = await syncPhoneCalendar(snap, on);
-      if (!r.ok && on) toast(`Phone calendar widget: ${r.message}`, 'error');
+      if (!r.ok && on) toast(tr("Phone calendar widget: {0}", [r.message]), 'error');
     }, 1500);
     return () => clearTimeout(t);
   }, [snap]);
@@ -305,24 +306,24 @@ export function VaultApp({ version }: { version: string }) {
   // ---- item actions (row menu, swipe, shortcuts)
   const copyPassword = async (e: EntryView) => {
     const key = passwordKeyOf(e);
-    if (!key) return toast('This item has no password to copy.', 'error');
+    if (!key) return toast(tr("This item has no password to copy."), 'error');
     try {
       const { seconds } = await unwrap(api.vault.copyField(e.id, key));
       markUsed(e.id);
       api.app.haptic('success');
-      toast(`${key === 'password' ? 'Password' : 'Secret'} copied. Clipboard clears in ${seconds}s.`);
+      toast(tr("{0} copied. Clipboard clears in {1}s.", [key === 'password' ? 'Password' : 'Secret', seconds]));
     } catch (err) {
       toast(errorMessage(err), 'error');
     }
   };
   const copyUsername = async (e: EntryView) => {
     const user = usernameOf(e);
-    if (!user) return toast('This item has no username to copy.', 'error');
+    if (!user) return toast(tr("This item has no username to copy."), 'error');
     try {
       const { seconds } = await unwrap(api.vault.copyText(user.value));
       markUsed(e.id);
       api.app.haptic('success');
-      toast(`${user.label} copied. Clipboard clears in ${seconds}s.`);
+      toast(tr("{0} copied. Clipboard clears in {1}s.", [user.label, seconds]));
     } catch (err) {
       toast(errorMessage(err), 'error');
     }
@@ -342,7 +343,7 @@ export function VaultApp({ version }: { version: string }) {
         await unwrap(api.vault.setFavorite(e.id, !e.favorite));
         api.app.haptic('tap');
         await refresh();
-        toast(e.favorite ? 'Removed from favorites.' : 'Added to favorites.');
+        toast(e.favorite ? tr("Removed from favorites.") : tr("Added to favorites."));
       } catch (err) {
         toast(errorMessage(err), 'error');
       }
@@ -433,7 +434,7 @@ export function VaultApp({ version }: { version: string }) {
       <>
         <TitleBar />
         <div className="auth">
-          <span className="spinner" aria-label="Loading vault" />
+          <span className="spinner" aria-label={tr("Loading vault")} />
         </div>
       </>
     );
@@ -462,20 +463,20 @@ export function VaultApp({ version }: { version: string }) {
 
   const screenTitle = (() => {
     const r = shownRoute;
-    if (r.view === 'dashboard') return 'Vault';
-    if (r.view === 'search') return 'Search';
-    if (r.view === 'money') return 'Expenses';
-    if (r.view === 'calendar') return 'Calendar';
-    if (r.view === 'tasks') return 'Tasks';
-    if (r.view === 'settings') return 'Settings';
-    if (r.view === 'duplicates') return 'Duplicates';
-    if (r.view === 'trash') return 'Recently Deleted';
-    if (r.view === 'security') return 'Security';
-    if (r.filter === 'favorites') return 'Favorites';
-    if (r.filter === 'all') return 'All items';
-    if (r.filter === 'weak') return 'Weak passwords';
-    if (r.filter === 'reused') return 'Reused passwords';
-    if (r.filter === 'old') return 'Old passwords';
+    if (r.view === 'dashboard') return tr("Vault");
+    if (r.view === 'search') return tr("Search");
+    if (r.view === 'money') return tr("Expenses");
+    if (r.view === 'calendar') return tr("Calendar");
+    if (r.view === 'tasks') return tr("Tasks");
+    if (r.view === 'settings') return tr("Settings");
+    if (r.view === 'duplicates') return tr("Duplicates");
+    if (r.view === 'trash') return tr("Recently Deleted");
+    if (r.view === 'security') return tr("Security");
+    if (r.filter === 'favorites') return tr("Favorites");
+    if (r.filter === 'all') return tr("All items");
+    if (r.filter === 'weak') return tr("Weak passwords");
+    if (r.filter === 'reused') return tr("Reused passwords");
+    if (r.filter === 'old') return tr("Old passwords");
     if (r.filter.startsWith('tag:')) return `#${r.filter.slice(4)}`;
     return snap.categories.find((c) => c.id === r.filter.slice(4))?.name ?? 'Items';
   })();
@@ -495,21 +496,21 @@ export function VaultApp({ version }: { version: string }) {
               type="button"
               className="icon-btn"
               onClick={() => setDrawerOpen((o) => !o)}
-              aria-label="Open categories"
+              aria-label={tr("Open categories")}
               aria-expanded={drawerOpen}
               aria-controls="vault-nav"
             >
               <Menu size={20} />
             </button>
             <h1 className="screen-title">{screenTitle}</h1>
-            <button type="button" className="icon-btn" onClick={() => go({ view: 'search' })} aria-label="Search vault" title="Search vault" aria-current={route.view === 'search' ? 'page' : undefined}>
+            <button type="button" className="icon-btn" onClick={() => go({ view: 'search' })} aria-label={tr("Search vault")} title={tr("Search vault")} aria-current={route.view === 'search' ? 'page' : undefined}>
               <Search size={19} />
             </button>
-            <button type="button" className="icon-btn" onClick={() => go({ view: 'settings' })} aria-label="Settings" title="Settings" aria-current={route.view === 'settings' ? 'page' : undefined}>
+            <button type="button" className="icon-btn" onClick={() => go({ view: 'settings' })} aria-label={tr("Settings")} title={tr("Settings")} aria-current={route.view === 'settings' ? 'page' : undefined}>
               <SettingsIcon size={19} />
             </button>
             <BellButton count={bellCount} onClick={() => setNotifOpen(true)} />
-            <button type="button" className="icon-btn" onClick={lock} aria-label="Lock vault" title="Lock vault">
+            <button type="button" className="icon-btn" onClick={lock} aria-label={tr("Lock vault")} title={tr("Lock vault")}>
               <Lock size={19} />
             </button>
           </>
@@ -519,8 +520,8 @@ export function VaultApp({ version }: { version: string }) {
               type="button"
               className="icon-btn"
               onClick={toggleSidebar}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={collapsed ? tr("Expand sidebar") : tr("Collapse sidebar")}
+              title={collapsed ? tr("Expand sidebar") : tr("Collapse sidebar")}
             >
               {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
             </button>
@@ -530,8 +531,8 @@ export function VaultApp({ version }: { version: string }) {
               <input
                 ref={searchRef}
                 type="search"
-                placeholder="Search vault…"
-                aria-label="Search vault (Ctrl+K)"
+                placeholder={tr("Search vault…")}
+                aria-label={tr("Search vault (Ctrl+K)")}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -549,38 +550,38 @@ export function VaultApp({ version }: { version: string }) {
                   type="button"
                   className="icon-btn"
                   style={{ position: 'absolute', right: 2, top: 0, width: 32, height: 32 }}
-                  aria-label="Clear search"
+                  aria-label={tr("Clear search")}
                   onClick={() => setQuery('')}
                 >
                   <X size={14} />
                 </button>
               ) : (
                 <span className="kbd" aria-hidden>
-                  Ctrl K
+                  {tr("Ctrl K")}
                 </span>
               )}
             </div>
             <div className="drag" />
             {route.view === 'money' && !searching ? (
-              <button type="button" className="btn sm primary" onClick={() => requestAdd()} aria-label="Add expense">
-                <Plus size={14} aria-hidden /> <span className="btn-text">Add expense</span>
+              <button type="button" className="btn sm primary" onClick={() => requestAdd()} aria-label={tr("Add expense")}>
+                <Plus size={14} aria-hidden /> <span className="btn-text">{tr("Add expense")}</span>
               </button>
             ) : route.view === 'tasks' && !searching ? (
-              <button type="button" className="btn sm primary" onClick={() => setTaskFocus({ id: Date.now(), add: true })} aria-label="New task">
-                <Plus size={14} aria-hidden /> <span className="btn-text">New task</span>
+              <button type="button" className="btn sm primary" onClick={() => setTaskFocus({ id: Date.now(), add: true })} aria-label={tr("New task")}>
+                <Plus size={14} aria-hidden /> <span className="btn-text">{tr("New task")}</span>
               </button>
             ) : route.view === 'calendar' && !searching ? (
-              <button type="button" className="btn sm primary" onClick={() => setCalendarFocus({ id: Date.now(), add: true })} aria-label="Add event">
-                <Plus size={14} aria-hidden /> <span className="btn-text">Add event</span>
+              <button type="button" className="btn sm primary" onClick={() => setCalendarFocus({ id: Date.now(), add: true })} aria-label={tr("Add event")}>
+                <Plus size={14} aria-hidden /> <span className="btn-text">{tr("Add event")}</span>
               </button>
             ) : (
-              <button type="button" className="btn sm primary" onClick={() => newItem(currentCategory(route))} title="New item (Ctrl+N)" aria-label="New item">
-                <Plus size={14} aria-hidden /> <span className="btn-text">New item</span>
+              <button type="button" className="btn sm primary" onClick={() => newItem(currentCategory(route))} title={tr("New item (Ctrl+N)")} aria-label={tr("New item")}>
+                <Plus size={14} aria-hidden /> <span className="btn-text">{tr("New item")}</span>
               </button>
             )}
             <BellButton count={bellCount} onClick={() => setNotifOpen(true)} size={16} />
-            <button type="button" className="btn sm" onClick={lock} title="Lock vault (Ctrl+L)" aria-label="Lock vault">
-              <Lock size={14} aria-hidden /> <span className="btn-text">Lock</span>
+            <button type="button" className="btn sm" onClick={lock} title={tr("Lock vault (Ctrl+L)")} aria-label={tr("Lock vault")}>
+              <Lock size={14} aria-hidden /> <span className="btn-text">{tr("Lock")}</span>
             </button>
           </>
         )}
@@ -589,23 +590,23 @@ export function VaultApp({ version }: { version: string }) {
       <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
         {mobile && drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden />}
         {(
-          <nav id="vault-nav" className={`sidebar ${drawerOpen ? 'open' : ''}`} aria-label="Vault navigation">
-            {navItem('dashboard', 'Dashboard', <House size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'dashboard', () => go({ view: 'dashboard' }))}
-            {filterNav('favorites', 'Favorites', <Star size={16} strokeWidth={1.75} aria-hidden />, snap.stats.favorites)}
-            {navItem('money', 'Expenses', <Wallet size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'money', () => go({ view: 'money' }))}
-            {navItem('calendar', 'Calendar', <CalendarDays size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'calendar', () => go({ view: 'calendar' }))}
-            {navItem('tasks', 'Tasks', <ListTodo size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'tasks', () => go({ view: 'tasks' }))}
-            <div className="nav-section label">Vault</div>
-            {filterNav('all', 'All Items', <Layers size={16} strokeWidth={1.75} aria-hidden />, snap.entries.length)}
+          <nav id="vault-nav" className={`sidebar ${drawerOpen ? 'open' : ''}`} aria-label={tr("Vault navigation")}>
+            {navItem('dashboard', tr("Dashboard"), <House size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'dashboard', () => go({ view: 'dashboard' }))}
+            {filterNav('favorites', tr("Favorites"), <Star size={16} strokeWidth={1.75} aria-hidden />, snap.stats.favorites)}
+            {navItem('money', tr("Expenses"), <Wallet size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'money', () => go({ view: 'money' }))}
+            {navItem('calendar', tr("Calendar"), <CalendarDays size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'calendar', () => go({ view: 'calendar' }))}
+            {navItem('tasks', tr("Tasks"), <ListTodo size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'tasks', () => go({ view: 'tasks' }))}
+            <div className="nav-section label">{tr("Vault")}</div>
+            {filterNav('all', tr("All Items"), <Layers size={16} strokeWidth={1.75} aria-hidden />, snap.entries.length)}
             {categoryNav.map((c) => filterNav(`cat:${c.id}`, c.name, <CategoryIcon icon={c.icon} />, counts.get(c.id) ?? 0))}
-            {allTags.length > 0 && !collapsed && <div className="nav-section label">Tags</div>}
+            {allTags.length > 0 && !collapsed && <div className="nav-section label">{tr("Tags")}</div>}
             {!collapsed && allTags.slice(0, 12).map((t) => filterNav(`tag:${t}`, `#${t}`, <Tag size={14} strokeWidth={1.75} aria-hidden />))}
-            <div className="nav-section label">Tools</div>
-            {navItem('security', 'Security', <ShieldCheck size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'security', () => go({ view: 'security' }))}
-            {navItem('duplicates', 'Duplicates', <CopyCheck size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'duplicates', () => go({ view: 'duplicates' }))}
+            <div className="nav-section label">{tr("Tools")}</div>
+            {navItem('security', tr("Security"), <ShieldCheck size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'security', () => go({ view: 'security' }))}
+            {navItem('duplicates', tr("Duplicates"), <CopyCheck size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'duplicates', () => go({ view: 'duplicates' }))}
             {navItem(
               'trash',
-              'Recently Deleted',
+              tr("Recently Deleted"),
               <Trash2 size={16} strokeWidth={1.75} aria-hidden />,
               !searching && route.view === 'trash',
               () => go({ view: 'trash' }),
@@ -613,10 +614,10 @@ export function VaultApp({ version }: { version: string }) {
             )}
             <div className="spacer" />
             <hr />
-            {navItem('settings', 'Settings', <SettingsIcon size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'settings', () => go({ view: 'settings' }))}
-            <button type="button" className="nav-item lock" onClick={lock} title="Lock vault (Ctrl+L)" aria-label="Lock vault">
+            {navItem('settings', tr("Settings"), <SettingsIcon size={16} strokeWidth={1.75} aria-hidden />, !searching && route.view === 'settings', () => go({ view: 'settings' }))}
+            <button type="button" className="nav-item lock" onClick={lock} title={tr("Lock vault (Ctrl+L)")} aria-label={tr("Lock vault")}>
               <Lock size={16} strokeWidth={1.9} aria-hidden />
-              <span className="nav-text">Lock Vault</span>
+              <span className="nav-text">{tr("Lock Vault")}</span>
             </button>
           </nav>
         )}
@@ -690,11 +691,11 @@ export function VaultApp({ version }: { version: string }) {
         <TabBar current={tab} onPick={(t) => switchTab(t as Tab)}>
           <button type="button" className="tab-btn" data-tab="vault" aria-current={tab === 'vault' ? 'page' : undefined} onClick={() => switchTab('vault')}>
             <House size={22} strokeWidth={1.9} aria-hidden />
-            Vault
+            {tr("Vault")}
           </button>
           <button type="button" className="tab-btn" data-tab="calendar" aria-current={tab === 'calendar' ? 'page' : undefined} onClick={() => switchTab('calendar')}>
             <CalendarDays size={22} strokeWidth={1.9} aria-hidden />
-            Calendar
+            {tr("Calendar")}
           </button>
           <button
             type="button"
@@ -708,17 +709,17 @@ export function VaultApp({ version }: { version: string }) {
                     ? setTaskFocus({ id: Date.now(), add: true })
                     : newItem(currentCategory(route))
             }
-            aria-label={route.view === 'money' ? 'Add expense' : route.view === 'calendar' ? 'Add event' : route.view === 'tasks' ? 'New task' : 'Add item'}
+            aria-label={route.view === 'money' ? tr("Add expense") : route.view === 'calendar' ? tr("Add event") : route.view === 'tasks' ? tr("New task") : tr("Add item")}
           >
             <Plus size={28} strokeWidth={2.2} aria-hidden />
           </button>
           <button type="button" className="tab-btn" data-tab="money" aria-current={tab === 'money' ? 'page' : undefined} onClick={() => switchTab('money')}>
             <Wallet size={22} strokeWidth={1.9} aria-hidden />
-            Expenses
+            {tr("Expenses")}
           </button>
           <button type="button" className="tab-btn" data-tab="tasks" aria-current={tab === 'tasks' ? 'page' : undefined} onClick={() => switchTab('tasks')}>
             <ListTodo size={22} strokeWidth={1.9} aria-hidden />
-            Tasks
+            {tr("Tasks")}
           </button>
         </TabBar>
       )}
@@ -789,20 +790,20 @@ export function VaultApp({ version }: { version: string }) {
               if (!visible) go({ view: 'items', filter: `cat:${view.categoryId}` });
               setSelectedId(view.id);
             }
-            toast(wasNew ? (attachmentsAdded ? `Item saved securely with ${attachmentsAdded} attachment(s).` : 'Item saved securely.') : 'Changes saved.');
+            toast(wasNew ? (attachmentsAdded ? tr("Item saved securely with {0} attachment(s).", [attachmentsAdded]) : tr("Item saved securely.")) : tr("Changes saved."));
           }}
         />
       )}
 
       {deleting && (
         <ConfirmDialog placement="center"
-          title="Delete item?"
+          title={tr("Delete item?")}
           danger
-          confirmLabel="Move to Recently Deleted"
+          confirmLabel={tr("Move to Recently Deleted")}
           message={
             <>
               <div style={{ margin: '0 0 12px', color: 'var(--fg)', fontWeight: 600, wordBreak: 'break-word' }}>{deleting.title}</div>
-              The item and its attachments move to Recently Deleted. You can restore them for 30 days; after that they are deleted permanently.
+              {tr("The item and its attachments move to Recently Deleted. You can restore them for 30 days; after that they are deleted permanently.")}
             </>
           }
           onCancel={() => setDeleting(null)}
@@ -817,7 +818,7 @@ export function VaultApp({ version }: { version: string }) {
                 if (mobile) back();
                 else setSelectedId(null);
               }
-              toast('Moved to Recently Deleted.');
+              toast(tr("Moved to Recently Deleted."));
             } catch (e) {
               toast(errorMessage(e), 'error');
             }

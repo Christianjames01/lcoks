@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, typ
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 
+import { tr } from '../../shared/i18n';
 /** How long to press before the actions appear. */
 export const HOLD_MS = 2000;
 
@@ -58,7 +59,7 @@ export function ActionSheet({ title, items, onClose }: { title: string; items: A
           </button>
         ))}
         <button type="button" role="menuitem" className="menu-item cancel" onClick={(e) => (e.detail === 0 || pressed.current) && onClose()}>
-          Cancel
+          {tr("Cancel")}
         </button>
       </div>
     </div>,

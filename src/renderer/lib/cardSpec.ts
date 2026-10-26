@@ -4,6 +4,7 @@ import { formatDate } from './format';
 import { parseAmountText } from '../../shared/giftcards';
 import { formatMoney } from '../../shared/money';
 
+import { tr } from '../../shared/i18n';
 /** Categories that get a 3D card on their detail screen and a coloured badge icon. */
 export const CARD_CATEGORIES = new Set(['banking', 'cards', 'wallets', 'ids', 'insurance', 'subscriptions', 'loyalty', 'giftcards']);
 export const isCardCategory = (categoryId: string) => CARD_CATEGORIES.has(categoryId);
@@ -95,9 +96,9 @@ export function cardSpec(e: EntryView, currency = 'PHP'): CardSpec | null {
         extraCaption: f.expiryDate ? 'Valid until' : undefined,
         extra: f.expiryDate ? formatDate(f.expiryDate) : undefined,
         idFields: [
-          { caption: 'Issued', value: f.issueDate ? formatDate(f.issueDate) : '—' },
-          { caption: 'Valid until', value: f.expiryDate ? formatDate(f.expiryDate) : '—' },
-          ...(f.issuedBy ? [{ caption: 'Issued by', value: f.issuedBy }] : [])
+          { caption: tr("Issued"), value: f.issueDate ? formatDate(f.issueDate) : '—' },
+          { caption: tr("Valid until"), value: f.expiryDate ? formatDate(f.expiryDate) : '—' },
+          ...(f.issuedBy ? [{ caption: tr("Issued by"), value: f.issuedBy }] : [])
         ]
       };
     case 'insurance':

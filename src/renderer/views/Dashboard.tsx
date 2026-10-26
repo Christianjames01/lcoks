@@ -13,6 +13,7 @@ import { daysSince, greeting, relativeTime } from '../lib/format';
 import { useRecentlyUsed } from '../lib/recent';
 import type { Route } from './VaultApp';
 
+import { tr } from '../../shared/i18n';
 interface Props {
   snap: VaultSnapshot;
   mobile: boolean;
@@ -25,13 +26,13 @@ interface Props {
 }
 
 const QUICK_ADD: [string, string][] = [
-  ['personal', 'Password'],
-  ['banking', 'Bank account'],
-  ['cards', 'Card'],
-  ['wallets', 'E-wallet'],
-  ['ids', 'ID'],
-  ['documents', 'Document'],
-  ['notes', 'Secure note']
+  ['personal', tr("Password")],
+  ['banking', tr("Bank account")],
+  ['cards', tr("Card")],
+  ['wallets', tr("E-wallet")],
+  ['ids', tr("ID")],
+  ['documents', tr("Document")],
+  ['notes', tr("Secure note")]
 ];
 
 /** How many category cards the overview shows before "View all". */
@@ -88,10 +89,10 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
   const backupDue = settings.backupReminderDays > 0 && stats.total > 0 && backupAge > settings.backupReminderDays;
   const lockText =
     settings.backgroundLockMinutes === 0
-      ? 'Locks as soon as you leave the app'
+      ? tr('Locks as soon as you leave the app')
       : settings.autoLockMinutes === 0
-        ? 'Auto-lock is off'
-        : `Auto-locks after ${settings.autoLockMinutes} min of inactivity`;
+        ? tr('Auto-lock is off')
+        : tr('Auto-locks after {0} min of inactivity', [settings.autoLockMinutes]);
 
   /** when: what the time in the subtitle means (last update, or last use on this device). */
   const row = (e: EntryView, when: 'updated' | 'used' = 'updated') => {
@@ -121,7 +122,7 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
           </span>
           <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>
             {/* Text states the status as well — never colour alone. */}
-            {level === 'ok' ? 'Good · ' : level === 'warn' ? 'Needs attention · ' : 'Action needed · '}
+            {level === 'ok' ? tr("Good · ") : level === 'warn' ? tr("Needs attention · ") : tr("Action needed · ")}
             {status}
           </span>
         </span>
@@ -135,7 +136,7 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
       <span className="label">{label}</span>
       {onAll && (
         <button type="button" className="linkish" onClick={onAll} aria-expanded={open}>
-          {open ? 'Show less' : total ? `View all (${total})` : 'View all'}
+          {open ? tr("Show less") : total ? tr("View all ({0})", [total]) : tr("View all")}
         </button>
       )}
     </div>
@@ -151,30 +152,30 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
             <img className="dash-logo" src="./icon.png" alt="" width={40} height={40} />
             <div className="grow">
               <div className="dash-greeting">{greeting()}</div>
-              <h1 className="dash-title">VaultLocks</h1>
+              <h1 className="dash-title">{tr("VaultLocks")}</h1>
             </div>
-            <button type="button" className="icon-btn" onClick={() => onNavigate({ view: 'settings' })} aria-label="Settings" title="Settings">
+            <button type="button" className="icon-btn" onClick={() => onNavigate({ view: 'settings' })} aria-label={tr("Settings")} title={tr("Settings")}>
               <SettingsIcon size={18} />
             </button>
           </header>
         )}
 
         {mobile && (
-          <button type="button" className="search-trigger dash-search-top" onClick={onSearch} aria-label="Search vault">
+          <button type="button" className="search-trigger dash-search-top" onClick={onSearch} aria-label={tr("Search vault")}>
             <Search size={16} aria-hidden />
-            <span>Search vault</span>
+            <span>{tr("Search vault")}</span>
           </button>
         )}
 
         <div className="dash-top">
           <VaultStatusCard
             greeting={mobile ? greeting() : undefined}
-            description={`${stats.total} item${stats.total === 1 ? '' : 's'}, encrypted with AES-256 on this device. ${lockText}.`}
+            description={tr("{0} item{1}, encrypted with AES-256 on this device. {2}.", [stats.total, stats.total === 1 ? '' : 's', lockText])}
             metrics={[
-              { label: 'Items', value: stats.total, onClick: () => onNavigate({ view: 'items', filter: 'all' }) },
-              { label: 'Favorites', value: stats.favorites, onClick: () => onNavigate({ view: 'items', filter: 'favorites' }) },
-              { label: 'Notes', value: stats.notes, onClick: () => onNavigate({ view: 'items', filter: 'cat:notes' }) },
-              { label: 'Files', value: stats.attachments, onClick: () => onNavigate({ view: 'items', filter: 'all' }) }
+              { label: tr("Items"), value: stats.total, onClick: () => onNavigate({ view: 'items', filter: 'all' }) },
+              { label: tr("Favorites"), value: stats.favorites, onClick: () => onNavigate({ view: 'items', filter: 'favorites' }) },
+              { label: tr("Notes"), value: stats.notes, onClick: () => onNavigate({ view: 'items', filter: 'cat:notes' }) },
+              { label: tr("Files"), value: stats.attachments, onClick: () => onNavigate({ view: 'items', filter: 'all' }) }
             ]}
             report={report}
             onLock={onLock}
@@ -185,11 +186,11 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
               <Wallet size={18} strokeWidth={1.75} />
             </span>
             <span className="grow">
-              <span className="sc-title">This month</span>
+              <span className="sc-title">{tr("This month")}</span>
               <span className="sc-sub">
                 {snap.transactions.length === 0
-                  ? 'Track expenses and income with a calendar'
-                  : `Spent ${formatMoney(month.expense, settings.currency)} · Income ${formatMoney(month.income, settings.currency)}`}
+                  ? tr("Track expenses and income with a calendar")
+                  : tr("Spent {0} · Income {1}", [formatMoney(month.expense, settings.currency), formatMoney(month.income, settings.currency)])}
               </span>
             </span>
             <ChevronRight size={16} aria-hidden className="dim" />
@@ -197,43 +198,43 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
           <StorageUsageCard refreshKey={snap} onOpen={() => onNavigate({ view: 'settings', tab: 'vault' })} />
         </div>
 
-        {sectionHead('Quick actions')}
-        <div className="qa-grid" role="group" aria-label="Quick actions">
+        {sectionHead(tr("Quick actions"))}
+        <div className="qa-grid" role="group" aria-label={tr("Quick actions")}>
           {QUICK_ADD.filter(([id]) => snap.categories.some((c) => c.id === id)).map(([id, label]) => (
             <QuickActionCard key={id} icon={<CategoryIcon icon={snap.categories.find((c) => c.id === id)?.icon} size={20} />} label={label} onClick={() => onNew(id)} />
           ))}
-          <QuickActionCard icon={<Wallet size={20} strokeWidth={1.75} />} label="Expense" onClick={() => onNavigate({ view: 'money' })} />
-          <QuickActionCard icon={<Upload size={20} strokeWidth={1.75} />} label="Import notes" onClick={onImport} />
+          <QuickActionCard icon={<Wallet size={20} strokeWidth={1.75} />} label={tr("Expense")} onClick={() => onNavigate({ view: 'money' })} />
+          <QuickActionCard icon={<Upload size={20} strokeWidth={1.75} />} label={tr("Import notes")} onClick={onImport} />
         </div>
 
         {stats.total === 0 ? (
           <EmptyState
             card
             art="vault"
-            title="Your vault is empty"
-            text="Add passwords, bank accounts, cards, IDs, documents and secure notes. Everything is encrypted on this device."
+            title={tr("Your vault is empty")}
+            text={tr("Add passwords, bank accounts, cards, IDs, documents and secure notes. Everything is encrypted on this device.")}
             action={
               <>
                 <button type="button" className="btn primary" onClick={() => onNew()}>
-                  <Plus size={15} aria-hidden /> Add your first item
+                  <Plus size={15} aria-hidden /> {tr("Add your first item")}
                 </button>
                 <button type="button" className="btn" onClick={onImport}>
-                  <Upload size={15} aria-hidden /> Import notes
+                  <Upload size={15} aria-hidden /> {tr("Import notes")}
                 </button>
               </>
             }
           />
         ) : (
           <>
-            {sectionHead('Categories', categories.length > CATEGORY_CARDS ? () => toggle('cats') : undefined, expanded.cats, categories.length)}
+            {sectionHead(tr("Categories"), categories.length > CATEGORY_CARDS ? () => toggle('cats') : undefined, expanded.cats, categories.length)}
             <div className="cat-cards">
               {(expanded.cats ? categories : categories.slice(0, CATEGORY_CARDS)).map(({ c, n }) => (
                 <CategoryCard key={c.id} category={c} count={n} onClick={() => onNavigate({ view: 'items', filter: `cat:${c.id}` })} />
               ))}
             </div>
 
-            {sectionHead('Security status')}
-            <ul className="card health" aria-label="Security status">
+            {sectionHead(tr("Security status"))}
+            <ul className="card health" aria-label={tr("Security status")}>
               {health(
                 'passwords',
                 pwIssues.some((i) => i.severity === 'bad') ? 'bad' : pwIssues.length ? 'warn' : 'ok',
@@ -277,24 +278,24 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
 
         {favorites.length > 0 && (
           <>
-            {sectionHead('Favorites', () => onNavigate({ view: 'items', filter: 'favorites' }))}
+            {sectionHead(tr("Favorites"), () => onNavigate({ view: 'items', filter: 'favorites' }))}
             <ul className="list card recent-list">{favorites.map((e) => row(e))}</ul>
           </>
         )}
 
         {recentlyUsed.length > 0 && (
           <>
-            {sectionHead('Recently used', recentlyUsed.length > USED ? () => toggle('used') : undefined, expanded.used, recentlyUsed.length)}
+            {sectionHead(tr("Recently used"), recentlyUsed.length > USED ? () => toggle('used') : undefined, expanded.used, recentlyUsed.length)}
             <ul className="list card recent-list">{(expanded.used ? recentlyUsed : recentlyUsed.slice(0, USED)).map((e) => row(e, 'used'))}</ul>
           </>
         )}
 
         {recent.length > 0 && (
           <>
-            {sectionHead('Recently updated', recent.length > RECENT ? () => toggle('updated') : undefined, expanded.updated, recent.length)}
+            {sectionHead(tr("Recently updated"), recent.length > RECENT ? () => toggle('updated') : undefined, expanded.updated, recent.length)}
             <ul className="list card recent-list">{(expanded.updated ? recent : recent.slice(0, RECENT)).map((e) => row(e))}</ul>
             <button type="button" className="btn block dash-all-items" onClick={() => onNavigate({ view: 'items', filter: 'all' })}>
-              See all {stats.total} items
+              {tr("See all")} {stats.total} {tr("items")}
             </button>
           </>
         )}
@@ -303,11 +304,11 @@ export function Dashboard({ snap, mobile, onOpen, onNavigate, onNew, onSearch, o
           <div className="banner strong" role="status" style={{ marginTop: 20 }}>
             <TriangleAlert size={18} aria-hidden />
             <div className="grow">
-              <div style={{ fontWeight: 600 }}>{meta.lastBackupAt ? 'Time for a new backup' : 'You have no backup yet'}</div>
-              <div className="small muted">Your vault is stored only on this device. Keep an encrypted backup somewhere safe.</div>
+              <div style={{ fontWeight: 600 }}>{meta.lastBackupAt ? tr("Time for a new backup") : tr("You have no backup yet")}</div>
+              <div className="small muted">{tr("Your vault is stored only on this device. Keep an encrypted backup somewhere safe.")}</div>
             </div>
             <button type="button" className="btn sm" onClick={() => onNavigate({ view: 'settings', tab: 'vault' })}>
-              Back up now
+              {tr("Back up now")}
             </button>
           </div>
         )}

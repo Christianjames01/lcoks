@@ -9,6 +9,7 @@ import { GestureRow, useEntryActions } from './EntryActions';
 import { EntryIcon } from './EntryIcon';
 import { CategoryIcon } from './Icon';
 
+import { tr } from '../../shared/i18n';
 // ------------------------------------------------------------ vault status --
 
 /** Concentric rings around the lock: the vault's emblem on the dashboard. */
@@ -55,14 +56,14 @@ export function VaultStatusCard({
   onSecurity: () => void;
 }) {
   return (
-    <section className="vault-card" aria-label="Vault status">
+    <section className="vault-card" aria-label={tr("Vault status")}>
       <div className="vault-card-head">
         <VaultEmblem />
         <div className="grow">
           {greeting && <div className="vault-greeting">{greeting}</div>}
-          <h2 className="vault-card-title">Your vault is open</h2>
+          <h2 className="vault-card-title">{tr("Your vault is open")}</h2>
           <span className="status-pill" role="status">
-            <span className="status-dot" aria-hidden /> Unlocked
+            <span className="status-dot" aria-hidden /> {tr("Unlocked")}
           </span>
         </div>
       </div>
@@ -77,16 +78,16 @@ export function VaultStatusCard({
       </div>
       <div className="vault-card-actions">
         <button type="button" className="btn primary" onClick={onLock}>
-          <Lock size={15} aria-hidden /> Lock now
+          <Lock size={15} aria-hidden /> {tr("Lock now")}
         </button>
         {report.score !== null && (
           <button type="button" className="vault-score" onClick={onSecurity}>
             <ScoreRing report={report} size={34} />
             <span className="grow">
-              <span className="vs-title">Security score {report.score}</span>
+              <span className="vs-title">{tr("Security score")} {report.score}</span>
               <span className="vs-sub">
                 {report.label}
-                {report.issues.length ? ` · ${report.issues.length} to fix` : ''}
+                {report.issues.length ? tr(" · {0} to fix", [report.issues.length]) : ''}
               </span>
             </span>
             <ChevronRight size={16} aria-hidden className="dim" />
@@ -128,11 +129,11 @@ export function StorageUsageCard({ refreshKey, onOpen }: { refreshKey: unknown; 
         <HardDrive size={18} strokeWidth={1.75} />
       </span>
       <span className="grow">
-        <span className="sc-title">Storage</span>
+        <span className="sc-title">{tr("Storage")}</span>
         {info ? (
           <span className="sc-sub">
-            {formatBytes(used)} used · {info.attachmentCount} file{info.attachmentCount === 1 ? '' : 's'}
-            {info.freeBytes !== null ? ` · ${formatBytes(info.freeBytes)} free` : ''}
+            {formatBytes(used)} {tr("used ·")} {info.attachmentCount} {tr("file")}{info.attachmentCount === 1 ? '' : 's'}
+            {info.freeBytes !== null ? tr(" · {0} free", [formatBytes(info.freeBytes)]) : ''}
           </span>
         ) : (
           <span className="skeleton skeleton-line" style={{ width: '60%', marginTop: 6 }} />
@@ -141,7 +142,7 @@ export function StorageUsageCard({ refreshKey, onOpen }: { refreshKey: unknown; 
           <span
             className="sc-bar"
             role="img"
-            aria-label={`Vault data ${formatBytes(info.vaultBytes)}, attachments ${formatBytes(info.attachmentBytes)}${total ? `, ${share!.toFixed(1)}% of this device's available space` : ''}`}
+            aria-label={tr("Vault data {0}, attachments {1}{2}", [formatBytes(info.vaultBytes), formatBytes(info.attachmentBytes), total ? `, ${share!.toFixed(1)}% of this device's available space` : ''])}
           >
             <span className="sc-fill" style={{ width: share !== null ? `${share}%` : '100%' }}>
               <span className="sc-vault" style={{ width: `${vaultShare}%` }} />
@@ -178,7 +179,7 @@ export function CategoryCard({ category, count, onClick }: { category: Pick<Cate
       </span>
       <span className="cat-card-name">{category.name}</span>
       <span className="cat-card-count">
-        {count} item{count === 1 ? '' : 's'}
+        {count} {tr("item")}{count === 1 ? '' : 's'}
       </span>
     </button>
   );
@@ -223,12 +224,12 @@ export function RecentItemCard({
             </span>
             {entry.favorite && (
               <span className="row-end">
-                <Star size={13} className="star" fill="currentColor" aria-label="Favorite" />
+                <Star size={13} className="star" fill="currentColor" aria-label={tr("Favorite")} />
               </span>
             )}
           </button>
           {hasSecret && actions && !isNote && (
-            <button type="button" className="icon-btn" onClick={() => void actions.copyPassword(entry)} aria-label={`Copy secret for ${entry.title}`} title="Copy password">
+            <button type="button" className="icon-btn" onClick={() => void actions.copyPassword(entry)} aria-label={tr("Copy secret for {0}", [entry.title])} title={tr("Copy password")}>
               <Copy size={16} />
             </button>
           )}
@@ -236,9 +237,9 @@ export function RecentItemCard({
             <button
               type="button"
               className="icon-btn"
-              aria-label={`More actions for ${entry.title}`}
+              aria-label={tr("More actions for {0}", [entry.title])}
               aria-haspopup="menu"
-              title="More"
+              title={tr("More")}
               onClick={(ev) => {
                 ev.stopPropagation();
                 const r = ev.currentTarget.getBoundingClientRect();

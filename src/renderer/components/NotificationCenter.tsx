@@ -8,6 +8,7 @@ import { describeDue, isTaskOverdue, taskRemindersBetween } from '../../shared/t
 import type { VaultSnapshot } from '../../shared/types';
 import { Dialog } from './Dialog';
 
+import { tr } from '../../shared/i18n';
 const SEEN_KEY = 'vaultlocks.notificationsSeen';
 const READ_KEY = 'vaultlocks.notificationsRead';
 const DAY = 86_400_000;
@@ -111,7 +112,7 @@ function pastNotices(snap: VaultSnapshot, now: number, from: number, t: Targets)
     for (const h of task.history) {
       const at = Date.parse(h.at);
       if (!Number.isFinite(at) || at > now || at < from) continue;
-      out.push({ key: `c|${task.id}|${h.due}`, at, made: made(task.createdAt), title: task.title, detail: 'Task · done', icon: <ListTodo size={16} aria-hidden />, open: () => t.onOpenTask(task.id) });
+      out.push({ key: `c|${task.id}|${h.due}`, at, made: made(task.createdAt), title: task.title, detail: tr("Task · done"), icon: <ListTodo size={16} aria-hidden />, open: () => t.onOpenTask(task.id) });
     }
     if (!task.due) continue;
     const at = localTime(task.due, task.dueTime);
@@ -121,7 +122,7 @@ function pastNotices(snap: VaultSnapshot, now: number, from: number, t: Targets)
       at,
       made: made(task.createdAt),
       title: task.title,
-      detail: task.completed ? 'Task · done' : `Task · was due ${/^(Today|Yesterday|Tomorrow)$/.test(relativeDay(task.due, now)) ? relativeDay(task.due, now).toLowerCase() : relativeDay(task.due, now)}${task.dueTime ? `, ${formatTime(task.dueTime)}` : ''}`,
+      detail: task.completed ? tr("Task · done") : tr("Task · was due {0}{1}", [/^(Today|Yesterday|Tomorrow)$/.test(relativeDay(task.due, now)) ? relativeDay(task.due, now).toLowerCase() : relativeDay(task.due, now), task.dueTime ? `, ${formatTime(task.dueTime)}` : '']),
       icon: task.completed ? <ListTodo size={16} aria-hidden /> : <CircleAlert size={16} aria-hidden />,
       open: () => t.onOpenTask(task.id)
     });
@@ -131,19 +132,19 @@ function pastNotices(snap: VaultSnapshot, now: number, from: number, t: Targets)
     for (const p of b.paid) {
       const at = localTime(p.date, '12:00');
       if (at > now || at < from) continue;
-      out.push({ key: `bp|${b.id}|${p.period}`, at, made: made(b.createdAt), allDay: true, title: b.name, detail: `Bill · paid ${formatMoney(p.amount, snap.settings.currency)}`, icon: <Receipt size={16} aria-hidden />, open: () => t.onOpenBills() });
+      out.push({ key: `bp|${b.id}|${p.period}`, at, made: made(b.createdAt), allDay: true, title: b.name, detail: tr("Bill · paid {0}", [formatMoney(p.amount, snap.settings.currency)]), icon: <Receipt size={16} aria-hidden />, open: () => t.onOpenBills() });
     }
     const st = billStatus(b, dayKey(new Date(now)));
     if (st.state === 'overdue' || st.state === 'today') {
       const at = localTime(st.due, '09:00');
-      if (at <= now && at >= from) out.push({ key: `bd|${b.id}|${st.period}`, at, made: made(b.createdAt), title: b.name, detail: st.state === 'today' ? 'Bill · due today' : 'Bill · overdue', icon: <Receipt size={16} aria-hidden />, open: () => t.onOpenBills() });
+      if (at <= now && at >= from) out.push({ key: `bd|${b.id}|${st.period}`, at, made: made(b.createdAt), title: b.name, detail: st.state === 'today' ? tr("Bill · due today") : tr("Bill · overdue"), icon: <Receipt size={16} aria-hidden />, open: () => t.onOpenBills() });
     }
   }
   for (const d of snap.debts) {
     if (!d.due || debtSettled(d)) continue;
     const at = localTime(d.due, '09:00');
     if (at > now || at < from) continue;
-    out.push({ key: `du|${d.id}|${d.due}`, at, made: made(d.createdAt), title: d.person, detail: `Utang · ${d.direction === 'owedToMe' ? 'collect' : 'pay back'} ${formatMoney(debtLeft(d), snap.settings.currency)}`, icon: <HandCoins size={16} aria-hidden />, open: () => t.onOpenUtang() });
+    out.push({ key: `du|${d.id}|${d.due}`, at, made: made(d.createdAt), title: d.person, detail: tr("Utang · {0} {1}", [d.direction === 'owedToMe' ? 'collect' : 'pay back', formatMoney(debtLeft(d), snap.settings.currency)]), icon: <HandCoins size={16} aria-hidden />, open: () => t.onOpenUtang() });
   }
   for (const u of trackedDates(snap.entries, snap.categories, new Date(now))) {
     const at = u.date.getTime();
@@ -187,7 +188,7 @@ export function buildNotices(snap: VaultSnapshot, now: number, t: Targets, since
         key: `t|${d.key}`,
         at: d.at,
         title: d.task.title,
-        detail: `Task · due ${describeDue(d.task, new Date(now)).replace(/^[A-Z]/, (c) => c.toLowerCase())}`,
+        detail: tr("Task · due {0}", [describeDue(d.task, new Date(now)).replace(/^[A-Z]/, (c) => c.toLowerCase())]),
         icon: <ListTodo size={16} aria-hidden />,
         open: () => t.onOpenTask(d.task.id)
       }));
@@ -204,7 +205,7 @@ export function buildNotices(snap: VaultSnapshot, now: number, t: Targets, since
       key: `o|${x.id}`,
       at: 0,
       title: x.title,
-      detail: `Overdue · ${describeDue(x, new Date(now))}`,
+      detail: tr("Overdue · {0}", [describeDue(x, new Date(now))]),
       icon: <CircleAlert size={16} aria-hidden />,
       open: () => t.onOpenTask(x.id)
     }));
@@ -271,7 +272,7 @@ export function NotificationCenter({ snap, onClose, ...targets }: Targets & { sn
           <span className="nc-item-detail">{it.detail}</span>
         </span>
         {it.at > 0 && <span className="nc-time">{withDay ? `${dayName(dayKey(new Date(it.at)))}
-${it.allDay ? 'All day' : time(it.at)}` : it.allDay ? 'All day' : time(it.at)}</span>}
+${it.allDay ? 'All day' : time(it.at)}` : it.allDay ? tr("All day") : time(it.at)}</span>}
       </button>
     </li>
   );
@@ -303,7 +304,7 @@ ${it.allDay ? 'All day' : time(it.at)}` : it.allDay ? 'All day' : time(it.at)}</
         ))}
         {items.length > shown && (
           <button type="button" className="btn block nc-more" onClick={() => setShown((v) => v + PAGE)}>
-            Show older ({items.length - shown} more)
+            {tr("Show older (")}{items.length - shown} {tr("more)")}
           </button>
         )}
       </>
@@ -313,25 +314,25 @@ ${it.allDay ? 'All day' : time(it.at)}` : it.allDay ? 'All day' : time(it.at)}</
   const empty = !n.earlier.length && !n.soon.length && !n.overdue.length && !n.expiring.length;
   const onDay = day ? [...n.soon, ...n.earlier].filter((it) => dayKey(new Date(it.at)) === day).sort((x, y) => y.at - x.at) : [];
   return (
-    <Dialog placement="top" size="narrow" title="Notifications" subtitle="Reminders from your calendar, tasks and vault" onClose={close}>
+    <Dialog placement="top" size="narrow" title={tr("Notifications")} subtitle={tr("Reminders from your calendar, tasks and vault")} onClose={close}>
       {empty ? (
         <div className="nc-empty">
           <Bell size={28} aria-hidden />
-          <p>No notifications yet. Reminders you set on events and tasks show up here.</p>
+          <p>{tr("No notifications yet. Reminders you set on events and tasks show up here.")}</p>
         </div>
       ) : (
         <div className="nc">
           <div className="nc-readbar">
-            <span className={unread ? 'nc-unread-n' : 'dim small'}>{unread ? `${unread} unread` : 'All caught up'}</span>
+            <span className={unread ? 'nc-unread-n' : 'dim small'}>{unread ? tr("{0} unread", [unread]) : tr("All caught up")}</span>
             {unread > 0 && (
               <button type="button" className="btn sm" onClick={readAll}>
-                <CheckCheck size={14} aria-hidden /> Mark all as read
+                <CheckCheck size={14} aria-hidden /> {tr("Mark all as read")}
               </button>
             )}
           </div>
-          <div className="nc-days" role="group" aria-label="Pick a day">
+          <div className="nc-days" role="group" aria-label={tr("Pick a day")}>
             <button type="button" className="evc-chip" aria-pressed={day === null} onClick={() => setDay(null)}>
-              All
+              {tr("All")}
             </button>
             {days.map(([k, count]) => (
               <button key={k} type="button" className="evc-chip" aria-pressed={day === k} onClick={() => setDay(k)}>
@@ -341,8 +342,8 @@ ${it.allDay ? 'All day' : time(it.at)}` : it.allDay ? 'All day' : time(it.at)}</
           </div>
           <label className="nc-pick">
             <CalendarDays size={15} aria-hidden />
-            <span>Go to a day</span>
-            <input type="date" className="input" value={day ?? ''} max={dayKey(new Date(now + DAY))} onChange={(e) => setDay(e.target.value || null)} aria-label="Show notifications of this day" />
+            <span>{tr("Go to a day")}</span>
+            <input type="date" className="input" value={day ?? ''} max={dayKey(new Date(now + DAY))} onChange={(e) => setDay(e.target.value || null)} aria-label={tr("Show notifications of this day")} />
           </label>
           {day ? (
             onDay.length ? (
@@ -353,13 +354,13 @@ ${it.allDay ? 'All day' : time(it.at)}` : it.allDay ? 'All day' : time(it.at)}</
                 <ul className="nc-list">{onDay.map((it) => row(it, true))}</ul>
               </section>
             ) : (
-              <p className="nc-none">No notifications on {dayName(day)}.</p>
+              <p className="nc-none">{tr("No notifications on")} {dayName(day)}.</p>
             )
           ) : (
             <>
-              {section('Coming up (next 24 hours)', n.soon, false, true)}
-              {section('Overdue tasks', n.overdue, false)}
-              {section('Expiring soon', n.expiring, false)}
+              {section(tr("Coming up (next 24 hours)"), n.soon, false, true)}
+              {section(tr("Overdue tasks"), n.overdue, false)}
+              {section(tr("Expiring soon"), n.expiring, false)}
               {history(n.earlier)}
             </>
           )}
@@ -371,7 +372,7 @@ ${it.allDay ? 'All day' : time(it.at)}` : it.allDay ? 'All day' : time(it.at)}</
 
 export function BellButton({ count, onClick, size = 19 }: { count: number; onClick: () => void; size?: number }) {
   return (
-    <button type="button" className="icon-btn nc-bell" onClick={onClick} aria-label={count ? `Notifications, ${count} new` : 'Notifications'} title="Notifications">
+    <button type="button" className="icon-btn nc-bell" onClick={onClick} aria-label={count ? tr("Notifications, {0} new", [count]) : tr("Notifications")} title={tr("Notifications")}>
       <Bell size={size} />
       {count > 0 && <span className="nc-badge">{count > 9 ? '9+' : count}</span>}
     </button>

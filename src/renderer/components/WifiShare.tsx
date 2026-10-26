@@ -7,6 +7,7 @@ import { api, errorMessage, unwrap } from '../lib/api';
 import { Dialog } from './Dialog';
 import { useToast } from './Toast';
 
+import { tr } from '../../shared/i18n';
 const SHOW_SECONDS = 60;
 
 /** A QR code as one SVG path (dark modules), with a 4-module quiet zone. */
@@ -22,7 +23,7 @@ function QrSvg({ text, size }: { text: string; size: number }) {
     return { d: path, n: count + 8 };
   }, [text]);
   return (
-    <svg className="wifi-qr-svg" width={size} height={size} viewBox={`0 0 ${n} ${n}`} shapeRendering="crispEdges" role="img" aria-label="QR code to join the Wi-Fi network">
+    <svg className="wifi-qr-svg" width={size} height={size} viewBox={`0 0 ${n} ${n}`} shapeRendering="crispEdges" role="img" aria-label={tr("QR code to join the Wi-Fi network")}>
       <rect width={n} height={n} fill="#fff" />
       <path d={d} fill="#000" />
     </svg>
@@ -44,11 +45,11 @@ export function WifiShare({ entry }: { entry: EntryView }) {
           <QrCode size={26} strokeWidth={1.7} />
         </span>
         <div className="grow">
-          <div className="wifi-share-title">Share this Wi-Fi</div>
-          <div className="dim small">A friend scans the code to join. The password stays hidden.</div>
+          <div className="wifi-share-title">{tr("Share this Wi-Fi")}</div>
+          <div className="dim small">{tr("A friend scans the code to join. The password stays hidden.")}</div>
         </div>
         <button type="button" className="btn primary sm" onClick={() => setOpen(true)}>
-          <QrCode size={15} aria-hidden /> Show QR code
+          <QrCode size={15} aria-hidden /> {tr("Show QR code")}
         </button>
       </div>
       {open && <WifiQrDialog entry={entry} ssid={net.ssid} security={net.security} hidden={net.hidden} onClose={() => setOpen(false)} />}
@@ -95,7 +96,7 @@ function WifiQrDialog({ entry, ssid, security, hidden, onClose }: { entry: Entry
 
   const text = ready ? wifiQrText({ ssid, password: password ?? '', security, hidden }) : '';
   return (
-    <Dialog placement="center" size="narrow" title="Scan to join" subtitle={ssid} onClose={onClose}>
+    <Dialog placement="center" size="narrow" title={tr("Scan to join")} subtitle={ssid} onClose={onClose}>
       <div className="wifi-qr">
         {ready ? (
           <div className="wifi-qr-frame">
@@ -103,18 +104,18 @@ function WifiQrDialog({ entry, ssid, security, hidden, onClose }: { entry: Entry
           </div>
         ) : (
           <div className="wifi-qr-frame loading">
-            <span className="spinner" aria-label="Making the code" />
+            <span className="spinner" aria-label={tr("Making the code")} />
           </div>
         )}
         <p className="dim small" style={{ textAlign: 'center', margin: '14px 6px 10px' }}>
-          Point the other phone's camera at the code. iPhone and Android join without typing.
+          {tr("Point the other phone's camera at the code. iPhone and Android join without typing.")}
         </p>
         <div className="wifi-qr-chips">
           <span className="vl-pill">
-            <ShieldCheck size={13} aria-hidden /> Password not shown
+            <ShieldCheck size={13} aria-hidden /> {tr("Password not shown")}
           </span>
           <span className="vl-pill">
-            <Clock size={13} aria-hidden /> Hides in {Math.max(0, left)} s
+            <Clock size={13} aria-hidden /> {tr("Hides in")} {Math.max(0, left)} s
           </span>
         </div>
         {showPassword && password && (
@@ -124,11 +125,11 @@ function WifiQrDialog({ entry, ssid, security, hidden, onClose }: { entry: Entry
         )}
         {password ? (
           <button type="button" className="btn block" onClick={() => setShowPassword((v) => !v)} style={{ marginTop: 12 }}>
-            {showPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />} {showPassword ? 'Hide password' : 'Show password instead'}
+            {showPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />} {showPassword ? tr("Hide password") : tr("Show password instead")}
           </button>
         ) : null}
         <button type="button" className="btn primary block" onClick={onClose} style={{ marginTop: 8 }}>
-          Done
+          {tr("Done")}
         </button>
       </div>
     </Dialog>

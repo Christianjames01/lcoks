@@ -7,6 +7,7 @@ import { useToast } from '../components/Toast';
 import { api, errorMessage, unwrap } from '../lib/api';
 import { formatDate } from '../lib/format';
 
+import { tr } from '../../shared/i18n';
 /** How complete an item is: filled fields, secrets, tags and attachments. */
 function completeness(e: EntryView): number {
   return (
@@ -44,11 +45,10 @@ export function DuplicatesView({ snap, onChanged, onOpen }: { snap: VaultSnapsho
     <div className="page">
       <div className="page-narrow">
         <h2 className="h2" style={{ margin: 0 }}>
-          Duplicates
+          {tr("Duplicates")}
         </h2>
         <p className="muted small" style={{ margin: '4px 0 18px' }}>
-          Items with the same name in a category, the same account / card / ID number, or the same login on the same website. Review each group — nothing is
-          merged or deleted unless you choose to, and merged copies go to Recently Deleted.
+          {tr("Items with the same name in a category, the same account / card / ID number, or the same login on the same website. Review each group — nothing is merged or deleted unless you choose to, and merged copies go to Recently Deleted.")}
         </p>
         {error && (
           <div className="notice danger" role="alert">
@@ -57,11 +57,11 @@ export function DuplicatesView({ snap, onChanged, onOpen }: { snap: VaultSnapsho
         )}
         {groups === null && !error && (
           <div className="empty">
-            <span className="spinner" aria-label="Checking for duplicates" />
+            <span className="spinner" aria-label={tr("Checking for duplicates")} />
           </div>
         )}
         {groups && groups.length === 0 && (
-          <EmptyState card art="secure" title="No duplicates found" text="Your vault has no items that look like copies of each other." />
+          <EmptyState card art="secure" title={tr("No duplicates found")} text={tr("Your vault has no items that look like copies of each other.")} />
         )}
         {groups?.map((g) => (
           <DuplicateCard
@@ -110,11 +110,11 @@ function DuplicateCard({
   };
 
   return (
-    <section className="card dup-group" aria-label={`Possible duplicates: ${group.items.map((i) => i.title).join(', ')}`}>
+    <section className="card dup-group" aria-label={tr("Possible duplicates: {0}", [group.items.map((i) => i.title).join(', ')])}>
       <div className="dup-head">
         <CopyCheck size={18} aria-hidden />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600 }}>{group.items.length} similar items</div>
+          <div style={{ fontWeight: 600 }}>{group.items.length} {tr("similar items")}</div>
           <div className="muted small">{group.reasons.join(' · ')}</div>
         </div>
       </div>
@@ -122,12 +122,12 @@ function DuplicateCard({
         <table className="compare">
           <thead>
             <tr>
-              <th scope="col">Field</th>
+              <th scope="col">{tr("Field")}</th>
               {group.items.map((e) => (
                 <th key={e.id} scope="col" className={e.id === keep.id ? 'keep-col' : undefined}>
                   <label className="row-flex" style={{ gap: 6, cursor: 'pointer', textTransform: 'none', letterSpacing: 0, fontSize: 12.5, color: 'var(--fg)' }}>
-                    <input type="radio" name={`keep-${group.key}`} checked={e.id === keep.id} onChange={() => setKeepId(e.id)} aria-label={`Keep ${e.title}`} />
-                    Keep this
+                    <input type="radio" name={`keep-${group.key}`} checked={e.id === keep.id} onChange={() => setKeepId(e.id)} aria-label={tr("Keep {0}", [e.title])} />
+                    {tr("Keep this")}
                   </label>
                 </th>
               ))}
@@ -135,7 +135,7 @@ function DuplicateCard({
           </thead>
           <tbody>
             <tr>
-              <th scope="row">Category</th>
+              <th scope="row">{tr("Category")}</th>
               {group.items.map((e) => (
                 <td key={e.id} className={e.id === keep.id ? 'keep-col' : undefined}>
                   {catName(e.categoryId)}
@@ -146,7 +146,7 @@ function DuplicateCard({
               <tr key={f.key}>
                 <th scope="row">
                   {f.label}
-                  <div style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{f.status === 'same' ? 'same' : f.status === 'partial' ? 'missing in some' : 'different'}</div>
+                  <div style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{f.status === 'same' ? 'same' : f.status === 'partial' ? tr("missing in some") : 'different'}</div>
                 </th>
                 {group.items.map((e) => (
                   <td key={e.id} className={`${e.id === keep.id ? 'keep-col' : ''} ${f.status === 'different' ? 'diff' : ''}`} style={{ wordBreak: 'break-word' }}>
@@ -156,7 +156,7 @@ function DuplicateCard({
               </tr>
             ))}
             <tr>
-              <th scope="row">Attachments</th>
+              <th scope="row">{tr("Attachments")}</th>
               {group.items.map((e) => (
                 <td key={e.id} className={e.id === keep.id ? 'keep-col' : undefined}>
                   {e.attachmentCount}
@@ -164,13 +164,13 @@ function DuplicateCard({
               ))}
             </tr>
             <tr>
-              <th scope="row">Updated</th>
+              <th scope="row">{tr("Updated")}</th>
               {group.items.map((e) => (
                 <td key={e.id} className={e.id === keep.id ? 'keep-col' : undefined}>
                   {formatDate(e.updatedAt)}
                   <div>
                     <button type="button" className="linkish" onClick={() => onOpen(e.id)}>
-                      Open <ExternalLink size={11} aria-hidden />
+                      {tr("Open")} <ExternalLink size={11} aria-hidden />
                     </button>
                   </div>
                 </td>
@@ -181,11 +181,11 @@ function DuplicateCard({
       </div>
       <div className="dup-actions">
         <button type="button" className="btn sm primary" onClick={() => setConfirm('merge')}>
-          <Merge size={14} aria-hidden /> Merge into “{keep.title}”
+          <Merge size={14} aria-hidden /> {tr("Merge into “")}{keep.title}”
         </button>
         {others.length === 1 && (
           <button type="button" className="btn sm" onClick={() => setConfirm({ remove: others[0]! })}>
-            <Trash2 size={14} aria-hidden /> Delete the other
+            <Trash2 size={14} aria-hidden /> {tr("Delete the other")}
           </button>
         )}
         <button
@@ -194,27 +194,26 @@ function DuplicateCard({
           onClick={async () => {
             try {
               await unwrap(api.vault.dismissDuplicate(group.key));
-              await onDone('Marked as not duplicates.');
+              await onDone(tr("Marked as not duplicates."));
             } catch (e) {
               onError(errorMessage(e));
             }
           }}
         >
-          Not duplicates
+          {tr("Not duplicates")}
         </button>
       </div>
 
       {confirm === 'merge' && (
         <ConfirmDialog placement="center"
-          title="Merge items?"
-          confirmLabel="Merge"
+          title={tr("Merge items?")}
+          confirmLabel={tr("Merge")}
           message={
             <>
-              <strong style={{ color: 'var(--fg)' }}>{keep.title}</strong> is kept. Its empty fields are filled from the other item(s), notes and tags are combined,
-              and attachments are moved over. Field values that differ keep the kept item's version.
+              <strong style={{ color: 'var(--fg)' }}>{keep.title}</strong> {tr("is kept. Its empty fields are filled from the other item(s), notes and tags are combined, and attachments are moved over. Field values that differ keep the kept item's version.")}
               <br />
               <br />
-              The other {others.length} item(s) move to Recently Deleted, where you can restore them for 30 days.
+              {tr("The other")} {others.length} {tr("item(s) move to Recently Deleted, where you can restore them for 30 days.")}
             </>
           }
           onCancel={() => setConfirm(null)}
@@ -222,7 +221,7 @@ function DuplicateCard({
             try {
               await unwrap(api.vault.mergeEntries(keep.id, others.map((o) => o.id)));
               setConfirm(null);
-              await onDone('Items merged. The other copies are in Recently Deleted.');
+              await onDone(tr("Items merged. The other copies are in Recently Deleted."));
             } catch (e) {
               setConfirm(null);
               onError(errorMessage(e));
@@ -232,12 +231,12 @@ function DuplicateCard({
       )}
       {confirm && typeof confirm === 'object' && (
         <ConfirmDialog placement="center"
-          title="Delete the other item?"
+          title={tr("Delete the other item?")}
           danger
-          confirmLabel="Move to Recently Deleted"
+          confirmLabel={tr("Move to Recently Deleted")}
           message={
             <>
-              <strong style={{ color: 'var(--fg)' }}>{confirm.remove.title}</strong> moves to Recently Deleted without merging anything into “{keep.title}”.
+              <strong style={{ color: 'var(--fg)' }}>{confirm.remove.title}</strong> {tr("moves to Recently Deleted without merging anything into “")}{keep.title}”.
             </>
           }
           onCancel={() => setConfirm(null)}
@@ -245,7 +244,7 @@ function DuplicateCard({
             try {
               await unwrap(api.vault.deleteEntry(confirm.remove.id));
               setConfirm(null);
-              await onDone('Moved to Recently Deleted.');
+              await onDone(tr("Moved to Recently Deleted."));
             } catch (e) {
               setConfirm(null);
               onError(errorMessage(e));

@@ -1,9 +1,11 @@
+import { tr } from '../../shared/i18n';
+
 export function greeting(d = new Date()): string {
   const h = d.getHours();
-  if (h < 5) return 'Good night';
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (h < 5) return tr('Good night');
+  if (h < 12) return tr('Good morning');
+  if (h < 18) return tr('Good afternoon');
+  return tr('Good evening');
 }
 
 export function formatDate(iso: string | null | undefined): string {

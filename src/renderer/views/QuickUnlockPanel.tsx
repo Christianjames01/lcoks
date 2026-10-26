@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { QuickUnlockStatus } from '../../shared/api';
 import { api } from '../lib/api';
 
+import { tr } from '../../shared/i18n';
 /**
  * Fingerprint / PIN unlock shown on the lock screen when enabled (Android).
  *
@@ -80,18 +81,18 @@ export function QuickUnlockPanel({
       {status.biometric && (
         <div className="quick-buttons">
           <button type="button" className="btn primary block" onClick={() => void fingerprint('biometric')} disabled={bioBusy}>
-            <Fingerprint size={20} aria-hidden /> {bioBusy ? 'Waiting…' : 'Use Face / Fingerprint'}
+            <Fingerprint size={20} aria-hidden /> {bioBusy ? tr("Waiting…") : tr("Use Face / Fingerprint")}
           </button>
           {status.deviceCredential && (
             <button type="button" className="btn block" onClick={() => void fingerprint('credential')} disabled={bioBusy}>
-              <KeyRound size={18} aria-hidden /> Use Device Passcode
+              <KeyRound size={18} aria-hidden /> {tr("Use Device Passcode")}
             </button>
           )}
         </div>
       )}
       {status.pin && (
         <div className="field" style={{ marginBottom: 0, alignItems: 'center' }}>
-          <label htmlFor="quick-pin">{status.biometric ? 'Or enter your PIN' : 'Enter your PIN'}</label>
+          <label htmlFor="quick-pin">{status.biometric ? tr("Or enter your PIN") : tr("Enter your PIN")}</label>
           <input
             ref={pinRef}
             id="quick-pin"
@@ -116,7 +117,7 @@ export function QuickUnlockPanel({
       )}
       {pinBusy && (
         <div className="row-flex muted small" style={{ justifyContent: 'center' }}>
-          <span className="spinner" aria-hidden /> Unlocking…
+          <span className="spinner" aria-hidden /> {tr("Unlocking…")}
         </div>
       )}
       {error && (
@@ -125,7 +126,7 @@ export function QuickUnlockPanel({
         </div>
       )}
       <button type="button" className="linkish" style={{ alignSelf: 'center' }} onClick={onUsePassword}>
-        Use master password instead
+        {tr("Use master password instead")}
       </button>
     </div>
   );

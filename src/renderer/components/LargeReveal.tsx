@@ -2,6 +2,7 @@ import { Copy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Dialog } from './Dialog';
 
+import { tr } from '../../shared/i18n';
 /** Thin ring that empties while a revealed secret counts down to auto-hide. */
 export function CountdownRing({ seconds }: { seconds: number }) {
   return (
@@ -58,20 +59,20 @@ export function LargeReveal({
   return (
     <Dialog placement="center"
       title={label}
-      subtitle={`${chars.length} characters${seconds > 0 ? ` · hides in ${left}s` : ''}`}
+      subtitle={tr("{0} characters{1}", [chars.length, seconds > 0 ? ` · hides in ${left}s` : ''])}
       onClose={onClose}
       size="wide"
       footer={
         <>
           <div className="big-legend grow" aria-hidden>
-            <span className="ch-upper">ABC</span> uppercase <span className="ch-lower">abc</span> lowercase <span className="ch-digit">123</span> digits{' '}
-            <span className="ch-symbol">#$%</span> symbols
+            <span className="ch-upper">{tr("ABC")}</span> {tr("uppercase")} <span className="ch-lower">{tr("abc")}</span> {tr("lowercase")} <span className="ch-digit">123</span> {tr("digits")}{' '}
+            <span className="ch-symbol">#$%</span> {tr("symbols")}
           </div>
           <button type="button" className="btn" onClick={onCopy}>
-            <Copy size={15} aria-hidden /> Copy
+            <Copy size={15} aria-hidden /> {tr("Copy")}
           </button>
           <button type="button" className="btn primary" onClick={onClose} data-autofocus>
-            Done
+            {tr("Done")}
           </button>
         </>
       }

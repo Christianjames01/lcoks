@@ -7,6 +7,7 @@ import { EmptyState } from '../components/EmptyState';
 import { GestureRow } from '../components/EntryActions';
 import { EntryIcon } from '../components/EntryIcon';
 
+import { tr } from '../../shared/i18n';
 /**
  * Search screen (phone). Searches titles, usernames, websites, categories, notes
  * and tags — never secret values: they are not present in the item list at all.
@@ -26,22 +27,22 @@ export function SearchView({ snap, onOpen }: { snap: VaultSnapshot; onOpen: (id:
           <Search size={17} className="search-icon" aria-hidden />
           <input
             type="search"
-            placeholder="Search titles, usernames, websites, tags…"
-            aria-label="Search vault"
+            placeholder={tr("Search titles, usernames, websites, tags…")}
+            aria-label={tr("Search vault")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             autoComplete="off"
             autoFocus
           />
           {query && (
-            <button type="button" className="icon-btn" style={{ position: 'absolute', right: 3, top: 3 }} aria-label="Clear search" onClick={() => setQuery('')}>
+            <button type="button" className="icon-btn" style={{ position: 'absolute', right: 3, top: 3 }} aria-label={tr("Clear search")} onClick={() => setQuery('')}>
               <X size={16} />
             </button>
           )}
         </div>
-        <div className="quick-add" role="group" aria-label="Filter by category">
+        <div className="quick-add" role="group" aria-label={tr("Filter by category")}>
           <button type="button" className="qchip" aria-pressed={category === ''} onClick={() => setCategory('')}>
-            All
+            {tr("All")}
           </button>
           {snap.categories.map((c) => (
             <button key={c.id} type="button" className="qchip" aria-pressed={category === c.id} onClick={() => setCategory(category === c.id ? '' : c.id)}>
@@ -53,18 +54,18 @@ export function SearchView({ snap, onOpen }: { snap: VaultSnapshot; onOpen: (id:
         {!query.trim() && !category ? (
           <EmptyState
             art="search"
-            title="Search your vault"
-            text="Titles, usernames, websites, notes and tags. Passwords, PINs and other secret values are never searched or shown in results."
+            title={tr("Search your vault")}
+            text={tr("Titles, usernames, websites, notes and tags. Passwords, PINs and other secret values are never searched or shown in results.")}
           />
         ) : results.length === 0 ? (
           <EmptyState
             art="search"
-            title="No matches"
-            text="Try another word, or clear the category filter."
+            title={tr("No matches")}
+            text={tr("Try another word, or clear the category filter.")}
             action={
               category ? (
                 <button type="button" className="btn sm" onClick={() => setCategory('')}>
-                  Clear filter
+                  {tr("Clear filter")}
                 </button>
               ) : undefined
             }
@@ -72,7 +73,7 @@ export function SearchView({ snap, onOpen }: { snap: VaultSnapshot; onOpen: (id:
         ) : (
           <>
             <div className="muted small" aria-live="polite" style={{ margin: '4px 4px 8px' }}>
-              {results.length} result{results.length === 1 ? '' : 's'}
+              {results.length} {tr("result")}{results.length === 1 ? '' : 's'}
             </div>
             <ul className="list card" style={{ padding: 6 }}>
               {results.map((e) => {

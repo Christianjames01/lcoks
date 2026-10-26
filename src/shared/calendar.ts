@@ -4,6 +4,7 @@
 // 10:00 stays at 10:00 across daylight-saving changes and time-zone moves.
 import { dayKey, isDayKey, parseDay } from './money';
 
+import { dayNames, tr } from './i18n';
 export type EventCategory = 'personal' | 'work' | 'school' | 'appointment' | 'bill' | 'birthday' | 'renewal' | 'other';
 
 export const EVENT_CATEGORIES: { id: EventCategory; name: string; color: string }[] = [
@@ -82,17 +83,17 @@ export const MAX_REPEAT_COUNT = 1000;
 export const ALL_DAY_TIME = '09:00';
 
 export const REMINDER_PRESETS: { minutes: number; label: string }[] = [
-  { minutes: 0, label: 'At event time' },
-  { minutes: 5, label: '5 minutes before' },
-  { minutes: 10, label: '10 minutes before' },
-  { minutes: 15, label: '15 minutes before' },
-  { minutes: 30, label: '30 minutes before' },
-  { minutes: 60, label: '1 hour before' },
-  { minutes: 120, label: '2 hours before' },
-  { minutes: 1440, label: '1 day before' },
-  { minutes: 2880, label: '2 days before' },
-  { minutes: 4320, label: '3 days before' },
-  { minutes: 10080, label: '7 days before' }
+  { minutes: 0, label: tr("At event time") },
+  { minutes: 5, label: tr("5 minutes before") },
+  { minutes: 10, label: tr("10 minutes before") },
+  { minutes: 15, label: tr("15 minutes before") },
+  { minutes: 30, label: tr("30 minutes before") },
+  { minutes: 60, label: tr("1 hour before") },
+  { minutes: 120, label: tr("2 hours before") },
+  { minutes: 1440, label: tr("1 day before") },
+  { minutes: 2880, label: tr("2 days before") },
+  { minutes: 4320, label: tr("3 days before") },
+  { minutes: 10080, label: tr("7 days before") }
 ];
 
 export const SNOOZE_CHOICES = [5, 10, 15, 30, 60];
@@ -169,7 +170,7 @@ export function describeRepeat(r: Repeat | null, start: string): string {
   const unit = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }[r.freq];
   let s = n === 1 ? `Every ${unit}` : `Every ${n} ${unit}s`;
   if (r.freq === 'weekly') {
-    const days = (r.weekdays?.length ? r.weekdays : [weekdayOf(start)]).map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]);
+    const days = (r.weekdays?.length ? r.weekdays : [weekdayOf(start)]).map((d) => dayNames()[d]!.slice(0, 3));
     s += ` on ${days.join(', ')}`;
   }
   if (r.until) s += `, until ${formatDay(r.until, { month: 'short', day: 'numeric', year: 'numeric' })}`;

@@ -6,6 +6,7 @@ import type { CardSpec } from '../lib/cardSpec';
 import { useTimeout } from '../lib/hooks';
 import { useToast } from './Toast';
 
+import { tr } from '../../shared/i18n';
 const NETWORK_LABEL: Record<string, string> = {
   visa: 'VISA',
   mastercard: 'Mastercard',
@@ -154,7 +155,7 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
     if (!numberKey) return;
     try {
       const { seconds } = await unwrap(api.vault.copyField(entry.id, numberKey));
-      toast(`Number copied. Clipboard clears in ${seconds}s.`);
+      toast(tr("Number copied. Clipboard clears in {0}s.", [seconds]));
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
@@ -199,7 +200,7 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
                 <div className="glare" aria-hidden />
                 {photos?.front && <img className="face-photo" src={photos.front} alt="" />}
                 <div className="id-band" style={faceStyle}>
-                  <span className="id-country">Republic of the Philippines</span>
+                  <span className="id-country">{tr("Republic of the Philippines")}</span>
                   <span className="id-title">{entry.fields.idType && entry.fields.idType !== 'Other' ? entry.fields.idType : theme.label}</span>
                 </div>
                 <div className="id-body">
@@ -211,11 +212,11 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
                   </div>
                   <div className="id-fields">
                     <div className="id-field">
-                      <span className="id-cap">Name</span>
+                      <span className="id-cap">{tr("Name")}</span>
                       <span className="id-val">{holder || '—'}</span>
                     </div>
                     <div className="id-field">
-                      <span className="id-cap">ID No.</span>
+                      <span className="id-cap">{tr("ID No.")}</span>
                       <span className="id-val mono">{number !== null ? number : maskedNumber}</span>
                     </div>
                     <div className="id-row">
@@ -236,7 +237,7 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
                 </div>
                 <div className="id-foot">
                   <span className="id-sign" aria-hidden />
-                  <span className="id-copy">Vault copy · not valid as ID</span>
+                  <span className="id-copy">{tr("Vault copy · not valid as ID")}</span>
                 </div>
               </div>
             ) : (
@@ -280,7 +281,7 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
                     <div className="cvv-box">{cvv ?? '•••'}</div>
                   </div>
                   <div className="card-caption" style={{ marginTop: 10 }}>
-                    CVV / CVC · tap the card to turn it back
+                    {tr("CVV / CVC · tap the card to turn it back")}
                   </div>
                 </>
               ) : (
@@ -297,21 +298,21 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
       <div className="card-actions">
         {hasPhotos && (
           <button type="button" className="btn sm" onClick={() => void togglePhotos()} aria-pressed={photos !== null}>
-            <ImageIcon size={14} aria-hidden /> {photos ? 'Hide real card' : 'Show real card'}
+            <ImageIcon size={14} aria-hidden /> {photos ? tr("Hide real card") : tr("Show real card")}
           </button>
         )}
         {!hasCvv && photos?.back && (
-          <button type="button" className="btn sm ghost" onClick={() => setFlipped((f) => !f)} aria-label="Flip card">
-            <RotateCw size={14} aria-hidden /> Flip
+          <button type="button" className="btn sm ghost" onClick={() => setFlipped((f) => !f)} aria-label={tr("Flip card")}>
+            <RotateCw size={14} aria-hidden /> {tr("Flip")}
           </button>
         )}
         {meta?.set && (
           <>
             <button type="button" className="btn sm" onClick={() => void reveal(numberKey!, setNumber, number)} aria-pressed={number !== null}>
-              {number !== null ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />} {number !== null ? 'Hide number' : 'Show number'}
+              {number !== null ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />} {number !== null ? tr("Hide number") : tr("Show number")}
             </button>
             <button type="button" className="btn sm" onClick={copy}>
-              <Copy size={14} aria-hidden /> Copy
+              <Copy size={14} aria-hidden /> {tr("Copy")}
             </button>
           </>
         )}
@@ -326,10 +327,10 @@ export function BankCard({ entry, spec, revealSeconds }: { entry: EntryView; spe
               }}
               aria-pressed={cvv !== null}
             >
-              {cvv !== null ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />} {cvv !== null ? 'Hide CVV' : 'Show CVV'}
+              {cvv !== null ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />} {cvv !== null ? tr("Hide CVV") : tr("Show CVV")}
             </button>
-            <button type="button" className="btn sm ghost" onClick={() => setFlipped((f) => !f)} aria-label="Flip card">
-              <RotateCw size={14} aria-hidden /> Flip
+            <button type="button" className="btn sm ghost" onClick={() => setFlipped((f) => !f)} aria-label={tr("Flip card")}>
+              <RotateCw size={14} aria-hidden /> {tr("Flip")}
             </button>
           </>
         )}

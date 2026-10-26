@@ -1,130 +1,131 @@
 import type { CategoryDef } from './types';
 
-export const NOTES_FIELD = { key: 'notes', label: 'Notes', type: 'textarea' } as const;
+import { tr } from './i18n';
+export const NOTES_FIELD = { key: 'notes', label: tr("Notes"), type: 'textarea' } as const;
 
 export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
   {
     id: 'banking',
-    name: 'Banking',
+    name: tr('Banking'),
     icon: 'bank',
     builtin: true,
     fields: [
-      { key: 'bankName', label: 'Bank name', type: 'text' },
-      { key: 'accountName', label: 'Account name', type: 'text' },
-      { key: 'accountType', label: 'Account type', type: 'select', options: ['Savings', 'Checking / Current', 'Payroll', 'Time deposit', 'Joint', 'Other'] },
-      { key: 'accountNumber', label: 'Account number', type: 'secret', partialMask: true },
-      { key: 'username', label: 'Username', type: 'username' },
-      { key: 'password', label: 'Password', type: 'password' },
-      { key: 'pin', label: 'PIN', type: 'pin' },
-      { key: 'website', label: 'Website', type: 'url' },
-      { key: 'customerNumber', label: 'Customer number', type: 'text' },
-      { key: 'securityQA', label: 'Security questions & answers', type: 'secretTextarea' },
+      { key: 'bankName', label: tr("Bank name"), type: 'text' },
+      { key: 'accountName', label: tr("Account name"), type: 'text' },
+      { key: 'accountType', label: tr("Account type"), type: 'select', options: ['Savings', 'Checking / Current', 'Payroll', 'Time deposit', 'Joint', 'Other'] },
+      { key: 'accountNumber', label: tr("Account number"), type: 'secret', partialMask: true },
+      { key: 'username', label: tr("Username"), type: 'username' },
+      { key: 'password', label: tr("Password"), type: 'password' },
+      { key: 'pin', label: tr("PIN"), type: 'pin' },
+      { key: 'website', label: tr("Website"), type: 'url' },
+      { key: 'customerNumber', label: tr("Customer number"), type: 'text' },
+      { key: 'securityQA', label: tr("Security questions & answers"), type: 'secretTextarea' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'cards',
-    name: 'Cards',
+    name: tr('Cards'),
     icon: 'card',
     builtin: true,
     fields: [
-      { key: 'bankName', label: 'Bank / issuer', type: 'text', placeholder: 'BPI, BDO, GCash…' },
-      { key: 'cardType', label: 'Card type', type: 'select', options: ['Debit', 'Credit', 'Prepaid', 'ATM', 'Virtual'] },
-      { key: 'cardholder', label: 'Cardholder name', type: 'text' },
-      { key: 'cardNumber', label: 'Card number', type: 'secret', partialMask: true },
-      { key: 'expiry', label: 'Expiry (MM/YY)', type: 'text', placeholder: 'MM/YY' },
-      { key: 'cvv', label: 'CVV / CVC', type: 'pin' },
-      { key: 'pin', label: 'PIN', type: 'pin' },
+      { key: 'bankName', label: tr("Bank / issuer"), type: 'text', placeholder: tr("BPI, BDO, GCash…") },
+      { key: 'cardType', label: tr("Card type"), type: 'select', options: ['Debit', 'Credit', 'Prepaid', 'ATM', 'Virtual'] },
+      { key: 'cardholder', label: tr("Cardholder name"), type: 'text' },
+      { key: 'cardNumber', label: tr("Card number"), type: 'secret', partialMask: true },
+      { key: 'expiry', label: tr("Expiry (MM/YY)"), type: 'text', placeholder: tr("MM/YY") },
+      { key: 'cvv', label: tr("CVV / CVC"), type: 'pin' },
+      { key: 'pin', label: tr("PIN"), type: 'pin' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'wallets',
-    name: 'E-Wallets',
+    name: tr('E-Wallets'),
     icon: 'wallet',
     builtin: true,
     fields: [
-      { key: 'provider', label: 'E-wallet', type: 'text', placeholder: 'GCash, Maya, ShopeePay, GrabPay…' },
-      { key: 'mobileNumber', label: 'Registered mobile number', type: 'phone' },
-      { key: 'accountName', label: 'Account name', type: 'text' },
-      { key: 'email', label: 'Email', type: 'email' },
-      { key: 'mpin', label: 'MPIN', type: 'pin' },
-      { key: 'password', label: 'Password', type: 'password' },
-      { key: 'securityQA', label: 'Security questions & answers', type: 'secretTextarea' },
+      { key: 'provider', label: tr("E-wallet"), type: 'text', placeholder: tr("GCash, Maya, ShopeePay, GrabPay…") },
+      { key: 'mobileNumber', label: tr("Registered mobile number"), type: 'phone' },
+      { key: 'accountName', label: tr("Account name"), type: 'text' },
+      { key: 'email', label: tr("Email"), type: 'email' },
+      { key: 'mpin', label: tr("MPIN"), type: 'pin' },
+      { key: 'password', label: tr("Password"), type: 'password' },
+      { key: 'securityQA', label: tr("Security questions & answers"), type: 'secretTextarea' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'email',
-    name: 'Email',
+    name: tr('Email'),
     icon: 'mail',
     builtin: true,
     fields: [
-      { key: 'service', label: 'Service', type: 'text' },
-      { key: 'email', label: 'Email address', type: 'email' },
-      { key: 'password', label: 'Password', type: 'password' },
-      { key: 'recoveryEmail', label: 'Recovery email', type: 'email' },
-      { key: 'recoveryPhone', label: 'Recovery phone', type: 'phone' },
+      { key: 'service', label: tr("Service"), type: 'text' },
+      { key: 'email', label: tr("Email address"), type: 'email' },
+      { key: 'password', label: tr("Password"), type: 'password' },
+      { key: 'recoveryEmail', label: tr("Recovery email"), type: 'email' },
+      { key: 'recoveryPhone', label: tr("Recovery phone"), type: 'phone' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'social',
-    name: 'Social Media',
+    name: tr('Social Media'),
     icon: 'globe',
     builtin: true,
     fields: [
-      { key: 'platform', label: 'Platform', type: 'text' },
-      { key: 'username', label: 'Username', type: 'username' },
-      { key: 'email', label: 'Email', type: 'email' },
-      { key: 'password', label: 'Password', type: 'password' },
-      { key: 'profileUrl', label: 'Profile URL', type: 'url' },
+      { key: 'platform', label: tr("Platform"), type: 'text' },
+      { key: 'username', label: tr("Username"), type: 'username' },
+      { key: 'email', label: tr("Email"), type: 'email' },
+      { key: 'password', label: tr("Password"), type: 'password' },
+      { key: 'profileUrl', label: tr("Profile URL"), type: 'url' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'software',
-    name: 'Software License',
+    name: tr('Software License'),
     icon: 'key',
     builtin: true,
     fields: [
-      { key: 'product', label: 'Product', type: 'text' },
-      { key: 'licenseKey', label: 'License key', type: 'secret', partialMask: true },
-      { key: 'username', label: 'Username', type: 'username' },
-      { key: 'purchaseDate', label: 'Purchase date', type: 'date' },
-      { key: 'expirationDate', label: 'Expiration date', type: 'date' },
+      { key: 'product', label: tr("Product"), type: 'text' },
+      { key: 'licenseKey', label: tr("License key"), type: 'secret', partialMask: true },
+      { key: 'username', label: tr("Username"), type: 'username' },
+      { key: 'purchaseDate', label: tr("Purchase date"), type: 'date' },
+      { key: 'expirationDate', label: tr("Expiration date"), type: 'date' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'games',
-    name: 'Games',
+    name: tr('Games'),
     icon: 'gamepad',
     builtin: true,
     fields: [
       {
         key: 'platform',
-        label: 'Game / platform',
+        label: tr("Game / platform"),
         type: 'text',
-        placeholder: 'Steam, Mobile Legends, Genshin, Roblox…'
+        placeholder: tr("Steam, Mobile Legends, Genshin, Roblox…")
       },
-      { key: 'username', label: 'Username / in-game name', type: 'username' },
-      { key: 'accountId', label: 'Account ID / UID', type: 'text' },
-      { key: 'email', label: 'Login email', type: 'email' },
-      { key: 'password', label: 'Password', type: 'password' },
-      { key: 'website', label: 'Website', type: 'url' },
+      { key: 'username', label: tr("Username / in-game name"), type: 'username' },
+      { key: 'accountId', label: tr("Account ID / UID"), type: 'text' },
+      { key: 'email', label: tr("Login email"), type: 'email' },
+      { key: 'password', label: tr("Password"), type: 'password' },
+      { key: 'website', label: tr("Website"), type: 'url' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'ids',
-    name: 'IDs & Government',
+    name: tr('IDs & Government'),
     icon: 'id',
     builtin: true,
     fields: [
       {
         key: 'idType',
-        label: 'ID type',
+        label: tr("ID type"),
         type: 'select',
         options: [
           'PhilSys National ID',
@@ -141,164 +142,164 @@ export const BUILTIN_CATEGORIES: readonly CategoryDef[] = [
           'Other'
         ]
       },
-      { key: 'idNumber', label: 'ID number', type: 'secret', partialMask: true },
-      { key: 'fullName', label: 'Name on ID', type: 'text' },
-      { key: 'issueDate', label: 'Issued', type: 'date' },
-      { key: 'expiryDate', label: 'Expires', type: 'date' },
-      { key: 'issuedBy', label: 'Issued by / place', type: 'text' },
+      { key: 'idNumber', label: tr("ID number"), type: 'secret', partialMask: true },
+      { key: 'fullName', label: tr("Name on ID"), type: 'text' },
+      { key: 'issueDate', label: tr("Issued"), type: 'date' },
+      { key: 'expiryDate', label: tr("Expires"), type: 'date' },
+      { key: 'issuedBy', label: tr("Issued by / place"), type: 'text' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'insurance',
-    name: 'Insurance & Medical',
+    name: tr('Insurance & Medical'),
     icon: 'health',
     builtin: true,
     fields: [
-      { key: 'provider', label: 'Provider', type: 'text', placeholder: 'Maxicare, PhilHealth, Sun Life…' },
-      { key: 'policyType', label: 'Type', type: 'select', options: ['HMO', 'PhilHealth', 'Health insurance', 'Life insurance', 'Car insurance', 'Other'] },
-      { key: 'memberNumber', label: 'Policy / member number', type: 'secret', partialMask: true },
-      { key: 'insured', label: 'Insured person', type: 'text' },
-      { key: 'coverage', label: 'Coverage / plan', type: 'text' },
-      { key: 'expiryDate', label: 'Valid until', type: 'date' },
-      { key: 'bloodType', label: 'Blood type', type: 'select', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
-      { key: 'allergies', label: 'Allergies & medical conditions', type: 'textarea' },
-      { key: 'emergencyContacts', label: 'Emergency contacts', type: 'textarea' },
+      { key: 'provider', label: tr("Provider"), type: 'text', placeholder: tr("Maxicare, PhilHealth, Sun Life…") },
+      { key: 'policyType', label: tr("Type"), type: 'select', options: ['HMO', 'PhilHealth', 'Health insurance', 'Life insurance', 'Car insurance', 'Other'] },
+      { key: 'memberNumber', label: tr("Policy / member number"), type: 'secret', partialMask: true },
+      { key: 'insured', label: tr("Insured person"), type: 'text' },
+      { key: 'coverage', label: tr("Coverage / plan"), type: 'text' },
+      { key: 'expiryDate', label: tr("Valid until"), type: 'date' },
+      { key: 'bloodType', label: tr("Blood type"), type: 'select', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
+      { key: 'allergies', label: tr("Allergies & medical conditions"), type: 'textarea' },
+      { key: 'emergencyContacts', label: tr("Emergency contacts"), type: 'textarea' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'subscriptions',
-    name: 'Subscriptions',
+    name: tr('Subscriptions'),
     icon: 'calendar',
     builtin: true,
     fields: [
-      { key: 'service', label: 'Service', type: 'text', placeholder: 'Netflix, Spotify, YouTube Premium…' },
-      { key: 'email', label: 'Login email', type: 'email' },
-      { key: 'password', label: 'Password', type: 'password' },
-      { key: 'plan', label: 'Plan', type: 'text', placeholder: 'Premium, Family…' },
-      { key: 'price', label: 'Price', type: 'text', placeholder: '₱549' },
-      { key: 'billingCycle', label: 'Billing', type: 'select', options: ['Monthly', 'Yearly', 'Quarterly', 'Weekly', 'One-time'] },
-      { key: 'renewalDate', label: 'Next renewal', type: 'date' },
-      { key: 'paymentMethod', label: 'Paid with', type: 'text' },
+      { key: 'service', label: tr("Service"), type: 'text', placeholder: tr("Netflix, Spotify, YouTube Premium…") },
+      { key: 'email', label: tr("Login email"), type: 'email' },
+      { key: 'password', label: tr("Password"), type: 'password' },
+      { key: 'plan', label: tr("Plan"), type: 'text', placeholder: tr("Premium, Family…") },
+      { key: 'price', label: tr("Price"), type: 'text', placeholder: '₱549' },
+      { key: 'billingCycle', label: tr("Billing"), type: 'select', options: ['Monthly', 'Yearly', 'Quarterly', 'Weekly', 'One-time'] },
+      { key: 'renewalDate', label: tr("Next renewal"), type: 'date' },
+      { key: 'paymentMethod', label: tr("Paid with"), type: 'text' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'loyalty',
-    name: 'Loyalty & Rewards',
+    name: tr('Loyalty & Rewards'),
     icon: 'gift',
     builtin: true,
     fields: [
-      { key: 'brand', label: 'Store / brand', type: 'text', placeholder: 'Starbucks, Coffee Bean, SM Advantage…' },
-      { key: 'memberName', label: 'Member name', type: 'text' },
-      { key: 'cardNumber', label: 'Card / member number', type: 'secret', partialMask: true },
-      { key: 'pin', label: 'PIN', type: 'pin' },
-      { key: 'points', label: 'Points / stars', type: 'text', placeholder: '120 stars, 3 free drinks…' },
-      { key: 'email', label: 'Login email', type: 'email' },
-      { key: 'password', label: 'Password', type: 'password' },
-      { key: 'expiryDate', label: 'Valid until', type: 'date' },
+      { key: 'brand', label: tr("Store / brand"), type: 'text', placeholder: tr("Starbucks, Coffee Bean, SM Advantage…") },
+      { key: 'memberName', label: tr("Member name"), type: 'text' },
+      { key: 'cardNumber', label: tr("Card / member number"), type: 'secret', partialMask: true },
+      { key: 'pin', label: tr("PIN"), type: 'pin' },
+      { key: 'points', label: tr("Points / stars"), type: 'text', placeholder: tr("120 stars, 3 free drinks…") },
+      { key: 'email', label: tr("Login email"), type: 'email' },
+      { key: 'password', label: tr("Password"), type: 'password' },
+      { key: 'expiryDate', label: tr("Valid until"), type: 'date' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'giftcards',
-    name: 'Gift cards & vouchers',
+    name: tr('Gift cards & vouchers'),
     icon: 'ticket',
     builtin: true,
     fields: [
-      { key: 'brand', label: 'Store / brand', type: 'text', placeholder: 'Starbucks, SM, Jollibee…' },
-      { key: 'cardNumber', label: 'Card / voucher number', type: 'secret', partialMask: true },
-      { key: 'pin', label: 'PIN / security code', type: 'pin' },
-      { key: 'balance', label: 'Balance left', type: 'text', placeholder: '1,000' },
-      { key: 'initialValue', label: 'Original value', type: 'text', placeholder: '1,000' },
-      { key: 'expiryDate', label: 'Valid until', type: 'date' },
-      { key: 'history', label: 'Use history', type: 'textarea' },
+      { key: 'brand', label: tr("Store / brand"), type: 'text', placeholder: tr("Starbucks, SM, Jollibee…") },
+      { key: 'cardNumber', label: tr("Card / voucher number"), type: 'secret', partialMask: true },
+      { key: 'pin', label: tr("PIN / security code"), type: 'pin' },
+      { key: 'balance', label: tr("Balance left"), type: 'text', placeholder: '1,000' },
+      { key: 'initialValue', label: tr("Original value"), type: 'text', placeholder: '1,000' },
+      { key: 'expiryDate', label: tr("Valid until"), type: 'date' },
+      { key: 'history', label: tr("Use history"), type: 'textarea' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'wifiNetwork',
-    name: 'Wi-Fi networks',
+    name: tr('Wi-Fi networks'),
     icon: 'wifi',
     builtin: true,
     fields: [
-      { key: 'ssid', label: 'Network name (SSID)', type: 'text', placeholder: 'PLDT-Home 5G' },
-      { key: 'password', label: 'Wi-Fi password', type: 'password' },
-      { key: 'security', label: 'Security', type: 'select', options: ['WPA / WPA2 / WPA3', 'WEP', 'None (open)'] },
-      { key: 'hidden', label: 'Hidden network', type: 'select', options: ['No', 'Yes'] },
-      { key: 'adminUrl', label: 'Router admin page', type: 'url', placeholder: 'http://192.168.1.1' },
-      { key: 'adminUser', label: 'Router admin username', type: 'username' },
-      { key: 'adminPassword', label: 'Router admin password', type: 'password' },
+      { key: 'ssid', label: tr("Network name (SSID)"), type: 'text', placeholder: tr("PLDT-Home 5G") },
+      { key: 'password', label: tr("Wi-Fi password"), type: 'password' },
+      { key: 'security', label: tr("Security"), type: 'select', options: ['WPA / WPA2 / WPA3', 'WEP', 'None (open)'] },
+      { key: 'hidden', label: tr("Hidden network"), type: 'select', options: ['No', 'Yes'] },
+      { key: 'adminUrl', label: tr("Router admin page"), type: 'url', placeholder: 'http://192.168.1.1' },
+      { key: 'adminUser', label: tr("Router admin username"), type: 'username' },
+      { key: 'adminPassword', label: tr("Router admin password"), type: 'password' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'personal',
-    name: 'Passwords',
+    name: tr('Passwords'),
     icon: 'user',
     builtin: true,
     fields: [
-      { key: 'username', label: 'Username', type: 'username' },
-      { key: 'password', label: 'Password', type: 'password' },
-      { key: 'website', label: 'Website', type: 'url' },
+      { key: 'username', label: tr("Username"), type: 'username' },
+      { key: 'password', label: tr("Password"), type: 'password' },
+      { key: 'website', label: tr("Website"), type: 'url' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'personalInfo',
-    name: 'Personal Information',
+    name: tr('Personal Information'),
     icon: 'user',
     builtin: true,
     fields: [
-      { key: 'fullName', label: 'Full name', type: 'text' },
-      { key: 'birthDate', label: 'Date of birth', type: 'date' },
-      { key: 'phone', label: 'Phone', type: 'phone' },
-      { key: 'email', label: 'Email', type: 'email' },
-      { key: 'address', label: 'Address', type: 'textarea' },
-      { key: 'nationality', label: 'Nationality', type: 'text' },
+      { key: 'fullName', label: tr("Full name"), type: 'text' },
+      { key: 'birthDate', label: tr("Date of birth"), type: 'date' },
+      { key: 'phone', label: tr("Phone"), type: 'phone' },
+      { key: 'email', label: tr("Email"), type: 'email' },
+      { key: 'address', label: tr("Address"), type: 'textarea' },
+      { key: 'nationality', label: tr("Nationality"), type: 'text' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'documents',
-    name: 'Documents',
+    name: tr('Documents'),
     icon: 'folder',
     builtin: true,
     fields: [
       {
         key: 'documentType',
-        label: 'Document type',
+        label: tr("Document type"),
         type: 'select',
         options: ['Passport', 'Birth certificate', 'Marriage certificate', 'Diploma / Transcript', 'Contract', 'Certificate', 'Medical record', 'Land title / Deed', 'Receipt / Warranty', 'Other']
       },
-      { key: 'documentNumber', label: 'Document number', type: 'secret', partialMask: true },
-      { key: 'issuedBy', label: 'Issued by', type: 'text' },
-      { key: 'issueDate', label: 'Issued', type: 'date' },
-      { key: 'expiryDate', label: 'Expires', type: 'date' },
+      { key: 'documentNumber', label: tr("Document number"), type: 'secret', partialMask: true },
+      { key: 'issuedBy', label: tr("Issued by"), type: 'text' },
+      { key: 'issueDate', label: tr("Issued"), type: 'date' },
+      { key: 'expiryDate', label: tr("Expires"), type: 'date' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'others',
-    name: 'Others',
+    name: tr('Others'),
     icon: 'folder',
     builtin: true,
     fields: [
-      { key: 'name', label: 'Name / account', type: 'text' },
-      { key: 'username', label: 'Username', type: 'username' },
-      { key: 'password', label: 'Password', type: 'password' },
-      { key: 'pin', label: 'PIN / code', type: 'pin' },
-      { key: 'website', label: 'Website', type: 'url' },
+      { key: 'name', label: tr("Name / account"), type: 'text' },
+      { key: 'username', label: tr("Username"), type: 'username' },
+      { key: 'password', label: tr("Password"), type: 'password' },
+      { key: 'pin', label: tr("PIN / code"), type: 'pin' },
+      { key: 'website', label: tr("Website"), type: 'url' },
       { ...NOTES_FIELD }
     ]
   },
   {
     id: 'notes',
-    name: 'Secure Notes',
+    name: tr('Secure Notes'),
     icon: 'note',
     builtin: true,
-    fields: [{ key: 'content', label: 'Secure note', type: 'secretTextarea' }]
+    fields: [{ key: 'content', label: tr("Secure note"), type: 'secretTextarea' }]
   }
 ];
 

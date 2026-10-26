@@ -11,6 +11,7 @@ import { ConfirmDialog, Dialog } from './Dialog';
 import { takePhoto } from './ScanButton';
 import { useToast } from './Toast';
 
+import { tr } from '../../shared/i18n';
 function toMinor(text: string): number | null {
   const t = text.replace(/[^\d.]/g, '');
   if (!/^\d+(\.\d{0,2})?$/.test(t)) return null;
@@ -41,7 +42,7 @@ export function useReceiptScan(snap: VaultSnapshot) {
       if (!r.store && details?.store) r.store = details.store;
       if (details && !details.total && r.amount) details.total = r.amount;
       if (r.amount === null && !r.store) {
-        toast('No total found. Try again with the whole receipt flat, in good light.', 'error');
+        toast(tr("No total found. Try again with the whole receipt flat, in good light."), 'error');
         return null;
       }
       api.app.haptic('success');
@@ -68,14 +69,14 @@ export function ReceiptCard({ r, currency, onRemove }: { r: ReceiptDetails; curr
     ['VAT-exempt', r.vatExempt]
   ];
   return (
-    <section className="receipt-card" aria-label="Receipt">
+    <section className="receipt-card" aria-label={tr("Receipt")}>
       <header className="receipt-head">
         <div>
-          <strong>{r.store || 'Receipt'}</strong>
+          <strong>{r.store || tr("Receipt")}</strong>
           {(r.branch || r.number) && <span className="dim">{[r.branch, r.number && `No. ${r.number}`].filter(Boolean).join(' · ')}</span>}
         </div>
         {onRemove && (
-          <button type="button" className="icon-btn sm" onClick={onRemove} aria-label="Remove receipt details">
+          <button type="button" className="icon-btn sm" onClick={onRemove} aria-label={tr("Remove receipt details")}>
             <X size={15} aria-hidden />
           </button>
         )}
@@ -84,10 +85,10 @@ export function ReceiptCard({ r, currency, onRemove }: { r: ReceiptDetails; curr
         <table className="receipt-items">
           <thead>
             <tr>
-              <th scope="col">Qty</th>
-              <th scope="col">Item</th>
-              <th scope="col">Price</th>
-              <th scope="col">Amount</th>
+              <th scope="col">{tr("Qty")}</th>
+              <th scope="col">{tr("Item")}</th>
+              <th scope="col">{tr("Price")}</th>
+              <th scope="col">{tr("Amount")}</th>
             </tr>
           </thead>
           <tbody>
@@ -110,23 +111,23 @@ export function ReceiptCard({ r, currency, onRemove }: { r: ReceiptDetails; curr
           </div>
         ))}
         <div className="receipt-total">
-          <dt>Total</dt>
+          <dt>{tr("Total")}</dt>
           <dd>{m(r.total)}</dd>
         </div>
         {r.payment && (
           <div>
-            <dt>Paid with</dt>
+            <dt>{tr("Paid with")}</dt>
             <dd>{r.payment}{r.cash ? ` · ${m(r.cash)}` : ''}</dd>
           </div>
         )}
         {r.change > 0 && (
           <div>
-            <dt>Change</dt>
+            <dt>{tr("Change")}</dt>
             <dd>{m(r.change)}</dd>
           </div>
         )}
       </dl>
-      {itemsMismatch(r) && <div className="notice">Some items may be missing or misread — the items don't add up to the subtotal.</div>}
+      {itemsMismatch(r) && <div className="notice">{tr("Some items may be missing or misread — the items don't add up to the subtotal.")}</div>}
     </section>
   );
 }
@@ -134,7 +135,7 @@ export function ReceiptCard({ r, currency, onRemove }: { r: ReceiptDetails; curr
 export function ReceiptButton({ busy, onClick }: { busy: boolean; onClick: () => void }) {
   return (
     <button type="button" className="btn primary block receipt-btn" onClick={onClick} disabled={busy}>
-      {busy ? <span className="spinner" aria-hidden /> : <Camera size={16} aria-hidden />} {busy ? 'Reading the receipt…' : 'Scan a receipt'}
+      {busy ? <span className="spinner" aria-hidden /> : <Camera size={16} aria-hidden />} {busy ? tr("Reading the receipt…") : tr("Scan a receipt")}
     </button>
   );
 }
@@ -161,14 +162,14 @@ export function TransferEditor({ snap, initial, onClose, onChanged }: { snap: Va
   const base = (id: string) => (bal.get(id) ?? 0) - (initial ? (initial.to === id ? initial.amount : 0) - (initial.from === id ? initial.amount + (feeTx?.amount ?? 0) : 0) : 0);
   const name = (id: string) => accs.find((a) => a.id === id)?.name ?? '';
   const save = async () => {
-    if (!minor) return toast('Enter an amount.', 'error');
-    if (feeMinor === null) return toast('Enter the fee, or leave it empty.', 'error');
+    if (!minor) return toast(tr("Enter an amount."), 'error');
+    if (feeMinor === null) return toast(tr("Enter the fee, or leave it empty."), 'error');
     setBusy(true);
     try {
       await unwrap(api.plans.saveTransfer({ ...(initial ? { id: initial.id } : {}), from, to, amount: minor, fee: feeMinor, note, date }));
       api.app.haptic('success');
       await onChanged();
-      toast(`${money(minor)} moved: ${name(from)} → ${name(to)}.`);
+      toast(tr("{0} moved: {1} → {2}.", [money(minor), name(from), name(to)]));
       onClose();
     } catch (e) {
       toast(errorMessage(e), 'error');
@@ -188,37 +189,37 @@ export function TransferEditor({ snap, initial, onClose, onChanged }: { snap: Va
     <Dialog
       placement="center"
       size="narrow"
-      title={initial ? 'Edit transfer' : 'Transfer'}
-      subtitle="Move money between your accounts"
+      title={initial ? tr("Edit transfer") : tr("Transfer")}
+      subtitle={tr("Move money between your accounts")}
       onClose={onClose}
       busy={busy}
       footer={
         <>
           {initial && (
             <button type="button" className="btn danger left" onClick={() => setConfirmDelete(true)}>
-              Delete
+              {tr("Delete")}
             </button>
           )}
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn primary" onClick={() => void save()} disabled={busy || !from || !to || from === to}>
-            {minor ? `Move ${money(minor)}` : 'Move'}
+            {minor ? tr("Move {0}", [money(minor)]) : tr("Move")}
           </button>
         </>
       }
     >
       {accs.length < 2 ? (
-        <p className="dim">Add a second account (Expenses → Wallets) to move money between them.</p>
+        <p className="dim">{tr("Add a second account (Expenses → Wallets) to move money between them.")}</p>
       ) : (
         <>
           <div className="field">
-            <label htmlFor="tr-amount">Amount</label>
+            <label htmlFor="tr-amount">{tr("Amount")}</label>
             <input id="tr-amount" className="input mp-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoComplete="off" data-autofocus />
           </div>
           <div className="tr-pair">
             <div className="tr-side">
-              <span className="label">From</span>
+              <span className="label">{tr("From")}</span>
               <b>{name(from)}</b>
               <span className="dim small">
                 {money(base(from))} → {money(base(from) - minor - (feeMinor ?? 0))}
@@ -228,7 +229,7 @@ export function TransferEditor({ snap, initial, onClose, onChanged }: { snap: Va
               <ArrowRight size={16} />
             </span>
             <div className="tr-side">
-              <span className="label">To</span>
+              <span className="label">{tr("To")}</span>
               <b>{name(to)}</b>
               <span className="dim small">
                 {money(base(to))} → {money(base(to) + minor)}
@@ -236,43 +237,43 @@ export function TransferEditor({ snap, initial, onClose, onChanged }: { snap: Va
             </div>
           </div>
           <div className="field">
-            <span className="label">From</span>
+            <span className="label">{tr("From")}</span>
             {pick(from, setFrom, to, 'From')}
           </div>
           <div className="field">
-            <span className="label">To</span>
+            <span className="label">{tr("To")}</span>
             {pick(to, setTo, from, 'To')}
           </div>
           <div className="grid-2">
             <div className="field">
-              <label htmlFor="tr-fee">Fee (optional)</label>
+              <label htmlFor="tr-fee">{tr("Fee (optional)")}</label>
               <input id="tr-fee" className="input" inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="₱15" autoComplete="off" />
             </div>
             <div className="field">
-              <label htmlFor="tr-date">Date</label>
+              <label htmlFor="tr-date">{tr("Date")}</label>
               <input id="tr-date" type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="tr-note">Note (optional)</label>
-            <input id="tr-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Savings" maxLength={120} autoComplete="off" />
-            <span className="help-text">Not spending or income — only the two balances change. A fee counts as an expense.</span>
+            <label htmlFor="tr-note">{tr("Note (optional)")}</label>
+            <input id="tr-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr("Savings")} maxLength={120} autoComplete="off" />
+            <span className="help-text">{tr("Not spending or income — only the two balances change. A fee counts as an expense.")}</span>
           </div>
         </>
       )}
       {confirmDelete && initial && (
         <ConfirmDialog
           placement="center"
-          title="Delete this transfer?"
+          title={tr("Delete this transfer?")}
           danger
-          confirmLabel="Delete"
-          message="Both balances go back, and its fee record (if any) is removed."
+          confirmLabel={tr("Delete")}
+          message={tr("Both balances go back, and its fee record (if any) is removed.")}
           onCancel={() => setConfirmDelete(false)}
           onConfirm={async () => {
             try {
               await unwrap(api.plans.deleteTransfer(initial.id));
               await onChanged();
-              toast('Transfer deleted.');
+              toast(tr("Transfer deleted."));
               onClose();
             } catch (e) {
               toast(errorMessage(e), 'error');
@@ -302,7 +303,7 @@ export function TransferRow({ t, snap, onOpen }: { t: Transfer; snap: VaultSnaps
           {name(t.from)} → {name(t.to)}
         </span>
         <span className="row-sub" style={{ display: 'block' }}>
-          Transfer{t.note ? ` · ${t.note}` : ''}
+          {tr("Transfer")}{t.note ? ` · ${t.note}` : ''}
         </span>
       </span>
       <span className="tx-amount dim">{formatMoney(t.amount, snap.settings.currency)}</span>
@@ -345,7 +346,7 @@ export function SplitBill({
   const cats = allMoneyCategories().filter((c) => c.kind === 'expense');
 
   const save = async () => {
-    if (!ok) return toast(sum !== totalMinor ? `The shares add up to ${money(sum)}, not ${money(totalMinor)}.` : 'Add the people you split with.', 'error');
+    if (!ok) return toast(sum !== totalMinor ? tr("The shares add up to {0}, not {1}.", [money(sum), money(totalMinor)]) : tr("Add the people you split with."), 'error');
     setBusy(true);
     try {
       await unwrap(
@@ -362,7 +363,7 @@ export function SplitBill({
       );
       api.app.haptic('success');
       await onChanged();
-      toast(`Split ${money(totalMinor)}: your ${money(mine)} in Expenses, ${money(totalMinor - mine)} in Utang.`);
+      toast(tr("Split {0}: your {1} in Expenses, {2} in Utang.", [money(totalMinor), money(mine), money(totalMinor - mine)]));
       onClose();
     } catch (e) {
       toast(errorMessage(e), 'error');
@@ -374,59 +375,59 @@ export function SplitBill({
     <Dialog
       placement="center"
       size="narrow"
-      title="Split a bill"
+      title={tr("Split a bill")}
       onClose={onClose}
       busy={busy}
       footer={
         <>
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {tr("Cancel")}
           </button>
           <button type="button" className="btn primary" onClick={() => void save()} disabled={busy || !ok}>
-            {totalMinor ? `Split ${money(totalMinor)}` : 'Split'}
+            {totalMinor ? tr("Split {0}", [money(totalMinor)]) : tr("Split")}
           </button>
         </>
       }
     >
       <div className="field">
-        <label htmlFor="sp-total">Total</label>
+        <label htmlFor="sp-total">{tr("Total")}</label>
         <input id="sp-total" className="input mp-amount" inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="1,800" autoComplete="off" data-autofocus={!initial?.total || undefined} />
       </div>
       <div className="field">
-        <label htmlFor="sp-note">What for</label>
-        <input id="sp-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Dinner at Vikings" maxLength={120} autoComplete="off" />
+        <label htmlFor="sp-note">{tr("What for")}</label>
+        <input id="sp-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr("Dinner at Vikings")} maxLength={120} autoComplete="off" />
       </div>
-      <div className="segmented mp-seg" role="group" aria-label="How to split">
+      <div className="segmented mp-seg" role="group" aria-label={tr("How to split")}>
         <button type="button" aria-pressed={mode === 'equal'} onClick={() => setMode('equal')}>
-          Split equally
+          {tr("Split equally")}
         </button>
         <button type="button" aria-pressed={mode === 'amount'} onClick={() => setMode('amount')}>
-          By amount
+          {tr("By amount")}
         </button>
       </div>
       <div className="label">
-        {named.length + 1} people{mode === 'equal' && totalMinor ? ` · ${money(shares[1] ?? shares[0] ?? 0)} each` : ''}
+        {named.length + 1} {tr("people")}{mode === 'equal' && totalMinor ? tr(" · {0} each", [money(shares[1] ?? shares[0] ?? 0)]) : ''}
       </div>
       <ul className="sp-people">
         <li>
-          <span className="mp-av me">Me</span>
+          <span className="mp-av me">{tr("Me")}</span>
           <span className="grow">
-            <b>You</b>
-            <span className="dim small">paid the whole bill</span>
+            <b>{tr("You")}</b>
+            <span className="dim small">{tr("paid the whole bill")}</span>
           </span>
-          {mode === 'equal' ? <b>{money(mine)}</b> : <input className="input sp-amt" inputMode="decimal" value={mineText} onChange={(e) => setMineText(e.target.value)} placeholder="0" aria-label="Your share" />}
+          {mode === 'equal' ? <b>{money(mine)}</b> : <input className="input sp-amt" inputMode="decimal" value={mineText} onChange={(e) => setMineText(e.target.value)} placeholder="0" aria-label={tr("Your share")} />}
         </li>
         {people.map((p, i) => (
           <li key={i}>
             <span className="mp-av">{(p.person.trim().charAt(0) || '?').toUpperCase()}</span>
-            <input className="input grow" value={p.person} onChange={(e) => setPerson(i, { person: e.target.value })} placeholder="Name" maxLength={60} aria-label="Person" list="sp-known" />
+            <input className="input grow" value={p.person} onChange={(e) => setPerson(i, { person: e.target.value })} placeholder={tr("Name")} maxLength={60} aria-label={tr("Person")} list="sp-known" />
             {mode === 'equal' ? (
               <b className="pos">{p.person.trim() ? money(theirs[named.indexOf(p)] ?? 0) : ''}</b>
             ) : (
-              <input className="input sp-amt" inputMode="decimal" value={p.amount} onChange={(e) => setPerson(i, { amount: e.target.value })} placeholder="0" aria-label={`${p.person || 'Their'} share`} />
+              <input className="input sp-amt" inputMode="decimal" value={p.amount} onChange={(e) => setPerson(i, { amount: e.target.value })} placeholder="0" aria-label={tr("{0} share", [p.person || 'Their'])} />
             )}
             {people.length > 1 && (
-              <button type="button" className="icon-btn" aria-label="Remove" onClick={() => setPeople((ps) => ps.filter((_, j) => j !== i))}>
+              <button type="button" className="icon-btn" aria-label={tr("Remove")} onClick={() => setPeople((ps) => ps.filter((_, j) => j !== i))}>
                 <X size={14} />
               </button>
             )}
@@ -439,11 +440,11 @@ export function SplitBill({
         ))}
       </datalist>
       <button type="button" className="btn block" onClick={() => setPeople((ps) => [...ps, { person: '', amount: '' }])} style={{ marginBottom: 12 }}>
-        <Plus size={15} aria-hidden /> Add person
+        <Plus size={15} aria-hidden /> {tr("Add person")}
       </button>
-      {mode === 'amount' && totalMinor > 0 && sum !== totalMinor && <p className="error-text">Shares add up to {money(sum)} — {sum < totalMinor ? `${money(totalMinor - sum)} short` : `${money(sum - totalMinor)} too much`}.</p>}
+      {mode === 'amount' && totalMinor > 0 && sum !== totalMinor && <p className="error-text">{tr("Shares add up to")} {money(sum)} — {sum < totalMinor ? tr("{0} short", [money(totalMinor - sum)]) : tr("{0} too much", [money(sum - totalMinor)])}.</p>}
       <div className="field">
-        <span className="label">Your share counts as</span>
+        <span className="label">{tr("Your share counts as")}</span>
         <div className="mp-chips">
           {cats.map((c) => (
             <button key={c.id} type="button" role="radio" aria-checked={category === c.id} className="vl-pill mp-pick" onClick={() => setCategory(c.id)}>
@@ -453,7 +454,7 @@ export function SplitBill({
         </div>
       </div>
       <div className="field">
-        <span className="label">Paid from</span>
+        <span className="label">{tr("Paid from")}</span>
         <div className="mp-chips">
           {snap.accounts.map((a) => (
             <button key={a.id} type="button" role="radio" aria-checked={account === a.id} className="vl-pill mp-pick" onClick={() => setAccount(a.id)}>
@@ -461,17 +462,17 @@ export function SplitBill({
             </button>
           ))}
           <button type="button" role="radio" aria-checked={account === ''} className="vl-pill mp-pick" onClick={() => setAccount('')}>
-            No account
+            {tr("No account")}
           </button>
         </div>
       </div>
       <div className="field" style={{ marginBottom: 6 }}>
-        <label htmlFor="sp-due">Remind me to collect on (optional)</label>
+        <label htmlFor="sp-due">{tr("Remind me to collect on (optional)")}</label>
         <input id="sp-due" type="date" className="input" value={due} onChange={(e) => setDue(e.target.value)} />
       </div>
       {ok && (
         <p className="dim small sp-summary">
-          {account ? `${money(totalMinor)} out of ${snap.accounts.find((a) => a.id === account)?.name}` : `${money(totalMinor)} total`} · your {money(mine)} counts as {moneyCategory(category).name} · {money(totalMinor - mine)} goes to Utang.
+          {account ? tr("{0} out of {1}", [money(totalMinor), snap.accounts.find((a) => a.id === account)?.name]) : tr("{0} total", [money(totalMinor)])} {tr("· your")} {money(mine)} {tr("counts as")} {moneyCategory(category).name} · {money(totalMinor - mine)} {tr("goes to Utang.")}
         </p>
       )}
     </Dialog>
@@ -523,18 +524,18 @@ export function ExpenseSearch({ snap, onClose, onOpenTx }: { snap: VaultSnapshot
   const searching = words.length > 0 || category || account || kind || range !== 'all';
   const cats = allMoneyCategories();
   return (
-    <Dialog placement="center" size="wide" title="Search expenses" onClose={onClose}>
+    <Dialog placement="center" size="wide" title={tr("Search expenses")} onClose={onClose}>
       <div className="evc-search-box sx-box" role="search">
         <Search size={16} aria-hidden />
-        <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes, categories, accounts, amounts…" aria-label="Search records" autoComplete="off" data-autofocus />
+        <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search notes, categories, accounts, amounts…")} aria-label={tr("Search records")} autoComplete="off" data-autofocus />
       </div>
       <div className="mp-chips sx-chips">
         {(
           [
-            ['all', 'All time'],
-            ['month', 'This month'],
+            ['all', tr("All time")],
+            ['month', tr("This month")],
             ['3m', 'Last 3 months'],
-            ['year', 'This year']
+            ['year', tr("This year")]
           ] as [Range, string][]
         ).map(([r, l]) => (
           <button key={r} type="button" className="vl-pill mp-pick" role="radio" aria-checked={range === r} onClick={() => setRange(r)}>
@@ -542,14 +543,14 @@ export function ExpenseSearch({ snap, onClose, onOpenTx }: { snap: VaultSnapshot
           </button>
         ))}
         <button type="button" className="vl-pill" onClick={() => setFilters((v) => !v)} aria-expanded={filters}>
-          {filters ? 'Hide filters' : '+ Filter'}
+          {filters ? tr("Hide filters") : tr("+ Filter")}
         </button>
       </div>
       {(category || account || kind) && (
         <div className="mp-chips sx-chips">
           {kind && (
             <button type="button" className="vl-pill mp-pick" aria-checked role="radio" onClick={() => setKind('')}>
-              {kind === 'expense' ? 'Expenses' : 'Money in'} <X size={12} aria-hidden />
+              {kind === 'expense' ? tr("Expenses") : tr("Money in")} <X size={12} aria-hidden />
             </button>
           )}
           {category && (
@@ -566,21 +567,21 @@ export function ExpenseSearch({ snap, onClose, onOpenTx }: { snap: VaultSnapshot
       )}
       {filters && (
         <div className="sx-filters">
-          <select className="select" value={kind} onChange={(e) => setKind(e.target.value as '' | 'expense' | 'income')} aria-label="Type">
-            <option value="">Expenses and money in</option>
-            <option value="expense">Expenses only</option>
-            <option value="income">Money in only</option>
+          <select className="select" value={kind} onChange={(e) => setKind(e.target.value as '' | 'expense' | 'income')} aria-label={tr("Type")}>
+            <option value="">{tr("Expenses and money in")}</option>
+            <option value="expense">{tr("Expenses only")}</option>
+            <option value="income">{tr("Money in only")}</option>
           </select>
-          <select className="select" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category">
-            <option value="">All categories</option>
+          <select className="select" value={category} onChange={(e) => setCategory(e.target.value)} aria-label={tr("Category")}>
+            <option value="">{tr("All categories")}</option>
             {cats.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
           </select>
-          <select className="select" value={account} onChange={(e) => setAccount(e.target.value)} aria-label="Account">
-            <option value="">All accounts</option>
+          <select className="select" value={account} onChange={(e) => setAccount(e.target.value)} aria-label={tr("Account")}>
+            <option value="">{tr("All accounts")}</option>
             {snap.accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
@@ -593,23 +594,23 @@ export function ExpenseSearch({ snap, onClose, onOpenTx }: { snap: VaultSnapshot
         <div className="mp-card sx-sum">
           <span className="grow">
             <span className="label">
-              {results.length} record{results.length === 1 ? '' : 's'}
+              {results.length} {tr("record")}{results.length === 1 ? '' : 's'}
             </span>
             <span className="mp-big">{money(spent || got)}</span>
           </span>
           {results.length > 0 && spent > 0 && (
             <span className="dim small" style={{ textAlign: 'right' }}>
-              avg {money(Math.round(spent / Math.max(1, results.filter((t) => t.kind === 'expense').length) / 100) * 100)}
+              {tr("avg")} {money(Math.round(spent / Math.max(1, results.filter((t) => t.kind === 'expense').length) / 100) * 100)}
               <br />
-              since {parseDay(results[results.length - 1]!.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+              {tr("since")} {parseDay(results[results.length - 1]!.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
             </span>
           )}
         </div>
       )}
       {!searching ? (
-        <p className="dim small" style={{ margin: '14px 2px' }}>Type a word like “jollibee”, a category or an amount, or pick filters. Searches every month.</p>
+        <p className="dim small" style={{ margin: '14px 2px' }}>{tr("Type a word like “jollibee”, a category or an amount, or pick filters. Searches every month.")}</p>
       ) : results.length === 0 ? (
-        <p className="dim small" style={{ margin: '14px 2px' }}>Nothing found.</p>
+        <p className="dim small" style={{ margin: '14px 2px' }}>{tr("Nothing found.")}</p>
       ) : (
         <>
           {groups.map(([m, items]) => (
@@ -643,7 +644,7 @@ export function ExpenseSearch({ snap, onClose, onOpenTx }: { snap: VaultSnapshot
           ))}
           {results.length > shown && (
             <button type="button" className="btn block" onClick={() => setShown((v) => v + 60)}>
-              Show more ({results.length - shown})
+              {tr("Show more (")}{results.length - shown})
             </button>
           )}
         </>
