@@ -1,3 +1,5 @@
+import type { ReceiptDetails } from './receipt';
+
 // Expense & income tracking: categories, the quick-entry parser ("lunch 150",
 // "salary 30k") and small date / money helpers. Pure functions, shared by the
 // vault core (validation) and the renderer.
@@ -15,6 +17,8 @@ export interface Transaction {
   date: string;
   /** Money account the record belongs to (Cash, GCash…); optional. */
   accountId?: string;
+  /** What a scanned receipt said: items, VAT, cash and change (inside the encrypted vault). */
+  receipt?: ReceiptDetails;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +31,7 @@ export interface TransactionInput {
   note: string;
   date: string;
   accountId?: string;
+  receipt?: ReceiptDetails;
 }
 
 /** Where the money is: wallet cash, an e-wallet or a bank account. */

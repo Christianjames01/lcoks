@@ -9756,3 +9756,30 @@ button.mp-card {
   width: 30px;
   height: 30px;
 }
+
+/* Scanned receipt: items, VAT, total, cash and change. */
+.receipt-card {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2, var(--surface));
+  font-size: 13px;
+}
+.receipt-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.receipt-head > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.receipt-head .dim { font-size: 12px; }
+.receipt-items { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.receipt-items th { font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); text-align: right; padding: 0 0 4px; }
+.receipt-items td { padding: 4px 0; text-align: right; border-top: 1px dashed var(--border); }
+.receipt-items th:nth-child(1), .receipt-items td:nth-child(1) { text-align: left; width: 2.2em; }
+.receipt-items th:nth-child(2), .receipt-items td:nth-child(2) { text-align: left; padding-right: 8px; word-break: break-word; }
+.receipt-items td:nth-child(3) { color: var(--muted); white-space: nowrap; padding-right: 8px; }
+.receipt-items td:nth-child(4) { white-space: nowrap; }
+.receipt-sums { margin: 8px 0 0; border-top: 1px solid var(--border); padding-top: 6px; font-variant-numeric: tabular-nums; }
+.receipt-sums > div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.receipt-sums dt { color: var(--muted); }
+.receipt-sums dd { margin: 0; }
+.receipt-sums .receipt-total { font-weight: 600; font-size: 14px; padding: 4px 0; }
+.receipt-sums .receipt-total dt { color: inherit; }
+.receipt-card .notice { margin-top: 8px; }

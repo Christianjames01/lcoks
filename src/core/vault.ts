@@ -1337,12 +1337,14 @@ export class VaultCore {
         const existing = d.transactions.find((x) => x.id === t.id);
         if (!existing) throw new AppError('NOT_FOUND', 'Record not found.');
         Object.assign(existing, { kind: t.kind, amount: t.amount, category: t.category, note: t.note, date: t.date, updatedAt: now });
+        if (t.receipt) existing.receipt = t.receipt;
+        else delete existing.receipt;
         if (accountId) existing.accountId = accountId;
         else delete existing.accountId;
         return { ...existing };
       }
       if (d.transactions.length >= LIMITS.transactions) throw new AppError('LIMIT', 'Too many records.');
-      const rec: Transaction = { id: globalThis.crypto.randomUUID(), kind: t.kind, amount: t.amount, category: t.category, note: t.note, date: t.date, ...(accountId ? { accountId } : {}), createdAt: now, updatedAt: now };
+      const rec: Transaction = { id: globalThis.crypto.randomUUID(), kind: t.kind, amount: t.amount, category: t.category, note: t.note, date: t.date, ...(accountId ? { accountId } : {}), ...(t.receipt ? { receipt: t.receipt } : {}), createdAt: now, updatedAt: now };
       d.transactions.push(rec);
       return { ...rec };
     });

@@ -72,9 +72,10 @@ import {
 import type { KnockInfo } from '../../shared/api';
 import { COFFEE, usualCoffee } from '../../shared/coffee';
 import { accountMoves, budgetFor, budgetNudge, type Transfer } from '../../shared/plans';
-import { ExpenseSearch, ReceiptButton, SplitBill, TransferEditor, TransferRow, useReceiptScan } from '../components/MoneyMore';
+import { ExpenseSearch, ReceiptButton, ReceiptCard, SplitBill, TransferEditor, TransferRow, useReceiptScan } from '../components/MoneyMore';
 import { PlanDialogs, PlansBar, type PlanView } from '../components/MoneyPlans';
 import type { VaultSnapshot } from '../../shared/types';
+import type { ReceiptDetails } from '../../shared/receipt';
 import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
 import { CategoryDetail } from '../components/CategoryDetail';
@@ -789,7 +790,7 @@ function TxEditor({
   balances: Map<string, number>;
   money: (v: number, o?: { sign?: boolean }) => string;
   onClose: () => void;
-  onSave: (input: { id?: string; kind: TxKind; amount: number; category: string; note: string; date: string; accountId?: string }) => Promise<void>;
+  onSave: (input: { id?: string; kind: TxKind; amount: number; category: string; note: string; date: string; accountId?: string; receipt?: ReceiptDetails }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   /** A category was added from the picker: reload the vault so it shows. */
   onCategoriesChanged: () => Promise<void>;
@@ -810,6 +811,7 @@ function TxEditor({
   const [newCategory, setNewCategory] = useState(false);
   const receipt = useReceiptScan(snap);
   const [scanned, setScanned] = useState(false);
+  const [details, setDetails] = useState<ReceiptDetails | undefined>(editing.tx?.receipt);
   const catActions = useCategoryActions(onCategoriesChanged, (c) => {
     if (category === c.id) setCategory(defaultCategory(kind));
   });
@@ -827,7 +829,7 @@ function TxEditor({
     setBusy(true);
     setError(null);
     try {
-      await onSave({ id: existing?.id, kind, amount: minor, category, note: note.trim(), date, accountId });
+      await onSave({ id: existing?.id, kind, amount: minor, category, note: note.trim(), date, accountId, ...(details ? { receipt: details } : {}) });
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
@@ -884,11 +886,13 @@ function TxEditor({
                 // Category from the store's name (quick-entry words: "jollibee" → Food & Drinks).
                 const guess = r.store ? parseQuick(`${r.store} 1`, new Date(), [])?.category : undefined;
                 if (guess && guess !== 'other') setCategory(guess);
+                setDetails(r.details);
                 setScanned(true);
               }}
             />
           )}
           {scanned && <div className="notice scan-notice">Filled from the receipt. Check the amount, store and date before saving.</div>}
+          {details && <ReceiptCard r={details} currency={currency} onRemove={() => setDetails(undefined)} />}
           {!existing && kind === 'expense' && (
             <button
               type="button"

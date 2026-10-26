@@ -2,6 +2,7 @@ import { ArrowRight, ArrowRightLeft, Camera, Plus, Search, X } from 'lucide-reac
 import { useMemo, useState } from 'react';
 import { MAX_AMOUNT, allMoneyCategories, balances, dayKey, formatMoney, moneyCategory, monthOf, parseDay, type Transaction } from '../../shared/money';
 import { accountMoves, equalShares, type Transfer } from '../../shared/plans';
+import { itemsMismatch, readReceipt, type ReceiptDetails } from '../../shared/receipt';
 import { parseReceipt, type ReceiptResult } from '../../shared/scan';
 import type { VaultSnapshot } from '../../shared/types';
 import { api, errorMessage, unwrap } from '../lib/api';
@@ -26,7 +27,7 @@ const shortDay = (d: string) => parseDay(d).toLocaleDateString(undefined, { mont
 export function useReceiptScan(snap: VaultSnapshot) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const scan = async (): Promise<ReceiptResult | null> => {
+  const scan = async (): Promise<(ReceiptResult & { details?: ReceiptDetails }) | null> => {
     if (busy) return null;
     setBusy(true);
     try {
@@ -34,12 +35,17 @@ export function useReceiptScan(snap: VaultSnapshot) {
       if (!photo) return null;
       const lines = await unwrap(api.app.recognizeText(photo.jpeg));
       const r = parseReceipt(lines, snap.accounts);
+      const d = readReceipt(lines);
+      const details = d.items.length || d.total ? d : undefined;
+      if (r.amount === null && details?.total) r.amount = details.total;
+      if (!r.store && details?.store) r.store = details.store;
+      if (details && !details.total && r.amount) details.total = r.amount;
       if (r.amount === null && !r.store) {
         toast('No total found. Try again with the whole receipt flat, in good light.', 'error');
         return null;
       }
       api.app.haptic('success');
-      return r;
+      return { ...r, ...(details ? { details } : {}) };
     } catch (e) {
       toast(errorMessage(e), 'error');
       return null;
@@ -48,6 +54,81 @@ export function useReceiptScan(snap: VaultSnapshot) {
     }
   };
   return { scan, busy };
+}
+
+/** What the receipt said: every item with quantity, price and amount, then VAT, total, cash and change. */
+export function ReceiptCard({ r, currency, onRemove }: { r: ReceiptDetails; currency: string; onRemove?: () => void }) {
+  const m = (v: number) => formatMoney(v, currency);
+  const rows: [string, number, string?][] = [
+    ['Subtotal', r.subtotal],
+    ['Discount', r.discount ? -r.discount : 0],
+    ['Service charge', r.serviceCharge],
+    ['VATable sales', r.vatable],
+    ['VAT (12%)', r.vat],
+    ['VAT-exempt', r.vatExempt]
+  ];
+  return (
+    <section className="receipt-card" aria-label="Receipt">
+      <header className="receipt-head">
+        <div>
+          <strong>{r.store || 'Receipt'}</strong>
+          {(r.branch || r.number) && <span className="dim">{[r.branch, r.number && `No. ${r.number}`].filter(Boolean).join(' · ')}</span>}
+        </div>
+        {onRemove && (
+          <button type="button" className="icon-btn sm" onClick={onRemove} aria-label="Remove receipt details">
+            <X size={15} aria-hidden />
+          </button>
+        )}
+      </header>
+      {r.items.length > 0 && (
+        <table className="receipt-items">
+          <thead>
+            <tr>
+              <th scope="col">Qty</th>
+              <th scope="col">Item</th>
+              <th scope="col">Price</th>
+              <th scope="col">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {r.items.map((it, i) => (
+              <tr key={i}>
+                <td>{it.qty}</td>
+                <td>{it.name}</td>
+                <td>{m(it.price)}</td>
+                <td>{m(it.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <dl className="receipt-sums">
+        {rows.filter(([, v]) => v).map(([k, v]) => (
+          <div key={k}>
+            <dt>{k}</dt>
+            <dd>{m(v)}</dd>
+          </div>
+        ))}
+        <div className="receipt-total">
+          <dt>Total</dt>
+          <dd>{m(r.total)}</dd>
+        </div>
+        {r.payment && (
+          <div>
+            <dt>Paid with</dt>
+            <dd>{r.payment}{r.cash ? ` · ${m(r.cash)}` : ''}</dd>
+          </div>
+        )}
+        {r.change > 0 && (
+          <div>
+            <dt>Change</dt>
+            <dd>{m(r.change)}</dd>
+          </div>
+        )}
+      </dl>
+      {itemsMismatch(r) && <div className="notice">Some items may be missing or misread — the items don't add up to the subtotal.</div>}
+    </section>
+  );
 }
 
 export function ReceiptButton({ busy, onClick }: { busy: boolean; onClick: () => void }) {

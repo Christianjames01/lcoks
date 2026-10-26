@@ -21,6 +21,7 @@ import {
 import { BUILTIN_CATEGORIES, BUILTIN_IDS } from '../shared/categories';
 import { MAX_TASK_CATEGORIES, TASK_CATEGORY_IDS, type Task, type TaskCategory, type TaskInput, type TaskReminder } from '../shared/tasks';
 import { CUSTOM_MONEY_ICONS, DEFAULT_ACCOUNTS, MAX_ACCOUNTS, MAX_AMOUNT, MAX_MONEY_CATEGORIES, MONEY_CATEGORIES, isHexColor, MONEY_CATEGORY_IDS, defaultCategory, isDayKey, type AccountKind, type MoneyAccount, type MoneyCategory, type MoneyCategoryEdit, type MoneyIcon, type Transaction, type TransactionInput } from '../shared/money';
+import { validateReceipt } from '../shared/receipt';
 import { LIMITS_PLANS, validateBill, validateCategoryBudgets, validateDebt, validateGoal, validateTransfer } from './plansSchema';
 import {
   ACCENT_COLORS,
@@ -500,7 +501,8 @@ export function validateTransactionInput(input: unknown, custom: readonly MoneyC
   const category = cat && cat.kind === kind && !edits[cat.id]?.hidden ? cat.id : defaultCategory(kind);
   if (!isDayKey(i.date)) throw new ValidationError('date', 'Choose a valid date.');
   const accountId = typeof i.accountId === 'string' && ID_RE.test(i.accountId) ? i.accountId : undefined;
-  return { id, kind, amount: i.amount as number, category, note: str(i.note, 'note', LIMITS.title).trim(), date: i.date, ...(accountId ? { accountId } : {}) };
+  const receipt = validateReceipt(i.receipt);
+  return { id, kind, amount: i.amount as number, category, note: str(i.note, 'note', LIMITS.title).trim(), date: i.date, ...(accountId ? { accountId } : {}), ...(receipt ? { receipt } : {}) };
 }
 
 /** One calendar event from the renderer or the decrypted payload. `id` is optional for a new one. */
