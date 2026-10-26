@@ -80,6 +80,8 @@ import { ConfirmDialog, Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
 import { CategoryDetail } from '../components/CategoryDetail';
 import { CoffeeCorner } from '../components/CoffeeCorner';
+import { HeatFilterBar, HeatInsights, HeatLegend, YearHeat } from '../components/SpendingHeat';
+import { heatLevel, type HeatFilter } from '../../shared/heat';
 import { EditedBuiltins, MoneyCategoryEditor, MoneyCategoryList, useCategoryActions } from '../components/MoneyCategories';
 import { ColorPicker } from '../components/ColorPicker';
 import { HoldArea } from '../components/HoldActions';
@@ -173,15 +175,18 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
 
   const inMonth = useMemo(() => snap.transactions.filter((t) => monthOf(t.date) === month), [snap.transactions, month]);
   const sums = useMemo(() => totals(inMonth), [inMonth]);
+  const [heatFilter, setHeatFilter] = useState<HeatFilter>({});
+  // Calendar colours follow the heatmap filter; cash-in dots always show.
   const byDay = useMemo(() => {
     const m = new Map<string, { expense: number; income: number }>();
     for (const t of inMonth) {
+      if (t.kind === 'expense' && ((heatFilter.category && t.category !== heatFilter.category) || (heatFilter.accountId && t.accountId !== heatFilter.accountId))) continue;
       const d = m.get(t.date) ?? { expense: 0, income: 0 };
       d[t.kind] += t.amount;
       m.set(t.date, d);
     }
     return m;
-  }, [inMonth]);
+  }, [inMonth, heatFilter]);
   const dayList = useMemo(
     () => snap.transactions.filter((t) => t.date === selected).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [snap.transactions, selected]
@@ -197,6 +202,7 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   const [transfer, setTransfer] = useState<{ t?: Transfer } | null>(null);
   const [split, setSplit] = useState<{ total?: number; note?: string; category?: string; accountId?: string; date?: string } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [yearOpen, setYearOpen] = useState(false);
   const dayTransfers = snap.transfers.filter((t) => t.date === selected);
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [managing, setManaging] = useState(false);
@@ -274,6 +280,11 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
   };
 
   const maxDay = Math.max(1, ...[...byDay.values()].map((d) => d.expense));
+  // Over-budget outline: only for everything (a category's days aren't measured against the whole budget).
+  const dailyBudget =
+    monthlyBudget > 0 && !heatFilter.category && !heatFilter.accountId
+      ? Math.round(monthlyBudget / new Date(parseDay(`${month}-01`).getFullYear(), parseDay(`${month}-01`).getMonth() + 1, 0).getDate() / 100) * 100
+      : 0;
   const budgetLeft = monthlyBudget - sums.expense;
   const budgetPct = monthlyBudget > 0 ? Math.min(100, (sums.expense / monthlyBudget) * 100) : 0;
   const isCurrent = month === monthOf(today);
@@ -420,7 +431,9 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
 
         <div className="money-grid">
           <section className="card cal" aria-label={`Calendar, ${monthLabel(month)}`}>
-            <Calendar month={month} today={today} selected={selected} byDay={byDay} maxDay={maxDay} money={money} onSelect={setSelected} />
+            <HeatFilterBar txs={snap.transactions} month={month} accounts={snap.accounts} filter={heatFilter} onChange={setHeatFilter} />
+            <Calendar month={month} today={today} selected={selected} byDay={byDay} maxDay={maxDay} dailyBudget={dailyBudget} money={money} onSelect={setSelected} />
+            <HeatLegend onYear={() => setYearOpen(true)} cashIn={[...byDay.values()].some((d) => d.income > 0)} overBudget={dailyBudget ? money(dailyBudget) : undefined} />
           </section>
 
           <section className="card day-panel" aria-label={dayLabel(selected)}>
@@ -468,6 +481,30 @@ export function MoneyView({ snap, mobile, onChanged, addRequest, onAddHandled }:
             )}
           </section>
         </div>
+
+        <HeatInsights txs={snap.transactions} month={month} today={today} filter={heatFilter} money={(v) => money(v)} onDay={(d) => {
+          setSelected(d);
+          document.querySelector('.day-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }} />
+        {yearOpen && (
+          <YearHeat
+            txs={snap.transactions}
+            start={Number(month.slice(0, 4))}
+            filter={heatFilter}
+            onDay={(d) => {
+              setMonth(monthOf(d));
+              setSelected(d);
+              setYearOpen(false);
+            }}
+            money={(v) => money(v)}
+            onClose={() => setYearOpen(false)}
+            onMonth={(m) => {
+              setMonth(m);
+              setSelected(m === monthOf(today) ? today : `${m}-01`);
+              setYearOpen(false);
+            }}
+          />
+        )}
 
         <CoffeeCorner snap={snap} month={month} money={(v) => money(v)} onBudget={() => setSetup(true)} onChanged={onChanged} />
 
@@ -626,6 +663,7 @@ function Calendar({
   selected,
   byDay,
   maxDay,
+  dailyBudget,
   money,
   onSelect
 }: {
@@ -634,6 +672,8 @@ function Calendar({
   selected: string;
   byDay: Map<string, { expense: number; income: number }>;
   maxDay: number;
+  /** Days that spent more than this get an outline; 0 = no budget. */
+  dailyBudget: number;
   money: (v: number, o?: { compact?: boolean }) => string;
   onSelect: (day: string) => void;
 }) {
@@ -666,8 +706,8 @@ function Calendar({
       {cells.map((day, i) => {
         if (!day) return <span key={`x${i}`} className="cal-pad" aria-hidden />;
         const d = byDay.get(day);
-        const level = d?.expense ? Math.min(4, Math.ceil((d.expense / maxDay) * 4)) : 0;
-        const label = `${dayLabel(day)}${d?.expense ? `, spent ${money(d.expense)}` : ''}${d?.income ? `, income ${money(d.income)}` : ''}`;
+        const level = heatLevel(d?.expense ?? 0, maxDay);
+        const label = `${dayLabel(day)}${d?.expense ? `, spent ${money(d.expense)}` : ''}${dailyBudget > 0 && (d?.expense ?? 0) > dailyBudget ? ', over the daily budget' : ''}${d?.income ? `, income ${money(d.income)}` : ''}`;
         return (
           <button
             key={day}
@@ -676,6 +716,7 @@ function Calendar({
             className="cal-day"
             data-day={day}
             data-level={level}
+            data-over={dailyBudget > 0 && (d?.expense ?? 0) > dailyBudget ? '' : undefined}
             aria-selected={day === selected}
             aria-current={day === today ? 'date' : undefined}
             aria-label={label}
